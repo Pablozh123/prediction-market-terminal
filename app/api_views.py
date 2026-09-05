@@ -48,6 +48,9 @@ RESEARCH_FILES = {
     # an alias: the file is arb_scan.json and the address gets typed from it.
     "arb-scan": "arb_scan",
     "arb_scan": "arb_scan",
+    # Our resolution pass over the scanner's journal (schema
+    # arb_resolutions/1), written by scripts/resolve_arb_paper.py.
+    "arb-resolutions": "arb_resolutions",
 }
 
 

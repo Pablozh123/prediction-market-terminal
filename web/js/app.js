@@ -226,7 +226,7 @@ class Terminal {
     // when its tab is opened — null until then.
     // wallet: one entry per analysed address — { herkunft: 'loading' | 'live'
     // | 'fehler', data, fehler, status, retryAfter }.
-    this.liveData = { leaderboard: null, cross: null, arbScan: null, risk: null, riskLog: null, alerts: null, copy: null, portfolio: null, research: {}, backtest: null, walletDetail: {}, wallet: {}, riskBook: {}, walletSimilar: {}, walletEntity: {}, graph: null };
+    this.liveData = { leaderboard: null, cross: null, arbScan: null, arbResolutions: null, risk: null, riskLog: null, alerts: null, copy: null, portfolio: null, research: {}, backtest: null, walletDetail: {}, wallet: {}, riskBook: {}, walletSimilar: {}, walletEntity: {}, graph: null };
     // Venue-weite Suche (/api/search): die Palette filtert sonst nur die
     // geladenen Top-Volumen-Maerkte — alles ausserhalb davon fand sie nie.
     // q traegt die Anfrage, zu der die Treffer gehoeren; status ist
@@ -932,6 +932,10 @@ class Terminal {
       // scanner: executable edge"). It is one small request, asked for
       // first so it does not wait behind the pair scan below.
       const scanner = this.holen('arbScan', '/api/research/arb-scan');
+      // Our resolution pass over the same journal (arb_resolutions.json);
+      // it changes only when the script runs, so the 60 s refresh below
+      // leaves it alone.
+      const aufloesung = this.holen('arbResolutions', '/api/research/arb-resolutions');
       // While the request runs the page shows a loading line; the server
       // already applies the honesty gate (similarity >= 0.5, volume on both
       // venues), so nothing here lowers a threshold to make rows appear.
@@ -940,6 +944,7 @@ class Terminal {
       });
       this.herkunft.cross = this.herkunftAus('cross', this.crossPairs);
       await scanner;
+      await aufloesung;
     } else if (page === 'risk') {
       // Bewusst nicht mehr von der Startseite: der erste Aufbau paged einen Tag
       // Prints und schlaegt Marktkategorien nach, das blockierte die Overview.

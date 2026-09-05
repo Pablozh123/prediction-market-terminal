@@ -1,6 +1,6 @@
 {
   "schema": "arb_scan/1",
-  "generated_at": "2026-09-05T04:43:50.875Z",
+  "generated_at": "2026-09-05T13:43:39.236Z",
   "generator": {
     "repo": "prediction-alpha-bot",
     "git_sha": "38da47f4f7a2",
@@ -8,15 +8,15 @@
   },
   "disclaimer": "Paper-only research. Not trading advice.",
   "health": {
-    "last_cycle_at": "2026-09-05T04:43:50.864Z",
-    "cycles_24h": 2908,
-    "errors_24h": 4,
+    "last_cycle_at": "2026-09-05T13:43:39.227Z",
+    "cycles_24h": 1996,
+    "errors_24h": 8,
     "scan_interval_ms": 10000,
     "alive": true
   },
   "summary": {
-    "raw_candidates_24h": 1952761,
-    "validated_24h": 7,
+    "raw_candidates_24h": 1341689,
+    "validated_24h": 0,
     "paper_fired_24h": 0,
     "open_paper_positions": 167,
     "resolved_paper_trades": 0,
@@ -27,7 +27,7 @@
     {
       "id": "neg_risk_bracket_arb",
       "label": "NEG_RISK bracket sum-arb (Polymarket)",
-      "raw_24h": 10162,
+      "raw_24h": 3990,
       "validated_24h": 0,
       "paper_24h": 0,
       "top_rejection": "duration_too_long_for_short_arb"
@@ -35,7 +35,7 @@
     {
       "id": "within_market_fast_arb",
       "label": "Within-market YES+NO (Polymarket)",
-      "raw_24h": 1939532,
+      "raw_24h": 1334636,
       "validated_24h": 0,
       "paper_24h": 0,
       "top_rejection": "non_positive_executable_edge"
@@ -51,8 +51,8 @@
     {
       "id": "cross_venue_yes_no_arb",
       "label": "Cross-venue YES/NO (Kalshi x Polymarket)",
-      "raw_24h": 3067,
-      "validated_24h": 7,
+      "raw_24h": 3063,
+      "validated_24h": 0,
       "paper_24h": 0,
       "top_rejection": "compound_kalshi_market"
     }
@@ -60,36 +60,28 @@
   "rejections_24h": [
     {
       "reason": "non_positive_executable_edge",
-      "count": 145063
+      "count": 99876
     },
     {
       "reason": "duration_too_long_for_short_arb",
-      "count": 5812
-    },
-    {
-      "reason": "partial_basket_invalid",
-      "count": 4851
+      "count": 3985
     },
     {
       "reason": "compound_kalshi_market",
-      "count": 2784
-    },
-    {
-      "reason": "below_min_net_edge",
-      "count": 10
+      "count": 2794
     },
     {
       "reason": "non_positive_net_edge_after_fees",
-      "count": 1
+      "count": 9
     },
     {
-      "reason": "unknown_duration_for_short_arb",
+      "reason": "below_min_net_edge",
       "count": 1
     }
   ],
   "opportunities": [
     {
-      "id": "9ca73346-ea5c-487a-ab78-ceb104f5ce75",
+      "id": "84ebe281-a089-4dd3-be12-bfd0a94650ba",
       "strategy": "neg_risk_bracket_arb",
       "venues": [
         "polymarket"
@@ -132,10 +124,10 @@
         {
           "venue": "polymarket",
           "side": "NO",
-          "price": 0.021,
-          "size_usd": 0.0525,
+          "price": 0.024,
+          "size_usd": 0.06,
           "role": "taker",
-          "fee_usd": 0.0026
+          "fee_usd": 0.0029
         },
         {
           "venue": "polymarket",
@@ -164,27 +156,27 @@
         {
           "venue": "polymarket",
           "side": "NO",
-          "price": 0.038,
-          "size_usd": 0.095,
+          "price": 0.037,
+          "size_usd": 0.0925,
           "role": "taker",
-          "fee_usd": 0.0046
+          "fee_usd": 0.0045
         }
       ],
-      "gross_edge_bps": 1458.03,
-      "executable_net_edge_bps": 1448.5,
-      "depth_usd": 8573.4288,
-      "capital_usd": 17.455,
-      "days_to_resolution": 28.8029,
-      "annualized_pct": 183.56,
+      "gross_edge_bps": 1454.75,
+      "executable_net_edge_bps": 1445.08,
+      "depth_usd": 8665.044,
+      "capital_usd": 17.46,
+      "days_to_resolution": 28.4281,
+      "annualized_pct": 185.54,
       "status": "rejected",
       "rejection_reason": "duration_too_long_for_short_arb",
       "rule_match": "unverified",
-      "first_seen_at": "2026-09-04T04:46:16.919Z",
-      "last_seen_at": "2026-09-05T04:43:45.420Z",
-      "open_seconds": 86248
+      "first_seen_at": "2026-09-04T13:46:20.141Z",
+      "last_seen_at": "2026-09-05T13:43:33.320Z",
+      "open_seconds": 86233
     },
     {
-      "id": "606c0829-286a-4221-b3f7-c8dc5294e003",
+      "id": "9726695d-cef5-4595-95d0-2289f5f989ff",
       "strategy": "neg_risk_bracket_arb",
       "venues": [
         "polymarket"
@@ -203,10 +195,10 @@
         {
           "venue": "polymarket",
           "side": "NO",
-          "price": 0.85,
-          "size_usd": 2.4285,
+          "price": 0.86,
+          "size_usd": 2.4571,
           "role": "taker",
-          "fee_usd": 0.0182
+          "fee_usd": 0.0172
         },
         {
           "venue": "polymarket",
@@ -219,18 +211,18 @@
         {
           "venue": "polymarket",
           "side": "NO",
-          "price": 0.961,
-          "size_usd": 2.7457,
+          "price": 0.959,
+          "size_usd": 2.74,
           "role": "taker",
-          "fee_usd": 0.0054
+          "fee_usd": 0.0056
         },
         {
           "venue": "polymarket",
           "side": "NO",
-          "price": 0.93,
-          "size_usd": 2.6571,
+          "price": 0.94,
+          "size_usd": 2.6857,
           "role": "taker",
-          "fee_usd": 0.0093
+          "fee_usd": 0.0081
         },
         {
           "venue": "polymarket",
@@ -243,35 +235,35 @@
         {
           "venue": "polymarket",
           "side": "NO",
-          "price": 0.797,
-          "size_usd": 2.2771,
+          "price": 0.796,
+          "size_usd": 2.2743,
           "role": "taker",
-          "fee_usd": 0.0231
+          "fee_usd": 0.0232
         },
         {
           "venue": "polymarket",
           "side": "NO",
-          "price": 0.84,
-          "size_usd": 2.4,
+          "price": 0.8,
+          "size_usd": 2.2857,
           "role": "taker",
-          "fee_usd": 0.0192
+          "fee_usd": 0.0229
         }
       ],
-      "gross_edge_bps": 82.1,
-      "executable_net_edge_bps": 18.29,
-      "depth_usd": 3784.5827,
-      "capital_usd": 19.8368,
-      "days_to_resolution": 118.0113,
-      "annualized_pct": 0.57,
+      "gross_edge_bps": 115.61,
+      "executable_net_edge_bps": 50.7,
+      "depth_usd": 7235.0941,
+      "capital_usd": 19.7711,
+      "days_to_resolution": 117.6364,
+      "annualized_pct": 1.57,
       "status": "rejected",
       "rejection_reason": "duration_too_long_for_short_arb",
       "rule_match": "unverified",
-      "first_seen_at": "2026-09-04T04:46:17.148Z",
-      "last_seen_at": "2026-09-05T04:43:45.711Z",
-      "open_seconds": 86248
+      "first_seen_at": "2026-09-04T13:46:20.532Z",
+      "last_seen_at": "2026-09-05T13:43:33.617Z",
+      "open_seconds": 86233
     },
     {
-      "id": "76420dc2-1827-46f8-a890-35afeacd8220",
+      "id": "a1b9b5c8-c6cd-4544-b69a-0312be86eb21",
       "strategy": "within_market_fast_arb",
       "venues": [
         "polymarket"
@@ -298,19 +290,19 @@
       ],
       "gross_edge_bps": -9.99,
       "executable_net_edge_bps": -13.47,
-      "depth_usd": 1086904.3325,
+      "depth_usd": 1087185.8454,
       "capital_usd": 20,
-      "days_to_resolution": 58.8029,
+      "days_to_resolution": 58.4281,
       "annualized_pct": -0.84,
       "status": "rejected",
       "rejection_reason": "non_positive_executable_edge",
       "rule_match": "unverified",
-      "first_seen_at": "2026-09-04T05:08:05.770Z",
-      "last_seen_at": "2026-09-05T04:43:46.042Z",
-      "open_seconds": 84940
+      "first_seen_at": "2026-09-04T13:46:23.337Z",
+      "last_seen_at": "2026-09-05T13:43:34.033Z",
+      "open_seconds": 86230
     },
     {
-      "id": "eccfcd57-5437-4976-8c5d-43fad866936d",
+      "id": "fb1aef23-b86f-4306-9c18-6ccace647100",
       "strategy": "within_market_fast_arb",
       "venues": [
         "polymarket"
@@ -337,19 +329,19 @@
       ],
       "gross_edge_bps": -19.96,
       "executable_net_edge_bps": -46.18,
-      "depth_usd": 14856.1821,
+      "depth_usd": 15206.1269,
       "capital_usd": 19.9999,
-      "days_to_resolution": 118.0105,
+      "days_to_resolution": 117.6357,
       "annualized_pct": -1.43,
       "status": "rejected",
       "rejection_reason": "non_positive_executable_edge",
       "rule_match": "unverified",
-      "first_seen_at": "2026-09-04T05:08:06.421Z",
-      "last_seen_at": "2026-09-05T04:43:48.938Z",
-      "open_seconds": 84942
+      "first_seen_at": "2026-09-04T13:46:23.456Z",
+      "last_seen_at": "2026-09-05T13:43:37.568Z",
+      "open_seconds": 86234
     },
     {
-      "id": "7a53d047-61c5-4484-9dd3-397b93fd762a",
+      "id": "0b26c84f-acb5-48e1-9c6d-db905e259854",
       "strategy": "within_market_fast_arb",
       "venues": [
         "polymarket"
@@ -376,19 +368,19 @@
       ],
       "gross_edge_bps": -9.99,
       "executable_net_edge_bps": -47.89,
-      "depth_usd": 35979.5005,
+      "depth_usd": 37266.1825,
       "capital_usd": 20,
-      "days_to_resolution": 118.0106,
-      "annualized_pct": -1.48,
+      "days_to_resolution": 117.6357,
+      "annualized_pct": -1.49,
       "status": "rejected",
       "rejection_reason": "non_positive_executable_edge",
       "rule_match": "unverified",
-      "first_seen_at": "2026-09-04T04:58:01.826Z",
-      "last_seen_at": "2026-09-05T04:43:46.160Z",
-      "open_seconds": 85544
+      "first_seen_at": "2026-09-04T13:46:20.836Z",
+      "last_seen_at": "2026-09-05T13:43:34.126Z",
+      "open_seconds": 86233
     },
     {
-      "id": "318cee3b-9d4e-441e-9d50-7e5c1b1013d9",
+      "id": "aa4a9332-7c74-4c5c-a1f9-fce9bb9bd3f6",
       "strategy": "within_market_fast_arb",
       "venues": [
         "polymarket"
@@ -415,19 +407,58 @@
       ],
       "gross_edge_bps": -90.66,
       "executable_net_edge_bps": -124.64,
-      "depth_usd": 77926.934,
+      "depth_usd": 77909.969,
       "capital_usd": 20.0029,
-      "days_to_resolution": 118.0105,
-      "annualized_pct": -3.85,
+      "days_to_resolution": 117.6357,
+      "annualized_pct": -3.87,
       "status": "rejected",
       "rejection_reason": "non_positive_executable_edge",
       "rule_match": "unverified",
-      "first_seen_at": "2026-09-04T05:08:05.636Z",
-      "last_seen_at": "2026-09-05T04:43:49.388Z",
-      "open_seconds": 84943
+      "first_seen_at": "2026-09-04T13:46:24.270Z",
+      "last_seen_at": "2026-09-05T13:43:38.024Z",
+      "open_seconds": 86233
     },
     {
-      "id": "63522a5b-d3dc-4d47-a08e-7b62d66767f5",
+      "id": "0021caaf-b56b-4556-867d-f41d453e8602",
+      "strategy": "within_market_fast_arb",
+      "venues": [
+        "polymarket"
+      ],
+      "title": "Erdoğan out by December 31, 2026?",
+      "market_ref": "erdoan-out-before-2027",
+      "legs": [
+        {
+          "venue": "polymarket",
+          "side": "YES",
+          "price": 0.06,
+          "size_usd": 1.2,
+          "role": "taker",
+          "fee_usd": 0.0564
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.95,
+          "size_usd": 19,
+          "role": "taker",
+          "fee_usd": 0.0475
+        }
+      ],
+      "gross_edge_bps": -99.01,
+      "executable_net_edge_bps": -150.45,
+      "depth_usd": 38392.3784,
+      "capital_usd": 20.2,
+      "days_to_resolution": 116.428,
+      "annualized_pct": -4.72,
+      "status": "rejected",
+      "rejection_reason": "non_positive_executable_edge",
+      "rule_match": "unverified",
+      "first_seen_at": "2026-09-04T13:46:25.210Z",
+      "last_seen_at": "2026-09-05T13:43:38.829Z",
+      "open_seconds": 86233
+    },
+    {
+      "id": "9c7403e5-33cd-44f2-b5cb-d3bc66a4cf00",
       "strategy": "within_market_fast_arb",
       "venues": [
         "polymarket"
@@ -454,58 +485,58 @@
       ],
       "gross_edge_bps": -99.01,
       "executable_net_edge_bps": -167.67,
-      "depth_usd": 8697.4074,
+      "depth_usd": 8692.4737,
       "capital_usd": 20.2,
-      "days_to_resolution": 118.0105,
-      "annualized_pct": -5.19,
+      "days_to_resolution": 117.6357,
+      "annualized_pct": -5.2,
       "status": "rejected",
       "rejection_reason": "non_positive_executable_edge",
       "rule_match": "unverified",
-      "first_seen_at": "2026-09-04T05:08:06.210Z",
-      "last_seen_at": "2026-09-05T04:43:50.050Z",
-      "open_seconds": 84943
+      "first_seen_at": "2026-09-04T13:46:25.119Z",
+      "last_seen_at": "2026-09-05T13:43:38.647Z",
+      "open_seconds": 86233
     },
     {
-      "id": "7dc6b490-70b4-4248-9940-e989c7b47a37",
+      "id": "34b8fb4d-b8d0-4093-9ad2-fbec463db241",
       "strategy": "within_market_fast_arb",
       "venues": [
         "polymarket"
       ],
-      "title": "Erdoğan out by December 31, 2026?",
-      "market_ref": "erdoan-out-before-2027",
+      "title": "Claudia Sheinbaum out as President of Mexico by December 31?",
+      "market_ref": "claudia-sheinbaum-out-as-president-of-mexico-by-december-31",
       "legs": [
         {
           "venue": "polymarket",
           "side": "YES",
-          "price": 0.06,
-          "size_usd": 1.2,
+          "price": 0.081,
+          "size_usd": 1.62,
           "role": "taker",
-          "fee_usd": 0.0564
+          "fee_usd": 0.0744
         },
         {
           "venue": "polymarket",
           "side": "NO",
-          "price": 0.96,
-          "size_usd": 19.2,
+          "price": 0.943,
+          "size_usd": 18.86,
           "role": "taker",
-          "fee_usd": 0.0384
+          "fee_usd": 0.0538
         }
       ],
-      "gross_edge_bps": -196.08,
-      "executable_net_edge_bps": -242.55,
-      "depth_usd": 34946.2542,
-      "capital_usd": 20.4,
-      "days_to_resolution": 116.8029,
-      "annualized_pct": -7.58,
+      "gross_edge_bps": -234.37,
+      "executable_net_edge_bps": -296.97,
+      "depth_usd": 73118.498,
+      "capital_usd": 20.48,
+      "days_to_resolution": 117.6357,
+      "annualized_pct": -9.21,
       "status": "rejected",
       "rejection_reason": "non_positive_executable_edge",
       "rule_match": "unverified",
-      "first_seen_at": "2026-09-04T05:08:06.350Z",
-      "last_seen_at": "2026-09-05T04:43:50.251Z",
-      "open_seconds": 84943
+      "first_seen_at": "2026-09-04T13:46:24.094Z",
+      "last_seen_at": "2026-09-05T13:43:38.735Z",
+      "open_seconds": 86234
     },
     {
-      "id": "dd9285f3-989d-42a5-b017-3173786c8509",
+      "id": "7ed3d172-6cf5-4f6b-84f6-b51aa195cfb3",
       "strategy": "within_market_fast_arb",
       "venues": [
         "polymarket"
@@ -532,58 +563,19 @@
       ],
       "gross_edge_bps": -234.37,
       "executable_net_edge_bps": -301.15,
-      "depth_usd": 5652.9194,
+      "depth_usd": 4599.4607,
       "capital_usd": 20.48,
-      "days_to_resolution": 118.0105,
-      "annualized_pct": -9.31,
+      "days_to_resolution": 117.6357,
+      "annualized_pct": -9.34,
       "status": "rejected",
       "rejection_reason": "non_positive_executable_edge",
       "rule_match": "unverified",
-      "first_seen_at": "2026-09-04T05:08:15.804Z",
-      "last_seen_at": "2026-09-05T04:43:50.346Z",
-      "open_seconds": 84934
+      "first_seen_at": "2026-09-04T13:46:25.295Z",
+      "last_seen_at": "2026-09-05T13:43:38.919Z",
+      "open_seconds": 86233
     },
     {
-      "id": "a11e2f88-b971-4745-9694-f4c50b8f7978",
-      "strategy": "within_market_fast_arb",
-      "venues": [
-        "polymarket"
-      ],
-      "title": "Claudia Sheinbaum out as President of Mexico by December 31?",
-      "market_ref": "claudia-sheinbaum-out-as-president-of-mexico-by-december-31",
-      "legs": [
-        {
-          "venue": "polymarket",
-          "side": "YES",
-          "price": 0.086,
-          "size_usd": 1.72,
-          "role": "taker",
-          "fee_usd": 0.0786
-        },
-        {
-          "venue": "polymarket",
-          "side": "NO",
-          "price": 0.946,
-          "size_usd": 18.92,
-          "role": "taker",
-          "fee_usd": 0.0511
-        }
-      ],
-      "gross_edge_bps": -310.08,
-      "executable_net_edge_bps": -372.91,
-      "depth_usd": 71044.3775,
-      "capital_usd": 20.64,
-      "days_to_resolution": 118.0105,
-      "annualized_pct": -11.53,
-      "status": "rejected",
-      "rejection_reason": "non_positive_executable_edge",
-      "rule_match": "unverified",
-      "first_seen_at": "2026-09-04T05:08:06.281Z",
-      "last_seen_at": "2026-09-05T04:43:50.148Z",
-      "open_seconds": 84943
-    },
-    {
-      "id": "2f9f4bb1-c909-4fc6-866b-0588edf3e0ab",
+      "id": "e84b46a3-5ded-4735-b5c8-9c330c2e1431",
       "strategy": "within_market_fast_arb",
       "venues": [
         "polymarket"
@@ -610,97 +602,113 @@
       ],
       "gross_edge_bps": -99.01,
       "executable_net_edge_bps": -199.75,
-      "depth_usd": 2487799.1217,
+      "depth_usd": 657640.1749,
       "capital_usd": 20.2,
-      "days_to_resolution": 58.8029,
-      "annualized_pct": -12.4,
+      "days_to_resolution": 58.428,
+      "annualized_pct": -12.48,
       "status": "rejected",
       "rejection_reason": "non_positive_executable_edge",
       "rule_match": "unverified",
-      "first_seen_at": "2026-09-04T05:08:05.910Z",
-      "last_seen_at": "2026-09-05T04:43:49.664Z",
-      "open_seconds": 84943
+      "first_seen_at": "2026-09-04T13:46:24.756Z",
+      "last_seen_at": "2026-09-05T13:43:38.288Z",
+      "open_seconds": 86233
     },
     {
-      "id": "e98be71f-d79a-4515-83d2-f8e40c5946c2",
-      "strategy": "within_market_fast_arb",
+      "id": "7bf937a7-9cf3-4d84-824b-4163c4c3746f",
+      "strategy": "neg_risk_bracket_arb",
       "venues": [
         "polymarket"
       ],
-      "title": "Aziz Akhannouch out as Morocco Prime Minister by December 31, 2026?",
-      "market_ref": "aziz-akhannouch-out-as-morocco-prime-minister-by-december-31-2026",
+      "title": "kraken-ipo-in-2025",
+      "market_ref": "kraken-ipo-in-2025",
       "legs": [
         {
           "venue": "polymarket",
-          "side": "YES",
-          "price": 0.925,
-          "size_usd": 18.5,
+          "side": "NO",
+          "price": 0.969,
+          "size_usd": 0.969,
           "role": "taker",
-          "fee_usd": 0.0694
+          "fee_usd": 0.0015
         },
         {
           "venue": "polymarket",
           "side": "NO",
-          "price": 0.119,
-          "size_usd": 2.38,
+          "price": 0.91,
+          "size_usd": 0.91,
           "role": "taker",
-          "fee_usd": 0.1048
-        }
-      ],
-      "gross_edge_bps": -421.46,
-      "executable_net_edge_bps": -504.89,
-      "depth_usd": 4116.4546,
-      "capital_usd": 20.88,
-      "days_to_resolution": 116.8029,
-      "annualized_pct": -15.78,
-      "status": "rejected",
-      "rejection_reason": "non_positive_executable_edge",
-      "rule_match": "unverified",
-      "first_seen_at": "2026-09-04T05:08:06.070Z",
-      "last_seen_at": "2026-09-05T04:43:49.853Z",
-      "open_seconds": 84943
-    },
-    {
-      "id": "924bd048-190a-4de2-a447-0258db5e4c39",
-      "strategy": "within_market_fast_arb",
-      "venues": [
-        "polymarket"
-      ],
-      "title": "Ink FDV above $100M one day after launch?",
-      "market_ref": "ink-fdv-above-100m-one-day-after-launch",
-      "legs": [
-        {
-          "venue": "polymarket",
-          "side": "YES",
-          "price": 0.48,
-          "size_usd": 9.6,
-          "role": "taker",
-          "fee_usd": 0.2496
+          "fee_usd": 0.0041
         },
         {
           "venue": "polymarket",
           "side": "NO",
-          "price": 0.55,
-          "size_usd": 11,
+          "price": 0.81,
+          "size_usd": 0.81,
           "role": "taker",
-          "fee_usd": 0.2475
+          "fee_usd": 0.0077
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.92,
+          "size_usd": 0.92,
+          "role": "taker",
+          "fee_usd": 0.0037
         }
       ],
-      "gross_edge_bps": -291.26,
-      "executable_net_edge_bps": -532.57,
-      "depth_usd": 60284.6314,
-      "capital_usd": 20.6,
-      "days_to_resolution": 118.0112,
-      "annualized_pct": -16.47,
+      "gross_edge_bps": -1687.45,
+      "executable_net_edge_bps": -1734.47,
+      "depth_usd": 4178.0163,
+      "capital_usd": 3.609,
+      "days_to_resolution": 482.7232,
+      "annualized_pct": -13.11,
       "status": "rejected",
       "rejection_reason": "non_positive_executable_edge",
       "rule_match": "unverified",
-      "first_seen_at": "2026-09-05T03:13:58.400Z",
-      "last_seen_at": "2026-09-05T04:43:50.533Z",
-      "open_seconds": 5392
+      "first_seen_at": "2026-09-05T11:35:47.030Z",
+      "last_seen_at": "2026-09-05T11:38:38.552Z",
+      "open_seconds": 171
     },
     {
-      "id": "1a85a65b-c46e-46d2-bce9-8fd9b0916fda",
+      "id": "022dce5b-9194-4949-9031-7755b57c36ad",
+      "strategy": "within_market_fast_arb",
+      "venues": [
+        "polymarket"
+      ],
+      "title": "Will Abstract launch a token by December 31, 2027?",
+      "market_ref": "will-abstract-launch-a-token-by-december-31-2027",
+      "legs": [
+        {
+          "venue": "polymarket",
+          "side": "YES",
+          "price": 0.65,
+          "size_usd": 13.0653,
+          "role": "taker",
+          "fee_usd": 0.2286
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.58,
+          "size_usd": 11.6583,
+          "role": "taker",
+          "fee_usd": 0.2448
+        }
+      ],
+      "gross_edge_bps": -1869.92,
+      "executable_net_edge_bps": -2061.42,
+      "depth_usd": 514.1445,
+      "capital_usd": 24.7236,
+      "days_to_resolution": 482.7363,
+      "annualized_pct": -15.59,
+      "status": "rejected",
+      "rejection_reason": "non_positive_executable_edge",
+      "rule_match": "unverified",
+      "first_seen_at": "2026-09-05T11:14:48.399Z",
+      "last_seen_at": "2026-09-05T11:19:42.562Z",
+      "open_seconds": 294
+    },
+    {
+      "id": "c2fde30a-3081-426c-ab1f-5168c4bbfe92",
       "strategy": "within_market_fast_arb",
       "venues": [
         "polymarket"
@@ -727,19 +735,19 @@
       ],
       "gross_edge_bps": -99.01,
       "executable_net_edge_bps": -280.36,
-      "depth_usd": 771367.2771,
+      "depth_usd": 769632.8647,
       "capital_usd": 20.2,
-      "days_to_resolution": 58.8029,
-      "annualized_pct": -17.4,
+      "days_to_resolution": 58.428,
+      "annualized_pct": -17.51,
       "status": "rejected",
       "rejection_reason": "non_positive_executable_edge",
       "rule_match": "unverified",
-      "first_seen_at": "2026-09-04T05:08:05.839Z",
-      "last_seen_at": "2026-09-05T04:43:49.572Z",
-      "open_seconds": 84943
+      "first_seen_at": "2026-09-04T13:46:24.657Z",
+      "last_seen_at": "2026-09-05T13:43:38.201Z",
+      "open_seconds": 86233
     },
     {
-      "id": "1ebd6b07-e788-4812-8c2d-e3170fc5e2b4",
+      "id": "de38e275-65ac-4d69-b8a1-07776bcbea3c",
       "strategy": "within_market_fast_arb",
       "venues": [
         "polymarket"
@@ -766,19 +774,97 @@
       ],
       "gross_edge_bps": -99.01,
       "executable_net_edge_bps": -300.74,
-      "depth_usd": 309260.6152,
+      "depth_usd": 307244.4644,
       "capital_usd": 20.2,
-      "days_to_resolution": 58.8029,
-      "annualized_pct": -18.67,
+      "days_to_resolution": 58.428,
+      "annualized_pct": -18.79,
       "status": "rejected",
       "rejection_reason": "non_positive_executable_edge",
       "rule_match": "unverified",
-      "first_seen_at": "2026-09-04T05:08:06.140Z",
-      "last_seen_at": "2026-09-05T04:43:49.952Z",
-      "open_seconds": 84943
+      "first_seen_at": "2026-09-04T13:46:25.035Z",
+      "last_seen_at": "2026-09-05T13:43:38.554Z",
+      "open_seconds": 86233
     },
     {
-      "id": "c2c2f06e-1709-46b5-934e-795da52782f2",
+      "id": "cd0f4a8c-44c0-4fbd-9c75-c29dd9edd007",
+      "strategy": "within_market_fast_arb",
+      "venues": [
+        "polymarket"
+      ],
+      "title": "Ink FDV above $100M one day after launch?",
+      "market_ref": "ink-fdv-above-100m-one-day-after-launch",
+      "legs": [
+        {
+          "venue": "polymarket",
+          "side": "YES",
+          "price": 0.44,
+          "size_usd": 8.8,
+          "role": "taker",
+          "fee_usd": 0.2464
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.6,
+          "size_usd": 12,
+          "role": "taker",
+          "fee_usd": 0.24
+        }
+      ],
+      "gross_edge_bps": -384.62,
+      "executable_net_edge_bps": -618.46,
+      "depth_usd": 66872.0961,
+      "capital_usd": 20.8,
+      "days_to_resolution": 117.6364,
+      "annualized_pct": -19.19,
+      "status": "rejected",
+      "rejection_reason": "non_positive_executable_edge",
+      "rule_match": "unverified",
+      "first_seen_at": "2026-09-05T03:13:58.400Z",
+      "last_seen_at": "2026-09-05T13:43:39.101Z",
+      "open_seconds": 37780
+    },
+    {
+      "id": "dbff5fee-dc77-489d-ba2c-d247a8310ce9",
+      "strategy": "within_market_fast_arb",
+      "venues": [
+        "polymarket"
+      ],
+      "title": "Aziz Akhannouch out as Morocco Prime Minister by December 31, 2026?",
+      "market_ref": "aziz-akhannouch-out-as-morocco-prime-minister-by-december-31-2026",
+      "legs": [
+        {
+          "venue": "polymarket",
+          "side": "YES",
+          "price": 0.942,
+          "size_usd": 18.84,
+          "role": "taker",
+          "fee_usd": 0.0546
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.119,
+          "size_usd": 2.38,
+          "role": "taker",
+          "fee_usd": 0.1048
+        }
+      ],
+      "gross_edge_bps": -574.93,
+      "executable_net_edge_bps": -650.08,
+      "depth_usd": 4630.55,
+      "capital_usd": 21.22,
+      "days_to_resolution": 116.428,
+      "annualized_pct": -20.38,
+      "status": "rejected",
+      "rejection_reason": "non_positive_executable_edge",
+      "rule_match": "unverified",
+      "first_seen_at": "2026-09-04T13:46:24.942Z",
+      "last_seen_at": "2026-09-05T13:43:38.466Z",
+      "open_seconds": 86233
+    },
+    {
+      "id": "a1b34a8a-cbcd-4d1f-9f11-ca1f71de03dd",
       "strategy": "within_market_fast_arb",
       "venues": [
         "polymarket"
@@ -805,19 +891,19 @@
       ],
       "gross_edge_bps": -99.01,
       "executable_net_edge_bps": -346.49,
-      "depth_usd": 1428997.8702,
+      "depth_usd": 1414911.3134,
       "capital_usd": 20.2,
-      "days_to_resolution": 58.8029,
-      "annualized_pct": -21.51,
+      "days_to_resolution": 58.428,
+      "annualized_pct": -21.64,
       "status": "rejected",
       "rejection_reason": "non_positive_executable_edge",
       "rule_match": "unverified",
-      "first_seen_at": "2026-09-04T05:08:05.706Z",
-      "last_seen_at": "2026-09-05T04:43:49.482Z",
-      "open_seconds": 84943
+      "first_seen_at": "2026-09-04T13:46:24.357Z",
+      "last_seen_at": "2026-09-05T13:43:38.112Z",
+      "open_seconds": 86233
     },
     {
-      "id": "cdef55f9-4f4e-465a-82e9-f9fda3dc8977",
+      "id": "81fa0820-047b-4cd1-a694-b964716a58fe",
       "strategy": "within_market_fast_arb",
       "venues": [
         "polymarket"
@@ -844,58 +930,19 @@
       ],
       "gross_edge_bps": -1590.46,
       "executable_net_edge_bps": -1688.72,
-      "depth_usd": 20098.152,
+      "depth_usd": 20285.6059,
       "capital_usd": 23.7825,
-      "days_to_resolution": 118.0112,
-      "annualized_pct": -52.23,
+      "days_to_resolution": 117.6364,
+      "annualized_pct": -52.4,
       "status": "rejected",
       "rejection_reason": "non_positive_executable_edge",
       "rule_match": "unverified",
-      "first_seen_at": "2026-09-04T05:08:05.982Z",
-      "last_seen_at": "2026-09-05T04:43:49.760Z",
-      "open_seconds": 84943
+      "first_seen_at": "2026-09-04T13:46:24.846Z",
+      "last_seen_at": "2026-09-05T13:43:38.377Z",
+      "open_seconds": 86233
     },
     {
-      "id": "2c2ea140-bf7b-432d-ac51-17421843ffe2",
-      "strategy": "within_market_fast_arb",
-      "venues": [
-        "polymarket"
-      ],
-      "title": "taylor-swift-pregnant-by-september-30",
-      "market_ref": "taylor-swift-pregnant-by-september-30",
-      "legs": [
-        {
-          "venue": "polymarket",
-          "side": "YES",
-          "price": 0.15,
-          "size_usd": 2.9762,
-          "role": "taker",
-          "fee_usd": 0.1265
-        },
-        {
-          "venue": "polymarket",
-          "side": "NO",
-          "price": 0.98,
-          "size_usd": 19.4444,
-          "role": "taker",
-          "fee_usd": 0.0194
-        }
-      ],
-      "gross_edge_bps": -1150.44,
-      "executable_net_edge_bps": -1215.53,
-      "depth_usd": 659.1303,
-      "capital_usd": 22.4206,
-      "days_to_resolution": 26.0318,
-      "annualized_pct": -170.43,
-      "status": "rejected",
-      "rejection_reason": "non_positive_executable_edge",
-      "rule_match": "unverified",
-      "first_seen_at": "2026-09-04T22:00:10.796Z",
-      "last_seen_at": "2026-09-05T03:13:10.743Z",
-      "open_seconds": 18779
-    },
-    {
-      "id": "4750ea08-6dd0-41df-bf74-cef51b81a48a",
+      "id": "7b3dfe63-9d0b-4e83-a2c7-02e573851ff8",
       "strategy": "within_market_fast_arb",
       "venues": [
         "polymarket"
@@ -922,19 +969,19 @@
       ],
       "gross_edge_bps": -1304.35,
       "executable_net_edge_bps": -1387.96,
-      "depth_usd": 3728.802,
+      "depth_usd": 3731.802,
       "capital_usd": 23,
       "days_to_resolution": 0,
       "annualized_pct": -5066.04,
       "status": "rejected",
       "rejection_reason": "non_positive_executable_edge",
       "rule_match": "unverified",
-      "first_seen_at": "2026-09-04T05:08:15.873Z",
-      "last_seen_at": "2026-09-05T04:43:50.436Z",
-      "open_seconds": 84934
+      "first_seen_at": "2026-09-04T13:46:25.382Z",
+      "last_seen_at": "2026-09-05T13:43:39.008Z",
+      "open_seconds": 86233
     },
     {
-      "id": "9ee99458-0f37-41d7-98ff-e8f23c13caff",
+      "id": "9e6b7093-9ffd-49e0-ad5d-471541286ce7",
       "strategy": "within_market_fast_arb",
       "venues": [
         "polymarket"
@@ -953,66 +1000,66 @@
         {
           "venue": "polymarket",
           "side": "NO",
-          "price": 0.992498,
-          "size_usd": 19.7905,
+          "price": 0.992,
+          "size_usd": 19.7806,
           "role": "taker",
-          "fee_usd": 0.0074
-        }
-      ],
-      "gross_edge_bps": -34.86,
-      "executable_net_edge_bps": -43.99,
-      "depth_usd": 478070.6052,
-      "capital_usd": 20.0099,
-      "days_to_resolution": null,
-      "annualized_pct": null,
-      "status": "rejected",
-      "rejection_reason": "non_positive_executable_edge",
-      "rule_match": "unverified",
-      "first_seen_at": "2026-09-04T04:46:27.039Z",
-      "last_seen_at": "2026-09-05T04:43:49.297Z",
-      "open_seconds": 86242
-    },
-    {
-      "id": "ff09a3b0-03b7-4e02-be6e-32eb379c0050",
-      "strategy": "within_market_fast_arb",
-      "venues": [
-        "polymarket"
-      ],
-      "title": "will-bernie-sanders-win-the-2028-democratic-presidential-nomination-879",
-      "market_ref": "will-bernie-sanders-win-the-2028-democratic-presidential-nomination-879",
-      "legs": [
-        {
-          "venue": "polymarket",
-          "side": "YES",
-          "price": 0.006,
-          "size_usd": 0.1196,
-          "role": "taker",
-          "fee_usd": 0.0059
-        },
-        {
-          "venue": "polymarket",
-          "side": "NO",
-          "price": 0.997,
-          "size_usd": 19.8803,
-          "role": "taker",
-          "fee_usd": 0.003
+          "fee_usd": 0.0079
         }
       ],
       "gross_edge_bps": -29.91,
-      "executable_net_edge_bps": -34.37,
-      "depth_usd": 389153.0576,
+      "executable_net_edge_bps": -39.29,
+      "depth_usd": 477952.3855,
       "capital_usd": 19.9999,
       "days_to_resolution": null,
       "annualized_pct": null,
       "status": "rejected",
       "rejection_reason": "non_positive_executable_edge",
       "rule_match": "unverified",
-      "first_seen_at": "2026-09-04T04:46:23.336Z",
-      "last_seen_at": "2026-09-05T04:43:49.207Z",
-      "open_seconds": 86245
+      "first_seen_at": "2026-09-04T13:46:24.004Z",
+      "last_seen_at": "2026-09-05T13:43:37.932Z",
+      "open_seconds": 86233
     },
     {
-      "id": "3ffa3af0-31d0-4df4-8e56-e2ee36d70f41",
+      "id": "219285c4-ce43-4dbe-a54f-d7ba523bf911",
+      "strategy": "within_market_fast_arb",
+      "venues": [
+        "polymarket"
+      ],
+      "title": "will-chelsea-clinton-win-the-2028-democratic-presidential-nomination",
+      "market_ref": "will-chelsea-clinton-win-the-2028-democratic-presidential-nomination",
+      "legs": [
+        {
+          "venue": "polymarket",
+          "side": "YES",
+          "price": 0.004,
+          "size_usd": 0.0798,
+          "role": "taker",
+          "fee_usd": 0.004
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.998,
+          "size_usd": 19.9201,
+          "role": "taker",
+          "fee_usd": 0.002
+        }
+      ],
+      "gross_edge_bps": -19.96,
+      "executable_net_edge_bps": -22.94,
+      "depth_usd": 600299.8024,
+      "capital_usd": 19.9999,
+      "days_to_resolution": null,
+      "annualized_pct": null,
+      "status": "rejected",
+      "rejection_reason": "non_positive_executable_edge",
+      "rule_match": "unverified",
+      "first_seen_at": "2026-09-04T13:46:23.914Z",
+      "last_seen_at": "2026-09-05T13:43:37.847Z",
+      "open_seconds": 86233
+    },
+    {
+      "id": "12fd5612-2b0b-408a-9d89-01048b7a4b32",
       "strategy": "within_market_fast_arb",
       "venues": [
         "polymarket"
@@ -1039,58 +1086,58 @@
       ],
       "gross_edge_bps": -19.96,
       "executable_net_edge_bps": -23.94,
-      "depth_usd": 583904.6429,
+      "depth_usd": 583576.7057,
       "capital_usd": 19.9999,
       "days_to_resolution": null,
       "annualized_pct": null,
       "status": "rejected",
       "rejection_reason": "non_positive_executable_edge",
       "rule_match": "unverified",
-      "first_seen_at": "2026-09-04T04:46:24.564Z",
-      "last_seen_at": "2026-09-05T04:43:49.116Z",
-      "open_seconds": 86244
+      "first_seen_at": "2026-09-04T13:46:23.743Z",
+      "last_seen_at": "2026-09-05T13:43:37.756Z",
+      "open_seconds": 86234
     },
     {
-      "id": "1e04c8d8-6ce7-4ef5-8679-46196cd521ae",
+      "id": "39ac8e3c-5a5d-4277-89ae-346cf3640e38",
       "strategy": "within_market_fast_arb",
       "venues": [
         "polymarket"
       ],
-      "title": "will-alexandria-ocasio-cortez-win-the-2028-us-presidential-election",
-      "market_ref": "will-alexandria-ocasio-cortez-win-the-2028-us-presidential-election",
+      "title": "will-bernie-sanders-win-the-2028-democratic-presidential-nomination-879",
+      "market_ref": "will-bernie-sanders-win-the-2028-democratic-presidential-nomination-879",
       "legs": [
         {
           "venue": "polymarket",
           "side": "YES",
-          "price": 0.132,
-          "size_usd": 2.6347,
+          "price": 0.006,
+          "size_usd": 0.1198,
           "role": "taker",
-          "fee_usd": 0.1143
+          "fee_usd": 0.006
         },
         {
           "venue": "polymarket",
           "side": "NO",
-          "price": 0.87,
-          "size_usd": 17.3652,
+          "price": 0.996,
+          "size_usd": 19.8802,
           "role": "taker",
-          "fee_usd": 0.1129
+          "fee_usd": 0.004
         }
       ],
       "gross_edge_bps": -19.96,
-      "executable_net_edge_bps": -133.57,
-      "depth_usd": 1205721.2353,
+      "executable_net_edge_bps": -24.92,
+      "depth_usd": 399421.9021,
       "capital_usd": 19.9999,
       "days_to_resolution": null,
       "annualized_pct": null,
       "status": "rejected",
       "rejection_reason": "non_positive_executable_edge",
       "rule_match": "unverified",
-      "first_seen_at": "2026-09-04T04:46:20.854Z",
-      "last_seen_at": "2026-09-05T04:43:49.028Z",
-      "open_seconds": 86248
+      "first_seen_at": "2026-09-04T13:46:23.830Z",
+      "last_seen_at": "2026-09-05T13:43:37.659Z",
+      "open_seconds": 86233
     },
     {
-      "id": "72011bce-b69b-4a9c-a5dc-6ea777a2688c",
+      "id": "76fd845d-2638-408a-968c-735a0716ab1b",
       "strategy": "within_market_fast_arb",
       "venues": [
         "polymarket"
@@ -1117,19 +1164,19 @@
       ],
       "gross_edge_bps": -9.99,
       "executable_net_edge_bps": -11.49,
-      "depth_usd": 230949.6492,
+      "depth_usd": 227273.0395,
       "capital_usd": 20,
       "days_to_resolution": null,
       "annualized_pct": null,
       "status": "rejected",
       "rejection_reason": "non_positive_executable_edge",
       "rule_match": "unverified",
-      "first_seen_at": "2026-09-04T05:00:32.462Z",
-      "last_seen_at": "2026-09-05T04:43:48.849Z",
-      "open_seconds": 85396
+      "first_seen_at": "2026-09-04T13:46:23.246Z",
+      "last_seen_at": "2026-09-05T13:43:37.474Z",
+      "open_seconds": 86234
     },
     {
-      "id": "ccced9ef-bdaa-421a-b319-c3f3e1623fdc",
+      "id": "f0b1bb93-cd6e-43f3-9d4f-3a2b7b5b7701",
       "strategy": "within_market_fast_arb",
       "venues": [
         "polymarket"
@@ -1156,19 +1203,19 @@
       ],
       "gross_edge_bps": -9.99,
       "executable_net_edge_bps": -11.49,
-      "depth_usd": 22031.0069,
+      "depth_usd": 22012.6853,
       "capital_usd": 20,
       "days_to_resolution": null,
       "annualized_pct": null,
       "status": "rejected",
       "rejection_reason": "non_positive_executable_edge",
       "rule_match": "unverified",
-      "first_seen_at": "2026-09-04T04:58:39.011Z",
-      "last_seen_at": "2026-09-05T04:43:48.713Z",
-      "open_seconds": 85509
+      "first_seen_at": "2026-09-04T13:46:23.153Z",
+      "last_seen_at": "2026-09-05T13:43:37.383Z",
+      "open_seconds": 86234
     },
     {
-      "id": "d47f2e3e-fd4d-47fc-8780-ae4b37f6c038",
+      "id": "761080f2-12c6-4c49-b837-87dd9b8e25b9",
       "strategy": "within_market_fast_arb",
       "venues": [
         "polymarket"
@@ -1195,19 +1242,19 @@
       ],
       "gross_edge_bps": -9.99,
       "executable_net_edge_bps": -11.49,
-      "depth_usd": 10836.0531,
+      "depth_usd": 10478.8507,
       "capital_usd": 20,
       "days_to_resolution": null,
       "annualized_pct": null,
       "status": "rejected",
       "rejection_reason": "non_positive_executable_edge",
       "rule_match": "unverified",
-      "first_seen_at": "2026-09-04T04:58:38.573Z",
-      "last_seen_at": "2026-09-05T04:43:48.626Z",
-      "open_seconds": 85510
+      "first_seen_at": "2026-09-04T13:46:23.067Z",
+      "last_seen_at": "2026-09-05T13:43:37.217Z",
+      "open_seconds": 86234
     },
     {
-      "id": "88c8cc89-4392-48e8-b677-ec32aab7a885",
+      "id": "328dd706-5faf-4025-9036-0fbdd01d9685",
       "strategy": "within_market_fast_arb",
       "venues": [
         "polymarket"
@@ -1234,19 +1281,19 @@
       ],
       "gross_edge_bps": -9.99,
       "executable_net_edge_bps": -19.39,
-      "depth_usd": 520604.9426,
+      "depth_usd": 520192.8048,
       "capital_usd": 20,
       "days_to_resolution": null,
       "annualized_pct": null,
       "status": "rejected",
       "rejection_reason": "non_positive_executable_edge",
       "rule_match": "unverified",
-      "first_seen_at": "2026-09-04T04:58:38.500Z",
-      "last_seen_at": "2026-09-05T04:43:48.536Z",
-      "open_seconds": 85510
+      "first_seen_at": "2026-09-04T13:46:22.975Z",
+      "last_seen_at": "2026-09-05T13:43:37.117Z",
+      "open_seconds": 86234
     },
     {
-      "id": "79c54d09-5131-4807-bb8f-d7cf15d89e22",
+      "id": "e5c8c394-6a49-4f59-9577-7da084ba39a3",
       "strategy": "within_market_fast_arb",
       "venues": [
         "polymarket"
@@ -1273,19 +1320,19 @@
       ],
       "gross_edge_bps": -9.99,
       "executable_net_edge_bps": -11.49,
-      "depth_usd": 616344.4686,
+      "depth_usd": 616331.9711,
       "capital_usd": 20,
       "days_to_resolution": null,
       "annualized_pct": null,
       "status": "rejected",
       "rejection_reason": "non_positive_executable_edge",
       "rule_match": "unverified",
-      "first_seen_at": "2026-09-04T04:58:11.518Z",
-      "last_seen_at": "2026-09-05T04:43:48.448Z",
-      "open_seconds": 85536
+      "first_seen_at": "2026-09-04T13:46:22.876Z",
+      "last_seen_at": "2026-09-05T13:43:37.010Z",
+      "open_seconds": 86234
     },
     {
-      "id": "02c191d5-6ca1-4000-9b68-67406333cac2",
+      "id": "c6149c7f-5cf7-4031-9e77-9f56376719d6",
       "strategy": "within_market_fast_arb",
       "venues": [
         "polymarket"
@@ -1312,19 +1359,19 @@
       ],
       "gross_edge_bps": -9.99,
       "executable_net_edge_bps": -11.49,
-      "depth_usd": 314516.3888,
+      "depth_usd": 203585.8204,
       "capital_usd": 20,
       "days_to_resolution": null,
       "annualized_pct": null,
       "status": "rejected",
       "rejection_reason": "non_positive_executable_edge",
       "rule_match": "unverified",
-      "first_seen_at": "2026-09-04T04:58:10.996Z",
-      "last_seen_at": "2026-09-05T04:43:48.360Z",
-      "open_seconds": 85537
+      "first_seen_at": "2026-09-04T13:46:22.791Z",
+      "last_seen_at": "2026-09-05T13:43:36.913Z",
+      "open_seconds": 86234
     },
     {
-      "id": "85e67840-5609-4a36-a0b4-1ec795f4ad9d",
+      "id": "aabd0410-3df3-4cb4-af35-5970366500a9",
       "strategy": "within_market_fast_arb",
       "venues": [
         "polymarket"
@@ -1351,19 +1398,19 @@
       ],
       "gross_edge_bps": -9.99,
       "executable_net_edge_bps": -132.06,
-      "depth_usd": 1539934.4078,
+      "depth_usd": 1565412.715,
       "capital_usd": 20,
       "days_to_resolution": null,
       "annualized_pct": null,
       "status": "rejected",
       "rejection_reason": "non_positive_executable_edge",
       "rule_match": "unverified",
-      "first_seen_at": "2026-09-04T04:58:10.838Z",
-      "last_seen_at": "2026-09-05T04:43:48.272Z",
-      "open_seconds": 85537
+      "first_seen_at": "2026-09-04T13:46:22.609Z",
+      "last_seen_at": "2026-09-05T13:43:36.820Z",
+      "open_seconds": 86234
     },
     {
-      "id": "a0062451-4773-4bd3-b2d0-1750a283fc6f",
+      "id": "279e36c6-f72d-4973-bc95-3fce0da4c12b",
       "strategy": "within_market_fast_arb",
       "venues": [
         "polymarket"
@@ -1374,35 +1421,35 @@
         {
           "venue": "polymarket",
           "side": "YES",
-          "price": 0.4,
-          "size_usd": 7.992,
+          "price": 0.396,
+          "size_usd": 7.9121,
           "role": "taker",
-          "fee_usd": 0.2398
+          "fee_usd": 0.2389
         },
         {
           "venue": "polymarket",
           "side": "NO",
-          "price": 0.601,
-          "size_usd": 12.008,
+          "price": 0.605,
+          "size_usd": 12.0879,
           "role": "taker",
-          "fee_usd": 0.2396
+          "fee_usd": 0.2387
         }
       ],
       "gross_edge_bps": -9.99,
-      "executable_net_edge_bps": -249.65,
-      "depth_usd": 867105.9434,
+      "executable_net_edge_bps": -248.83,
+      "depth_usd": 1102795.4703,
       "capital_usd": 20,
       "days_to_resolution": null,
       "annualized_pct": null,
       "status": "rejected",
       "rejection_reason": "non_positive_executable_edge",
       "rule_match": "unverified",
-      "first_seen_at": "2026-09-04T04:58:10.739Z",
-      "last_seen_at": "2026-09-05T04:43:48.184Z",
-      "open_seconds": 85537
+      "first_seen_at": "2026-09-04T13:46:22.534Z",
+      "last_seen_at": "2026-09-05T13:43:36.723Z",
+      "open_seconds": 86234
     },
     {
-      "id": "e214e6f7-87ae-4919-b980-f352435112ed",
+      "id": "5b4ac20b-ec99-4aab-bd96-aaa721ab6f30",
       "strategy": "within_market_fast_arb",
       "venues": [
         "polymarket"
@@ -1429,19 +1476,19 @@
       ],
       "gross_edge_bps": -9.99,
       "executable_net_edge_bps": -11.49,
-      "depth_usd": 124761.9532,
+      "depth_usd": 124629.286,
       "capital_usd": 20,
       "days_to_resolution": null,
       "annualized_pct": null,
       "status": "rejected",
       "rejection_reason": "non_positive_executable_edge",
       "rule_match": "unverified",
-      "first_seen_at": "2026-09-04T04:58:10.576Z",
-      "last_seen_at": "2026-09-05T04:43:48.089Z",
-      "open_seconds": 85537
+      "first_seen_at": "2026-09-04T13:46:22.457Z",
+      "last_seen_at": "2026-09-05T13:43:36.627Z",
+      "open_seconds": 86234
     },
     {
-      "id": "6a9531fc-dcb5-464f-b100-658e551ae84f",
+      "id": "deb001d4-8f7a-4891-b29c-fc0d2b6784b3",
       "strategy": "within_market_fast_arb",
       "venues": [
         "polymarket"
@@ -1468,19 +1515,19 @@
       ],
       "gross_edge_bps": -9.99,
       "executable_net_edge_bps": -12.48,
-      "depth_usd": 52579.3217,
+      "depth_usd": 185179.6803,
       "capital_usd": 20,
       "days_to_resolution": null,
       "annualized_pct": null,
       "status": "rejected",
       "rejection_reason": "non_positive_executable_edge",
       "rule_match": "unverified",
-      "first_seen_at": "2026-09-04T04:46:28.612Z",
-      "last_seen_at": "2026-09-05T04:43:48.001Z",
-      "open_seconds": 86239
+      "first_seen_at": "2026-09-04T13:46:22.350Z",
+      "last_seen_at": "2026-09-05T13:43:36.516Z",
+      "open_seconds": 86234
     },
     {
-      "id": "f01a74e2-b73f-491e-aa62-37a2b9b6869a",
+      "id": "0dfafc75-0f3f-4455-acdb-deeaa4e63387",
       "strategy": "within_market_fast_arb",
       "venues": [
         "polymarket"
@@ -1507,19 +1554,19 @@
       ],
       "gross_edge_bps": -9.99,
       "executable_net_edge_bps": -11.49,
-      "depth_usd": 1125497.6158,
+      "depth_usd": 1125383.9795,
       "capital_usd": 20,
       "days_to_resolution": null,
       "annualized_pct": null,
       "status": "rejected",
       "rejection_reason": "non_positive_executable_edge",
       "rule_match": "unverified",
-      "first_seen_at": "2026-09-04T04:46:28.187Z",
-      "last_seen_at": "2026-09-05T04:43:47.912Z",
-      "open_seconds": 86239
+      "first_seen_at": "2026-09-04T13:46:22.257Z",
+      "last_seen_at": "2026-09-05T13:43:36.385Z",
+      "open_seconds": 86234
     },
     {
-      "id": "417603cb-2ca1-4167-b3fd-22d18f17bba8",
+      "id": "5d59517c-c342-4944-9aa6-6a7d12cf4400",
       "strategy": "within_market_fast_arb",
       "venues": [
         "polymarket"
@@ -1546,19 +1593,19 @@
       ],
       "gross_edge_bps": -9.99,
       "executable_net_edge_bps": -11.49,
-      "depth_usd": 378391.1601,
+      "depth_usd": 378483.7474,
       "capital_usd": 20,
       "days_to_resolution": null,
       "annualized_pct": null,
       "status": "rejected",
       "rejection_reason": "non_positive_executable_edge",
       "rule_match": "unverified",
-      "first_seen_at": "2026-09-04T04:46:28.110Z",
-      "last_seen_at": "2026-09-05T04:43:47.824Z",
-      "open_seconds": 86239
+      "first_seen_at": "2026-09-04T13:46:22.171Z",
+      "last_seen_at": "2026-09-05T13:43:36.129Z",
+      "open_seconds": 86233
     },
     {
-      "id": "e180f09e-3187-4ebe-8b5a-b336a67a7e76",
+      "id": "29dbc8b4-843a-4cae-9c80-e78ac370f822",
       "strategy": "within_market_fast_arb",
       "venues": [
         "polymarket"
@@ -1585,19 +1632,19 @@
       ],
       "gross_edge_bps": -9.99,
       "executable_net_edge_bps": -13.47,
-      "depth_usd": 560499.561,
+      "depth_usd": 560064.9349,
       "capital_usd": 20,
       "days_to_resolution": null,
       "annualized_pct": null,
       "status": "rejected",
       "rejection_reason": "non_positive_executable_edge",
       "rule_match": "unverified",
-      "first_seen_at": "2026-09-04T04:46:28.033Z",
-      "last_seen_at": "2026-09-05T04:43:47.735Z",
-      "open_seconds": 86239
+      "first_seen_at": "2026-09-04T13:46:22.069Z",
+      "last_seen_at": "2026-09-05T13:43:35.985Z",
+      "open_seconds": 86233
     },
     {
-      "id": "4eb903e5-adfe-4650-8c59-454f2d0c1eed",
+      "id": "fd7c46d4-7922-49fa-9e15-ae2ce712483b",
       "strategy": "within_market_fast_arb",
       "venues": [
         "polymarket"
@@ -1624,19 +1671,19 @@
       ],
       "gross_edge_bps": -9.99,
       "executable_net_edge_bps": -24.27,
-      "depth_usd": 399181.4528,
+      "depth_usd": 411702.7324,
       "capital_usd": 20,
       "days_to_resolution": null,
       "annualized_pct": null,
       "status": "rejected",
       "rejection_reason": "non_positive_executable_edge",
       "rule_match": "unverified",
-      "first_seen_at": "2026-09-04T04:46:27.112Z",
-      "last_seen_at": "2026-09-05T04:43:47.649Z",
-      "open_seconds": 86240
+      "first_seen_at": "2026-09-04T13:46:21.991Z",
+      "last_seen_at": "2026-09-05T13:43:35.837Z",
+      "open_seconds": 86233
     },
     {
-      "id": "261851a2-f0e1-4a75-98a3-632763e32f38",
+      "id": "c1c24803-4c0b-49d4-8098-b1ca723f886e",
       "strategy": "within_market_fast_arb",
       "venues": [
         "polymarket"
@@ -1663,19 +1710,19 @@
       ],
       "gross_edge_bps": -9.99,
       "executable_net_edge_bps": -32.92,
-      "depth_usd": 2503939.649,
+      "depth_usd": 2511875.7232,
       "capital_usd": 20,
       "days_to_resolution": null,
       "annualized_pct": null,
       "status": "rejected",
       "rejection_reason": "non_positive_executable_edge",
       "rule_match": "unverified",
-      "first_seen_at": "2026-09-04T04:46:26.970Z",
-      "last_seen_at": "2026-09-05T04:43:47.562Z",
-      "open_seconds": 86240
+      "first_seen_at": "2026-09-04T13:46:21.909Z",
+      "last_seen_at": "2026-09-05T13:43:35.735Z",
+      "open_seconds": 86233
     },
     {
-      "id": "e4a2bec3-02e4-42a7-8276-95597ac8a39e",
+      "id": "72af476b-b33b-46ea-957b-8d9f11f652b3",
       "strategy": "within_market_fast_arb",
       "venues": [
         "polymarket"
@@ -1702,19 +1749,19 @@
       ],
       "gross_edge_bps": -9.99,
       "executable_net_edge_bps": -30.05,
-      "depth_usd": 1751523.597,
+      "depth_usd": 1740737.0685,
       "capital_usd": 20,
       "days_to_resolution": null,
       "annualized_pct": null,
       "status": "rejected",
       "rejection_reason": "non_positive_executable_edge",
       "rule_match": "unverified",
-      "first_seen_at": "2026-09-04T04:46:26.901Z",
-      "last_seen_at": "2026-09-05T04:43:47.464Z",
-      "open_seconds": 86240
+      "first_seen_at": "2026-09-04T13:46:21.824Z",
+      "last_seen_at": "2026-09-05T13:43:35.625Z",
+      "open_seconds": 86233
     },
     {
-      "id": "e97821a5-e789-4b7d-a607-f9e9f5ce9857",
+      "id": "8ab1ec3e-de03-44d3-8d6a-d5a3bf58a730",
       "strategy": "within_market_fast_arb",
       "venues": [
         "polymarket"
@@ -1741,19 +1788,19 @@
       ],
       "gross_edge_bps": -9.99,
       "executable_net_edge_bps": -16.44,
-      "depth_usd": 2112479.3095,
+      "depth_usd": 2093603.9959,
       "capital_usd": 20,
       "days_to_resolution": null,
       "annualized_pct": null,
       "status": "rejected",
       "rejection_reason": "non_positive_executable_edge",
       "rule_match": "unverified",
-      "first_seen_at": "2026-09-04T04:46:26.834Z",
-      "last_seen_at": "2026-09-05T04:43:47.375Z",
-      "open_seconds": 86240
+      "first_seen_at": "2026-09-04T13:46:21.743Z",
+      "last_seen_at": "2026-09-05T13:43:35.504Z",
+      "open_seconds": 86233
     },
     {
-      "id": "8effce2d-08ec-4daf-8ccd-addd0bf69e84",
+      "id": "7bbd07e8-4e9b-4721-b333-3249f33c78be",
       "strategy": "within_market_fast_arb",
       "venues": [
         "polymarket"
@@ -1764,35 +1811,35 @@
         {
           "venue": "polymarket",
           "side": "YES",
-          "price": 0.017,
-          "size_usd": 0.3397,
+          "price": 0.018,
+          "size_usd": 0.3596,
           "role": "taker",
-          "fee_usd": 0.0167
+          "fee_usd": 0.0177
         },
         {
           "venue": "polymarket",
           "side": "NO",
-          "price": 0.984,
-          "size_usd": 19.6603,
+          "price": 0.983,
+          "size_usd": 19.6403,
           "role": "taker",
-          "fee_usd": 0.0157
+          "fee_usd": 0.0167
         }
       ],
       "gross_edge_bps": -9.99,
-      "executable_net_edge_bps": -26.2,
-      "depth_usd": 3313926.7132,
+      "executable_net_edge_bps": -27.17,
+      "depth_usd": 3404204.8658,
       "capital_usd": 20,
       "days_to_resolution": null,
       "annualized_pct": null,
       "status": "rejected",
       "rejection_reason": "non_positive_executable_edge",
       "rule_match": "unverified",
-      "first_seen_at": "2026-09-04T04:46:26.765Z",
-      "last_seen_at": "2026-09-05T04:43:47.284Z",
-      "open_seconds": 86240
+      "first_seen_at": "2026-09-04T13:46:21.656Z",
+      "last_seen_at": "2026-09-05T13:43:35.374Z",
+      "open_seconds": 86233
     },
     {
-      "id": "e7a98bd0-e6e1-4fde-a2f4-e4fafe94cafb",
+      "id": "df169163-ed79-442d-a51e-2bcd7a317e2c",
       "strategy": "within_market_fast_arb",
       "venues": [
         "polymarket"
@@ -1819,19 +1866,19 @@
       ],
       "gross_edge_bps": -9.99,
       "executable_net_edge_bps": -16.44,
-      "depth_usd": 808542.31,
+      "depth_usd": 803756.5932,
       "capital_usd": 20,
       "days_to_resolution": null,
       "annualized_pct": null,
       "status": "rejected",
       "rejection_reason": "non_positive_executable_edge",
       "rule_match": "unverified",
-      "first_seen_at": "2026-09-04T04:46:25.656Z",
-      "last_seen_at": "2026-09-05T04:43:47.187Z",
-      "open_seconds": 86241
+      "first_seen_at": "2026-09-04T13:46:21.577Z",
+      "last_seen_at": "2026-09-05T13:43:35.277Z",
+      "open_seconds": 86233
     },
     {
-      "id": "ffc5b042-796d-42e2-9730-32fcb5318d3e",
+      "id": "4514f7ff-0403-4718-ba72-f630bb1eecc5",
       "strategy": "within_market_fast_arb",
       "venues": [
         "polymarket"
@@ -1858,19 +1905,19 @@
       ],
       "gross_edge_bps": -9.99,
       "executable_net_edge_bps": -14.47,
-      "depth_usd": 490782.8764,
+      "depth_usd": 480486.1418,
       "capital_usd": 20,
       "days_to_resolution": null,
       "annualized_pct": null,
       "status": "rejected",
       "rejection_reason": "non_positive_executable_edge",
       "rule_match": "unverified",
-      "first_seen_at": "2026-09-04T04:46:25.245Z",
-      "last_seen_at": "2026-09-05T04:43:47.098Z",
-      "open_seconds": 86241
+      "first_seen_at": "2026-09-04T13:46:21.499Z",
+      "last_seen_at": "2026-09-05T13:43:35.151Z",
+      "open_seconds": 86233
     },
     {
-      "id": "32ba4bb6-2458-4165-b49a-277a66008f75",
+      "id": "e42fa297-de47-403c-9c99-a369fd7442a7",
       "strategy": "within_market_fast_arb",
       "venues": [
         "polymarket"
@@ -1881,74 +1928,35 @@
         {
           "venue": "polymarket",
           "side": "YES",
-          "price": 0.037,
-          "size_usd": 0.7393,
+          "price": 0.039,
+          "size_usd": 0.7792,
           "role": "taker",
-          "fee_usd": 0.0356
+          "fee_usd": 0.0374
         },
         {
           "venue": "polymarket",
           "side": "NO",
-          "price": 0.964,
-          "size_usd": 19.2607,
+          "price": 0.962,
+          "size_usd": 19.2208,
           "role": "taker",
-          "fee_usd": 0.0347
+          "fee_usd": 0.0365
         }
       ],
       "gross_edge_bps": -9.99,
-      "executable_net_edge_bps": -45.12,
-      "depth_usd": 470264.0522,
+      "executable_net_edge_bps": -46.97,
+      "depth_usd": 461912.0175,
       "capital_usd": 20,
       "days_to_resolution": null,
       "annualized_pct": null,
       "status": "rejected",
       "rejection_reason": "non_positive_executable_edge",
       "rule_match": "unverified",
-      "first_seen_at": "2026-09-04T04:46:25.179Z",
-      "last_seen_at": "2026-09-05T04:43:47.007Z",
-      "open_seconds": 86241
+      "first_seen_at": "2026-09-04T13:46:21.406Z",
+      "last_seen_at": "2026-09-05T13:43:35.001Z",
+      "open_seconds": 86233
     },
     {
-      "id": "7eeeaf52-0548-4aa1-9b9e-0a8aa7635911",
-      "strategy": "within_market_fast_arb",
-      "venues": [
-        "polymarket"
-      ],
-      "title": "will-chelsea-clinton-win-the-2028-democratic-presidential-nomination",
-      "market_ref": "will-chelsea-clinton-win-the-2028-democratic-presidential-nomination",
-      "legs": [
-        {
-          "venue": "polymarket",
-          "side": "YES",
-          "price": 0.003,
-          "size_usd": 0.0599,
-          "role": "taker",
-          "fee_usd": 0.003
-        },
-        {
-          "venue": "polymarket",
-          "side": "NO",
-          "price": 0.998,
-          "size_usd": 19.94,
-          "role": "taker",
-          "fee_usd": 0.002
-        }
-      ],
-      "gross_edge_bps": -9.99,
-      "executable_net_edge_bps": -12.48,
-      "depth_usd": 595359.8138,
-      "capital_usd": 20,
-      "days_to_resolution": null,
-      "annualized_pct": null,
-      "status": "rejected",
-      "rejection_reason": "non_positive_executable_edge",
-      "rule_match": "unverified",
-      "first_seen_at": "2026-09-04T04:46:25.115Z",
-      "last_seen_at": "2026-09-05T04:43:46.921Z",
-      "open_seconds": 86241
-    },
-    {
-      "id": "3d102fc0-6fff-49d3-9ef3-4909f2a84552",
+      "id": "256a7189-c738-4203-b1f1-69f181d6a2f3",
       "strategy": "within_market_fast_arb",
       "venues": [
         "polymarket"
@@ -1975,19 +1983,19 @@
       ],
       "gross_edge_bps": -9.99,
       "executable_net_edge_bps": -13.47,
-      "depth_usd": 599714.7989,
+      "depth_usd": 599401.2086,
       "capital_usd": 20,
       "days_to_resolution": null,
       "annualized_pct": null,
       "status": "rejected",
       "rejection_reason": "non_positive_executable_edge",
       "rule_match": "unverified",
-      "first_seen_at": "2026-09-04T04:46:24.499Z",
-      "last_seen_at": "2026-09-05T04:43:46.829Z",
-      "open_seconds": 86242
+      "first_seen_at": "2026-09-04T13:46:21.300Z",
+      "last_seen_at": "2026-09-05T13:43:34.905Z",
+      "open_seconds": 86233
     },
     {
-      "id": "11c5179a-7e0e-406e-997b-f371a9b75b37",
+      "id": "de721904-93ba-4dca-977c-dce683dfe36e",
       "strategy": "within_market_fast_arb",
       "venues": [
         "polymarket"
@@ -2014,19 +2022,19 @@
       ],
       "gross_edge_bps": -9.99,
       "executable_net_edge_bps": -11.49,
-      "depth_usd": 313719.0469,
+      "depth_usd": 203672.9332,
       "capital_usd": 20,
       "days_to_resolution": null,
       "annualized_pct": null,
       "status": "rejected",
       "rejection_reason": "non_positive_executable_edge",
       "rule_match": "unverified",
-      "first_seen_at": "2026-09-04T04:46:23.402Z",
-      "last_seen_at": "2026-09-05T04:43:46.737Z",
-      "open_seconds": 86243
+      "first_seen_at": "2026-09-04T13:46:21.206Z",
+      "last_seen_at": "2026-09-05T13:43:34.818Z",
+      "open_seconds": 86233
     },
     {
-      "id": "d6acbabd-0b5d-4dc1-b6c9-8a36590fcd2b",
+      "id": "e41cf5d6-0708-46a3-b111-bc95da15f077",
       "strategy": "within_market_fast_arb",
       "venues": [
         "polymarket"
@@ -2053,19 +2061,19 @@
       ],
       "gross_edge_bps": -9.99,
       "executable_net_edge_bps": -12.48,
-      "depth_usd": 562595.6196,
+      "depth_usd": 562168.3166,
       "capital_usd": 20,
       "days_to_resolution": null,
       "annualized_pct": null,
       "status": "rejected",
       "rejection_reason": "non_positive_executable_edge",
       "rule_match": "unverified",
-      "first_seen_at": "2026-09-04T04:46:22.932Z",
-      "last_seen_at": "2026-09-05T04:43:46.647Z",
-      "open_seconds": 86243
+      "first_seen_at": "2026-09-04T13:46:21.111Z",
+      "last_seen_at": "2026-09-05T13:43:34.730Z",
+      "open_seconds": 86233
     },
     {
-      "id": "b0ef5d1b-a1a6-4840-af80-903442d27e0f",
+      "id": "5ca7b298-dd7b-4557-a336-26d29b3c554c",
       "strategy": "within_market_fast_arb",
       "venues": [
         "polymarket"
@@ -2092,19 +2100,19 @@
       ],
       "gross_edge_bps": -9.99,
       "executable_net_edge_bps": -20.37,
-      "depth_usd": 2487245.9072,
+      "depth_usd": 2486853.2021,
       "capital_usd": 20,
       "days_to_resolution": null,
       "annualized_pct": null,
       "status": "rejected",
       "rejection_reason": "non_positive_executable_edge",
       "rule_match": "unverified",
-      "first_seen_at": "2026-09-04T04:46:21.452Z",
-      "last_seen_at": "2026-09-05T04:43:46.553Z",
-      "open_seconds": 86245
+      "first_seen_at": "2026-09-04T13:46:21.017Z",
+      "last_seen_at": "2026-09-05T13:43:34.639Z",
+      "open_seconds": 86233
     },
     {
-      "id": "53f69561-3b57-4219-b577-5972a25f982f",
+      "id": "f3915dc8-b197-4d7f-a91f-65cb00252876",
       "strategy": "within_market_fast_arb",
       "venues": [
         "polymarket"
@@ -2115,32 +2123,32 @@
         {
           "venue": "polymarket",
           "side": "YES",
-          "price": 0.024,
-          "size_usd": 0.4795,
+          "price": 0.025,
+          "size_usd": 0.4995,
           "role": "taker",
-          "fee_usd": 0.0234
+          "fee_usd": 0.0244
         },
         {
           "venue": "polymarket",
           "side": "NO",
-          "price": 0.977,
-          "size_usd": 19.5205,
+          "price": 0.976,
+          "size_usd": 19.5005,
           "role": "taker",
-          "fee_usd": 0.0224
+          "fee_usd": 0.0234
         }
       ],
       "gross_edge_bps": -9.99,
-      "executable_net_edge_bps": -32.92,
-      "depth_usd": 934910.4983,
+      "executable_net_edge_bps": -33.87,
+      "depth_usd": 962785.6687,
       "capital_usd": 20,
       "days_to_resolution": null,
       "annualized_pct": null,
       "status": "rejected",
       "rejection_reason": "non_positive_executable_edge",
       "rule_match": "unverified",
-      "first_seen_at": "2026-09-04T04:46:21.373Z",
-      "last_seen_at": "2026-09-05T04:43:46.458Z",
-      "open_seconds": 86245
+      "first_seen_at": "2026-09-04T13:46:23.656Z",
+      "last_seen_at": "2026-09-05T13:43:34.529Z",
+      "open_seconds": 86230
     }
   ],
   "paper_positions": [

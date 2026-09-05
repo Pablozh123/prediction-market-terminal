@@ -1129,6 +1129,7 @@ class ResearchFilesTests(unittest.TestCase):
         Unterstrich-Adresse fuehren auf dieselbe Datei."""
         self.assertEqual(apv.RESEARCH_FILES["arb-scan"], "arb_scan")
         self.assertEqual(apv.RESEARCH_FILES["arb_scan"], "arb_scan")
+        self.assertEqual(apv.RESEARCH_FILES["arb-resolutions"], "arb_resolutions")
 
 
 class LiveRunsExtrasTests(unittest.TestCase):
