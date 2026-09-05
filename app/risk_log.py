@@ -351,8 +351,10 @@ def _upsert_rows(
     dedupe_hours: float,
     update_keys: tuple[str, ...],
     skipped: int,
+    strength_key: str = "score",
 ) -> dict[str, Any]:
-    """Append or update rows by ``flag_id`` within the dedupe window."""
+    """Append or update rows by ``flag_id`` within the dedupe window; the
+    reading with the higher ``strength_key`` overwrites ``update_keys``."""
 
     result: dict[str, Any] = {"written": 0, "updated": 0, "skipped": skipped, "path": str(target), "error": None}
     if not candidates:
@@ -381,7 +383,7 @@ def _upsert_rows(
                 existing = rows[index]
                 existing["last_seen"] = candidate["last_seen"]
                 existing["times_seen"] = int(existing.get("times_seen") or 1) + 1
-                if (_num(candidate.get("score")) or 0.0) > (_num(existing.get("score")) or 0.0):
+                if (_num(candidate.get(strength_key)) or 0.0) > (_num(existing.get(strength_key)) or 0.0):
                     for key in update_keys:
                         if key in candidate:
                             existing[key] = candidate[key]
@@ -395,6 +397,107 @@ def _upsert_rows(
             result["error"] = f"{type(exc).__name__}: {exc}"
             print(f"[warn] risk flag log not writable ({target}): {exc}")
     return result
+
+
+# ---------------------------------------------------------------------------
+# Size outliers (app/outliers.py). No score: a wallet whose money in the
+# window reached the rule's multiple of its market's own yardstick. One line
+# per venue, market, wallet and UTC day, the reading with the higher ratio
+# winning a repeat, so the review can ask afterwards whether the wallet was
+# alone above the baseline and what the market did next.
+# ---------------------------------------------------------------------------
+
+OUTLIER_FILE_NAME = "outliers.jsonl"
+
+OUTLIER_UPDATE_KEYS = (
+    "total", "largest", "prints", "ratio", "yardstick", "baseline_n", "baseline_hours", "baseline_max",
+    "elevated_wallets", "wallets_in_window", "verdict", "verdict_text", "side", "price", "share",
+    "window_minutes", "window_volume_ratio", "first_print", "last_print",
+    "first_trade_days", "first_trade_state", "url", "category", "name",
+)
+
+
+def outlier_log_path() -> Path:
+    return log_dir() / OUTLIER_FILE_NAME
+
+
+def outlier_flag_id(venue: Any, market_key: Any, wallet: Any, day: Any) -> str:
+    """Stable id of an outlier flag: venue + market + wallet + UTC day."""
+
+    raw = "|".join(str(part or "").strip().lower() for part in (venue, market_key, wallet, day))
+    return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16]
+
+
+def outlier_flag_row(row: dict[str, Any], as_of: Any = None) -> dict[str, Any]:
+    """The log row of one outlier as ``outliers.size_outliers`` shapes it."""
+
+    seen = _utc(as_of)
+    venue = str(row.get("venue") or "Polymarket")
+    market_key = str(row.get("market_key") or "")
+    wallet = str(row.get("wallet") or "")
+    when = _iso(seen)
+    return {
+        "flag_id": outlier_flag_id(venue, market_key, wallet, seen.strftime("%Y-%m-%d")),
+        "first_seen": when,
+        "last_seen": when,
+        "times_seen": 1,
+        "venue": venue,
+        "market_key": market_key,
+        "title": str(row.get("title") or ""),
+        "url": str(row.get("url") or ""),
+        "category": str(row.get("category") or ""),
+        "wallet": wallet,
+        "name": str(row.get("name") or ""),
+        "total": _num(row.get("total")),
+        "largest": _num(row.get("largest")),
+        "prints": int(_num(row.get("prints")) or 0),
+        "ratio": _num(row.get("ratio")),
+        "yardstick": _num(row.get("yardstick")),
+        "baseline_n": int(_num(row.get("baseline_n")) or 0),
+        "baseline_hours": _num(row.get("baseline_hours")),
+        "baseline_max": _num(row.get("baseline_max")),
+        "elevated_wallets": int(_num(row.get("elevated_wallets")) or 0),
+        "wallets_in_window": int(_num(row.get("wallets_in_window")) or 0),
+        "verdict": str(row.get("verdict") or ""),
+        "verdict_text": str(row.get("verdict_text") or ""),
+        "side": str(row.get("side") or ""),
+        "price": _num(row.get("price")),
+        "share": _num(row.get("share")),
+        "window_minutes": _num(row.get("window_minutes")),
+        "window_volume_ratio": _num(row.get("window_volume_ratio")),
+        "first_print": str(row.get("first_print") or ""),
+        "last_print": str(row.get("last_print") or ""),
+        "first_trade_days": _num(row.get("first_trade_days")),
+        "first_trade_state": str(row.get("first_trade_state") or ""),
+    }
+
+
+def record_outlier_flags(
+    rows: Iterable[dict[str, Any]],
+    as_of: Any = None,
+    *,
+    path: Path | str | None = None,
+    dedupe_hours: float = DEDUPE_HOURS,
+) -> dict[str, Any]:
+    """Append the outlier rows to the outlier log; every row is a flag
+    already, so there is no floor. Same dedupe and I/O contract as
+    :func:`record_flags`."""
+
+    target = Path(path) if path is not None else outlier_log_path()
+    seen = _utc(as_of)
+    incoming = [row for row in (rows or []) if isinstance(row, dict)]
+    candidates = [
+        outlier_flag_row(row, seen) for row in incoming
+        if str(row.get("wallet") or "").strip() and str(row.get("market_key") or "").strip()
+    ]
+    return _upsert_rows(target, candidates, seen, dedupe_hours, OUTLIER_UPDATE_KEYS,
+                        len(incoming) - len(candidates), strength_key="ratio")
+
+
+def read_outlier_flags(limit: int = 200, since: Any = None, *, path: Path | str | None = None) -> list[dict[str, Any]]:
+    """Outlier log rows newest first, like :func:`read_flags`."""
+
+    return read_flags(limit=limit, since=since, path=Path(path) if path is not None else outlier_log_path())
 
 
 def read_flags(limit: int = 200, since: Any = None, *, path: Path | str | None = None) -> list[dict[str, Any]]:

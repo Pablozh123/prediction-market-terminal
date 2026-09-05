@@ -38,6 +38,7 @@ from app import run_sim as rsim
 from app import signals as sig
 from app import suspicion as susp
 from app import wallet_origin as wo
+from app import outliers as outl
 from app import track_record as trec
 from app import venue_units as vu
 from src import copy_trading as ct
@@ -2153,6 +2154,13 @@ def load_wallet_position_values(wallets: tuple[str, ...], limit: int = 120) -> p
 ACCOUNT_AGE_MEASURED = "measured"
 ACCOUNT_AGE_WINDOW_CAPPED = "window_capped"
 ACCOUNT_AGE_UNKNOWN = "unknown"
+
+
+@st.cache_data(ttl=900, show_spinner=False)
+def load_market_tape(market_key: str, limit: int = 1000) -> pd.DataFrame:
+    """The market's own recent prints in every size (app/outliers.py baseline)."""
+
+    return md.get_polymarket_trades(limit=limit, market=market_key)
 
 
 @st.cache_data(ttl=900, show_spinner=False)
@@ -12679,6 +12687,49 @@ def page_suspicious() -> None:
                     "account_age_days": st.column_config.NumberColumn("Age (d)", format="%.0f"),
                 },
             )
+
+    st.markdown("<div class='step-label'>Size outliers</div>", unsafe_allow_html=True)
+    st.caption(
+        "No points: each market is measured against its own tape. A wallet whose money in the last hour reaches twice the "
+        "99th percentile of what one wallet put into the market within an hour, over the market's last 1000 prints before "
+        "the window, and at least the whale threshold, is an outlier. The verdict says whether it was the only one."
+    )
+    ausreisser_regeln = outl.outlier_rules()
+    kandidaten_maerkte = outl.candidate_markets(trades, whale_threshold=whale_floor, limit=int(ausreisser_regeln["max_markets"]))
+    markt_tapes: dict[str, pd.DataFrame] = {}
+    markt_meta: dict[str, dict[str, Any]] = {}
+    for kandidat in kandidaten_maerkte:
+        markt_frame = safe_load("Market tape", load_market_tape, kandidat["market_key"], default=pd.DataFrame())
+        if markt_frame is None or markt_frame.empty:
+            continue
+        markt_tapes[kandidat["market_key"]] = markt_frame
+        markt_meta[kandidat["market_key"]] = {
+            "title": kandidat["title"], "url": kandidat["url"],
+            "category": susp.classify_insider_context(kandidat["title"])[0],
+        }
+    ausreisser, _bilder = outl.size_outliers(markt_tapes, now=now_ts, whale_threshold=whale_floor, meta=markt_meta)
+    if not ausreisser:
+        draw_empty(
+            f"No wallet above its market's baseline in the last {ausreisser_regeln['recent_minutes']:g} minutes "
+            f"({len(markt_tapes)} markets with whale flow measured against their own tape)."
+        )
+    else:
+        st.dataframe(
+            pd.DataFrame([{
+                "market": row["title"], "category": row["category"], "wallet": row["name"] or row["wallet"],
+                "in window": row["total"], "vs yardstick": row["ratio"], "yardstick": row["yardstick"],
+                "baseline prints": row["baseline_n"], "largest before": row["baseline_max"],
+                "verdict": row["verdict_text"], "side": row["side"], "price": row["price"], "prints": row["prints"],
+            } for row in ausreisser]),
+            width="stretch", hide_index=True,
+            column_config={
+                "in window": st.column_config.NumberColumn("In window", format="$%.0f"),
+                "vs yardstick": st.column_config.NumberColumn("Vs yardstick", format="%.1fx"),
+                "yardstick": st.column_config.NumberColumn("Yardstick", format="$%.0f"),
+                "largest before": st.column_config.NumberColumn("Largest before", format="$%.0f"),
+                "price": st.column_config.NumberColumn("Price", format="%.2f"),
+            },
+        )
 
     st.markdown("<div class='step-label'>Suspicious traders</div>", unsafe_allow_html=True)
     if wallet_risk.empty:

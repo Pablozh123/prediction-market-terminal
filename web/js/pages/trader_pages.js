@@ -1052,6 +1052,7 @@ export function renderRisk(T) {
     + seitenKpi('FRESH-WALLET CLUSTERS', kp ? kp.fresh_clusters : null, false)
     + seitenKpi('COORDINATED CLUSTERS', kp ? kp.coordinated_clusters : null, false)
     + seitenKpi('FRESH FIRST-TRADE CARDS', kp ? kp.fresh_first_trade_events : null, false)
+    + seitenKpi('SIZE OUTLIERS', kp ? kp.size_outliers : null, false)
     + '</div></div>'
     // Unter dem Trichter, nicht daneben: der Trichter zaehlt drei Stufen,
     // das Histogramm zeigt die Verteilung, aus der sie geschnitten sind.
@@ -1177,6 +1178,54 @@ export function renderRisk(T) {
           + '</div>'
           + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-4); line-height:var(--lh-snug)">' + esc(c.detail) + '</div>'
           + '</div>';
+      }).join('')
+      + '</div></div>';
+  } else if (s.riskView === 'outliers') {
+    // Groesse gegen die eigene Baseline des Marktes, ohne Punkte: eine
+    // Wallet, deren Geld der letzten Stunde das Doppelte dessen erreicht,
+    // was das oberste Prozent der Wallet-Stunden dieses Marktes eingesetzt
+    // hat. Und dann die zweite Frage, die das Bild gibt: war sie die einzige?
+    const out = live && live.outliers ? live.outliers : null;
+    const pictures = out && Array.isArray(out.markets) ? out.markets : [];
+    const rules = out && out.rules ? out.rules : {};
+    const antwortDa = !!live && live._quelle !== 'fehler';
+    const kurz = (a) => (a && a.length > 12) ? a.slice(0, 6) + '…' + a.slice(-4) : (a || '—');
+    const GRID_O = 'minmax(180px,1.2fr) 96px 96px 120px 90px 64px';
+    body = '<div>'
+      + '<div style="padding:var(--sp-5) var(--sp-6) 0; font-size:var(--t-small); color:var(--ink-3); line-height:var(--lh-prose); max-width:860px">'
+      + 'No points here. ' + esc(rules.reads || 'Each market is measured against its own tape.') + ' Then the second question: was it the only wallet above the baseline, or one of several?'
+      + '</div>'
+      + (out && out.error ? '<div style="padding:var(--sp-3) var(--sp-6) 0; font-size:var(--t-small); color:var(--warn)">' + esc(String(out.error)) + '</div>' : '')
+      + (pictures.length ? '' : leerZeile(antwortDa
+        ? 'No wallet above its market\'s baseline in the last ' + esc(String(rules.recent_minutes || 60)) + ' minutes' + (out && out.screened != null ? ' — ' + out.screened + ' market' + (out.screened === 1 ? '' : 's') + ' with whale flow measured against their own tape' : '') + '. Most windows look like this.'
+        : risikoSatz))
+      + '<div style="padding:var(--sp-5) var(--sp-6) var(--sp-2); display:grid; gap:var(--sp-5)">'
+      + pictures.map((p) => {
+        const b = p.baseline || {};
+        const w0 = p.window || {};
+        const wallets = (Array.isArray(p.wallets) ? p.wallets : []).slice(0, 8);
+        return '<div style="background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel); padding:var(--sp-5)">'
+          + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">' + (p.category ? esc(String(p.category).toUpperCase()) + ' · ' : '') + esc(String(p.venue || 'Polymarket').toUpperCase()) + '</div>'
+          + '<div style="font-size:var(--t-lead); margin-top:var(--sp-2); line-height:var(--lh-tight)">' + esc(p.title || p.market_key || '—') + (p.url ? ' ' + marketLink(p.url) : '') + '</div>'
+          + '<div style="display:flex; gap:var(--sp-2); flex-wrap:wrap; margin-top:var(--sp-3)">'
+          + '<span style="' + CHIP + '">yardstick ' + esc(b.yardstick_label || '—') + ' · ' + esc(String(b.n || 0)) + ' prints over ' + esc(b.hours_label || '—') + '</span>'
+          + '<span style="' + CHIP + '">largest print before: ' + esc(b.max_label || '—') + '</span>'
+          + '<span style="' + CHIP + '">last ' + esc(String(w0.minutes || 60)) + ' min: ' + esc(w0.volume_label || '—') + (w0.volume_ratio_label ? ' · ' + esc(w0.volume_ratio_label) + ' the usual hour' : '') + '</span>'
+          + '<span style="' + CHIP + '; color:var(--warn)">' + esc(p.verdict_text || '') + '</span></div>'
+          + '<div role="table" aria-label="Wallets in the window" style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:var(--sp-4); overflow:clip">'
+          + '<div role="row" style="display:grid; grid-template-columns:' + GRID_O + '; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">'
+          + '<div role="columnheader">WALLET</div><div role="columnheader" style="text-align:right">IN WINDOW</div><div role="columnheader" style="text-align:right">VS YARDSTICK</div><div role="columnheader">SIDE · PRICE</div><div role="columnheader" style="text-align:right">FIRST TRADE</div><div role="columnheader" style="text-align:right">PRINTS</div></div>'
+          + wallets.map((w) => {
+            const hot = !!w.elevated;
+            return '<div ' + T.act(() => T.openWallet(w.name || w.wallet, w.wallet), { role: null }) + ' role="row" class="hv-panel" style="display:grid; grid-template-columns:' + GRID_O + '; gap:var(--sp-4); align-items:center; padding:var(--sp-3) var(--sp-5); border-bottom:1px solid var(--line-3); ' + M + '; font-size:var(--t-small); cursor:pointer' + (hot ? '' : '; color:var(--ink-3)') + '">'
+              + '<div role="cell" style="min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(w.wallet || '') + '">' + (hot ? '<span style="color:var(--warn)">●</span> ' : '') + esc(w.name || kurz(w.wallet)) + '</div>'
+              + '<div role="cell" style="text-align:right">' + esc(w.total_label || '') + '</div>'
+              + '<div role="cell" style="text-align:right' + (hot ? '; color:var(--warn)' : '') + '">' + esc(w.ratio_label || '—') + '</div>'
+              + '<div role="cell" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + esc(w.side || '—') + (w.price != null ? ' · ' + esc(String(Math.round(Number(w.price) * 100))) + '¢' : '') + '</div>'
+              + '<div role="cell" style="text-align:right">' + esc(w.first_trade_label || 'not asked') + '</div>'
+              + '<div role="cell" style="text-align:right">' + esc(String(w.prints || 0)) + '</div></div>';
+          }).join('')
+          + '</div></div>';
       }).join('')
       + '</div></div>';
   } else if (s.riskView === 'timing') {
@@ -1313,7 +1362,7 @@ export function renderRisk(T) {
           + '<div ' + T.act(() => T.neuLaden('risk', 'risk')) + ' class="hv-edge-strong" style="' + M + '; font-size:var(--t-micro); color:var(--ink-2); border:1px solid var(--line-1); border-radius:var(--r-control); padding:var(--sp-2) var(--sp-4); cursor:pointer; white-space:nowrap">Try again</div></div>'
         : ''))
     + '<div style="display:flex; gap:var(--sp-3); padding:var(--sp-5) var(--sp-6) 0; flex-wrap:wrap">'
-    + [['events','Events'],['wallets','Wallets'],['fresh','Fresh-wallet clusters'],['timing','Coordinated timing'],['network','Co-trading network']].map((o) => T.tab(o[1], s.riskView === o[0], { riskView: o[0] })).join('')
+    + [['events','Events'],['wallets','Wallets'],['outliers','Size outliers'],['fresh','Fresh-wallet clusters'],['timing','Coordinated timing'],['network','Co-trading network']].map((o) => T.tab(o[1], s.riskView === o[0], { riskView: o[0] })).join('')
     // The log is fetched only when its tab is opened (app.js openRiskLog);
     // the harness T has no such method and just switches the view.
     + T.tab('Flag log', s.riskView === 'log', () => (T.openRiskLog ? T.openRiskLog() : T.setState({ riskView: 'log' })))
