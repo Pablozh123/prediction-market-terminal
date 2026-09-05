@@ -73,7 +73,7 @@ class ArbScanAbschnittTest(unittest.TestCase):
                 self.assertIsNone(o["gross_edge_bps"], o["id"])
                 self.assertIsNone(o["executable_net_edge_bps"], o["id"])
                 self.assertIsNone(o["annualized_pct"], o["id"])
-        self.assertEqual(daten["config"]["hurdle_pct"], 10)
+        self.assertEqual(daten["config"]["hurdle_pct"], 5)
 
     def test_registrierung_abschnitt_statt_studie(self) -> None:
         # Kein eigener Studieneintrag, kein Sidebar-Eintrag, keine eigene Route.
@@ -170,7 +170,7 @@ class ArbScanAbschnittTest(unittest.TestCase):
         self.assertIn("Paper scanner: executable edge", text)
         self.assertIn("2 validated of 54 raw candidates in 24 h, 2 carry candidates above the hurdle, 1 paper trade resolved.", text)
         # Die Schwellen, gegen die die Zahlen geprueft wurden, aus config.
-        self.assertIn("JUDGED AGAINST · hurdle 10.0% a year · target size $20.00 · min executable capital $5.00 · short window 72 h · medium up to 14 d · legs priced as taker · fee schedule 2026-07-30", text)
+        self.assertIn("JUDGED AGAINST · hurdle 5.0% a year · target size $20.00 · min executable capital $5.00 · short window 72 h · medium up to 14 d · legs priced as taker · fee schedule 2026-07-30", text)
         # Registrierungsstempel und Publish-Uhr stehen beide (stempelBlock).
         self.assertIn("paper scanner · rolling", text)
         self.assertIn("published 2026-09-05 14:00 UTC", text)
@@ -291,7 +291,7 @@ class ArbScanAbschnittTest(unittest.TestCase):
         self.assertIn("Will Marine Le Pen win the 2027 French presidential election? YES on one venue, NO on the other · cross_venue_yes_no_arb · polymarket ↔ kalshi CARRY · LONG SCREEN PASSED NO REVIEW 416.7 bps 137.5 bps +$1.32 $96.00 $96.00 237 d 12.1% ✓", text)
         self.assertIn("Kalshi settles 2028-05-29 · Polymarket settles 2027-04-30", text)
         self.assertIn("OpenSea FDV one day after launch NO on every leg of a NEG_RISK event · neg_risk_bracket_arb · polymarket CARRY · LONG SCREEN PASSED 330.6 bps 299.1 bps +$0.59 $4.8k $19.77 41.0 d 26.6% ✓", text)
-        self.assertIn("the hurdle of 10.0% a year", text)
+        self.assertIn("the hurdle of 5.0% a year", text)
         self.assertIn("does not paper-fire them", text)
         # Die Chancen stehen vor den Carry-Kandidaten, die vor den Ablehnungen.
         self.assertLess(text.index("CHANCES · 2 PASSED EVERY GATE"), text.index("CARRY CANDIDATES · 2"))
