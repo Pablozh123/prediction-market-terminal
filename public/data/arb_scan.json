@@ -1,0 +1,2698 @@
+{
+  "schema": "arb_scan/1",
+  "generated_at": "2026-09-05T04:43:50.875Z",
+  "generator": {
+    "repo": "prediction-alpha-bot",
+    "git_sha": "38da47f4f7a2",
+    "mode": "paper"
+  },
+  "disclaimer": "Paper-only research. Not trading advice.",
+  "health": {
+    "last_cycle_at": "2026-09-05T04:43:50.864Z",
+    "cycles_24h": 2908,
+    "errors_24h": 4,
+    "scan_interval_ms": 10000,
+    "alive": true
+  },
+  "summary": {
+    "raw_candidates_24h": 1952761,
+    "validated_24h": 7,
+    "paper_fired_24h": 0,
+    "open_paper_positions": 167,
+    "resolved_paper_trades": 0,
+    "resolved_paper_pnl_usd": null,
+    "sample_note": "0 resolved paper trade(s) with a linked candidate; 147 legacy trade(s) without a candidate link are excluded from PnL. no PnL statement until the resolved sample exists. Pre-registered 2026-09-04: 14-day measurement window from go-live; criterion is resolved, candidate-linked paper trades with positive net edge after fees."
+  },
+  "strategies": [
+    {
+      "id": "neg_risk_bracket_arb",
+      "label": "NEG_RISK bracket sum-arb (Polymarket)",
+      "raw_24h": 10162,
+      "validated_24h": 0,
+      "paper_24h": 0,
+      "top_rejection": "duration_too_long_for_short_arb"
+    },
+    {
+      "id": "within_market_fast_arb",
+      "label": "Within-market YES+NO (Polymarket)",
+      "raw_24h": 1939532,
+      "validated_24h": 0,
+      "paper_24h": 0,
+      "top_rejection": "non_positive_executable_edge"
+    },
+    {
+      "id": "clear_win_watch",
+      "label": "Clear-win watch (diagnostic only)",
+      "raw_24h": 0,
+      "validated_24h": 0,
+      "paper_24h": 0,
+      "top_rejection": null
+    },
+    {
+      "id": "cross_venue_yes_no_arb",
+      "label": "Cross-venue YES/NO (Kalshi x Polymarket)",
+      "raw_24h": 3067,
+      "validated_24h": 7,
+      "paper_24h": 0,
+      "top_rejection": "compound_kalshi_market"
+    }
+  ],
+  "rejections_24h": [
+    {
+      "reason": "non_positive_executable_edge",
+      "count": 145063
+    },
+    {
+      "reason": "duration_too_long_for_short_arb",
+      "count": 5812
+    },
+    {
+      "reason": "partial_basket_invalid",
+      "count": 4851
+    },
+    {
+      "reason": "compound_kalshi_market",
+      "count": 2784
+    },
+    {
+      "reason": "below_min_net_edge",
+      "count": 10
+    },
+    {
+      "reason": "non_positive_net_edge_after_fees",
+      "count": 1
+    },
+    {
+      "reason": "unknown_duration_for_short_arb",
+      "count": 1
+    }
+  ],
+  "opportunities": [
+    {
+      "id": "9ca73346-ea5c-487a-ab78-ceb104f5ce75",
+      "strategy": "neg_risk_bracket_arb",
+      "venues": [
+        "polymarket"
+      ],
+      "title": "which-candidates-will-advance-to-brazils-presidential-runoff",
+      "market_ref": "which-candidates-will-advance-to-brazils-presidential-runoff",
+      "legs": [
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.99,
+          "size_usd": 2.475,
+          "role": "taker",
+          "fee_usd": 0.0012
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.989,
+          "size_usd": 2.4725,
+          "role": "taker",
+          "fee_usd": 0.0014
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.98,
+          "size_usd": 2.45,
+          "role": "taker",
+          "fee_usd": 0.0025
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.99,
+          "size_usd": 2.475,
+          "role": "taker",
+          "fee_usd": 0.0012
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.021,
+          "size_usd": 0.0525,
+          "role": "taker",
+          "fee_usd": 0.0026
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.988,
+          "size_usd": 2.47,
+          "role": "taker",
+          "fee_usd": 0.0015
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.996,
+          "size_usd": 2.49,
+          "role": "taker",
+          "fee_usd": 0.0005
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.99,
+          "size_usd": 2.475,
+          "role": "taker",
+          "fee_usd": 0.0012
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.038,
+          "size_usd": 0.095,
+          "role": "taker",
+          "fee_usd": 0.0046
+        }
+      ],
+      "gross_edge_bps": 1458.03,
+      "executable_net_edge_bps": 1448.5,
+      "depth_usd": 8573.4288,
+      "capital_usd": 17.455,
+      "days_to_resolution": 28.8029,
+      "annualized_pct": 183.56,
+      "status": "rejected",
+      "rejection_reason": "duration_too_long_for_short_arb",
+      "rule_match": "unverified",
+      "first_seen_at": "2026-09-04T04:46:16.919Z",
+      "last_seen_at": "2026-09-05T04:43:45.420Z",
+      "open_seconds": 86248
+    },
+    {
+      "id": "606c0829-286a-4221-b3f7-c8dc5294e003",
+      "strategy": "neg_risk_bracket_arb",
+      "venues": [
+        "polymarket"
+      ],
+      "title": "opensea-fdv-above-one-day-after-launch",
+      "market_ref": "opensea-fdv-above-one-day-after-launch",
+      "legs": [
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.81,
+          "size_usd": 2.3143,
+          "role": "taker",
+          "fee_usd": 0.022
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.85,
+          "size_usd": 2.4285,
+          "role": "taker",
+          "fee_usd": 0.0182
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.945,
+          "size_usd": 2.7,
+          "role": "taker",
+          "fee_usd": 0.0074
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.961,
+          "size_usd": 2.7457,
+          "role": "taker",
+          "fee_usd": 0.0054
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.93,
+          "size_usd": 2.6571,
+          "role": "taker",
+          "fee_usd": 0.0093
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.81,
+          "size_usd": 2.3143,
+          "role": "taker",
+          "fee_usd": 0.022
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.797,
+          "size_usd": 2.2771,
+          "role": "taker",
+          "fee_usd": 0.0231
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.84,
+          "size_usd": 2.4,
+          "role": "taker",
+          "fee_usd": 0.0192
+        }
+      ],
+      "gross_edge_bps": 82.1,
+      "executable_net_edge_bps": 18.29,
+      "depth_usd": 3784.5827,
+      "capital_usd": 19.8368,
+      "days_to_resolution": 118.0113,
+      "annualized_pct": 0.57,
+      "status": "rejected",
+      "rejection_reason": "duration_too_long_for_short_arb",
+      "rule_match": "unverified",
+      "first_seen_at": "2026-09-04T04:46:17.148Z",
+      "last_seen_at": "2026-09-05T04:43:45.711Z",
+      "open_seconds": 86248
+    },
+    {
+      "id": "76420dc2-1827-46f8-a890-35afeacd8220",
+      "strategy": "within_market_fast_arb",
+      "venues": [
+        "polymarket"
+      ],
+      "title": "2026-balance-of-power-other-131",
+      "market_ref": "2026-balance-of-power-other-131",
+      "legs": [
+        {
+          "venue": "polymarket",
+          "side": "YES",
+          "price": 0.004,
+          "size_usd": 0.0799,
+          "role": "taker",
+          "fee_usd": 0.004
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.997,
+          "size_usd": 19.9201,
+          "role": "taker",
+          "fee_usd": 0.003
+        }
+      ],
+      "gross_edge_bps": -9.99,
+      "executable_net_edge_bps": -13.47,
+      "depth_usd": 1086904.3325,
+      "capital_usd": 20,
+      "days_to_resolution": 58.8029,
+      "annualized_pct": -0.84,
+      "status": "rejected",
+      "rejection_reason": "non_positive_executable_edge",
+      "rule_match": "unverified",
+      "first_seen_at": "2026-09-04T05:08:05.770Z",
+      "last_seen_at": "2026-09-05T04:43:46.042Z",
+      "open_seconds": 84940
+    },
+    {
+      "id": "eccfcd57-5437-4976-8c5d-43fad866936d",
+      "strategy": "within_market_fast_arb",
+      "venues": [
+        "polymarket"
+      ],
+      "title": "fed-abolished-before-2027",
+      "market_ref": "fed-abolished-before-2027",
+      "legs": [
+        {
+          "venue": "polymarket",
+          "side": "YES",
+          "price": 0.028,
+          "size_usd": 0.5589,
+          "role": "taker",
+          "fee_usd": 0.0272
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.974,
+          "size_usd": 19.441,
+          "role": "taker",
+          "fee_usd": 0.0253
+        }
+      ],
+      "gross_edge_bps": -19.96,
+      "executable_net_edge_bps": -46.18,
+      "depth_usd": 14856.1821,
+      "capital_usd": 19.9999,
+      "days_to_resolution": 118.0105,
+      "annualized_pct": -1.43,
+      "status": "rejected",
+      "rejection_reason": "non_positive_executable_edge",
+      "rule_match": "unverified",
+      "first_seen_at": "2026-09-04T05:08:06.421Z",
+      "last_seen_at": "2026-09-05T04:43:48.938Z",
+      "open_seconds": 84942
+    },
+    {
+      "id": "7a53d047-61c5-4484-9dd3-397b93fd762a",
+      "strategy": "within_market_fast_arb",
+      "venues": [
+        "polymarket"
+      ],
+      "title": "macron-out-by-december-31-2026-20260728190614227",
+      "market_ref": "macron-out-by-december-31-2026-20260728190614227",
+      "legs": [
+        {
+          "venue": "polymarket",
+          "side": "YES",
+          "price": 0.04,
+          "size_usd": 0.7992,
+          "role": "taker",
+          "fee_usd": 0.0384
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.961,
+          "size_usd": 19.2008,
+          "role": "taker",
+          "fee_usd": 0.0374
+        }
+      ],
+      "gross_edge_bps": -9.99,
+      "executable_net_edge_bps": -47.89,
+      "depth_usd": 35979.5005,
+      "capital_usd": 20,
+      "days_to_resolution": 118.0106,
+      "annualized_pct": -1.48,
+      "status": "rejected",
+      "rejection_reason": "non_positive_executable_edge",
+      "rule_match": "unverified",
+      "first_seen_at": "2026-09-04T04:58:01.826Z",
+      "last_seen_at": "2026-09-05T04:43:46.160Z",
+      "open_seconds": 85544
+    },
+    {
+      "id": "318cee3b-9d4e-441e-9d50-7e5c1b1013d9",
+      "strategy": "within_market_fast_arb",
+      "venues": [
+        "polymarket"
+      ],
+      "title": "ukraine-recognizes-russian-sovereignty-over-its-territory-by-december-31-2026",
+      "market_ref": "ukraine-recognizes-russian-sovereignty-over-its-territory-by-december-31-2026",
+      "legs": [
+        {
+          "venue": "polymarket",
+          "side": "YES",
+          "price": 0.040149,
+          "size_usd": 0.7958,
+          "role": "taker",
+          "fee_usd": 0.0382
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.969,
+          "size_usd": 19.2071,
+          "role": "taker",
+          "fee_usd": 0.0298
+        }
+      ],
+      "gross_edge_bps": -90.66,
+      "executable_net_edge_bps": -124.64,
+      "depth_usd": 77926.934,
+      "capital_usd": 20.0029,
+      "days_to_resolution": 118.0105,
+      "annualized_pct": -3.85,
+      "status": "rejected",
+      "rejection_reason": "non_positive_executable_edge",
+      "rule_match": "unverified",
+      "first_seen_at": "2026-09-04T05:08:05.636Z",
+      "last_seen_at": "2026-09-05T04:43:49.388Z",
+      "open_seconds": 84943
+    },
+    {
+      "id": "63522a5b-d3dc-4d47-a08e-7b62d66767f5",
+      "strategy": "within_market_fast_arb",
+      "venues": [
+        "polymarket"
+      ],
+      "title": "China x India military clash by December 31, 2026?",
+      "market_ref": "china-x-india-military-clash-by-december-31-2026",
+      "legs": [
+        {
+          "venue": "polymarket",
+          "side": "YES",
+          "price": 0.08,
+          "size_usd": 1.6,
+          "role": "taker",
+          "fee_usd": 0.0736
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.93,
+          "size_usd": 18.6,
+          "role": "taker",
+          "fee_usd": 0.0651
+        }
+      ],
+      "gross_edge_bps": -99.01,
+      "executable_net_edge_bps": -167.67,
+      "depth_usd": 8697.4074,
+      "capital_usd": 20.2,
+      "days_to_resolution": 118.0105,
+      "annualized_pct": -5.19,
+      "status": "rejected",
+      "rejection_reason": "non_positive_executable_edge",
+      "rule_match": "unverified",
+      "first_seen_at": "2026-09-04T05:08:06.210Z",
+      "last_seen_at": "2026-09-05T04:43:50.050Z",
+      "open_seconds": 84943
+    },
+    {
+      "id": "7dc6b490-70b4-4248-9940-e989c7b47a37",
+      "strategy": "within_market_fast_arb",
+      "venues": [
+        "polymarket"
+      ],
+      "title": "Erdoğan out by December 31, 2026?",
+      "market_ref": "erdoan-out-before-2027",
+      "legs": [
+        {
+          "venue": "polymarket",
+          "side": "YES",
+          "price": 0.06,
+          "size_usd": 1.2,
+          "role": "taker",
+          "fee_usd": 0.0564
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.96,
+          "size_usd": 19.2,
+          "role": "taker",
+          "fee_usd": 0.0384
+        }
+      ],
+      "gross_edge_bps": -196.08,
+      "executable_net_edge_bps": -242.55,
+      "depth_usd": 34946.2542,
+      "capital_usd": 20.4,
+      "days_to_resolution": 116.8029,
+      "annualized_pct": -7.58,
+      "status": "rejected",
+      "rejection_reason": "non_positive_executable_edge",
+      "rule_match": "unverified",
+      "first_seen_at": "2026-09-04T05:08:06.350Z",
+      "last_seen_at": "2026-09-05T04:43:50.251Z",
+      "open_seconds": 84943
+    },
+    {
+      "id": "dd9285f3-989d-42a5-b017-3173786c8509",
+      "strategy": "within_market_fast_arb",
+      "venues": [
+        "polymarket"
+      ],
+      "title": "French election called by December 31, 2026?",
+      "market_ref": "french-election-called-by-december-31-2026-20260728185555991",
+      "legs": [
+        {
+          "venue": "polymarket",
+          "side": "YES",
+          "price": 0.086,
+          "size_usd": 1.72,
+          "role": "taker",
+          "fee_usd": 0.0786
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.938,
+          "size_usd": 18.76,
+          "role": "taker",
+          "fee_usd": 0.0582
+        }
+      ],
+      "gross_edge_bps": -234.37,
+      "executable_net_edge_bps": -301.15,
+      "depth_usd": 5652.9194,
+      "capital_usd": 20.48,
+      "days_to_resolution": 118.0105,
+      "annualized_pct": -9.31,
+      "status": "rejected",
+      "rejection_reason": "non_positive_executable_edge",
+      "rule_match": "unverified",
+      "first_seen_at": "2026-09-04T05:08:15.804Z",
+      "last_seen_at": "2026-09-05T04:43:50.346Z",
+      "open_seconds": 84934
+    },
+    {
+      "id": "a11e2f88-b971-4745-9694-f4c50b8f7978",
+      "strategy": "within_market_fast_arb",
+      "venues": [
+        "polymarket"
+      ],
+      "title": "Claudia Sheinbaum out as President of Mexico by December 31?",
+      "market_ref": "claudia-sheinbaum-out-as-president-of-mexico-by-december-31",
+      "legs": [
+        {
+          "venue": "polymarket",
+          "side": "YES",
+          "price": 0.086,
+          "size_usd": 1.72,
+          "role": "taker",
+          "fee_usd": 0.0786
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.946,
+          "size_usd": 18.92,
+          "role": "taker",
+          "fee_usd": 0.0511
+        }
+      ],
+      "gross_edge_bps": -310.08,
+      "executable_net_edge_bps": -372.91,
+      "depth_usd": 71044.3775,
+      "capital_usd": 20.64,
+      "days_to_resolution": 118.0105,
+      "annualized_pct": -11.53,
+      "status": "rejected",
+      "rejection_reason": "non_positive_executable_edge",
+      "rule_match": "unverified",
+      "first_seen_at": "2026-09-04T05:08:06.281Z",
+      "last_seen_at": "2026-09-05T04:43:50.148Z",
+      "open_seconds": 84943
+    },
+    {
+      "id": "2f9f4bb1-c909-4fc6-866b-0588edf3e0ab",
+      "strategy": "within_market_fast_arb",
+      "venues": [
+        "polymarket"
+      ],
+      "title": "2026 Balance of Power: R Senate, R House",
+      "market_ref": "2026-balance-of-power-r-senate-r-house-537",
+      "legs": [
+        {
+          "venue": "polymarket",
+          "side": "YES",
+          "price": 0.12,
+          "size_usd": 2.4,
+          "role": "taker",
+          "fee_usd": 0.1056
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.89,
+          "size_usd": 17.8,
+          "role": "taker",
+          "fee_usd": 0.0979
+        }
+      ],
+      "gross_edge_bps": -99.01,
+      "executable_net_edge_bps": -199.75,
+      "depth_usd": 2487799.1217,
+      "capital_usd": 20.2,
+      "days_to_resolution": 58.8029,
+      "annualized_pct": -12.4,
+      "status": "rejected",
+      "rejection_reason": "non_positive_executable_edge",
+      "rule_match": "unverified",
+      "first_seen_at": "2026-09-04T05:08:05.910Z",
+      "last_seen_at": "2026-09-05T04:43:49.664Z",
+      "open_seconds": 84943
+    },
+    {
+      "id": "e98be71f-d79a-4515-83d2-f8e40c5946c2",
+      "strategy": "within_market_fast_arb",
+      "venues": [
+        "polymarket"
+      ],
+      "title": "Aziz Akhannouch out as Morocco Prime Minister by December 31, 2026?",
+      "market_ref": "aziz-akhannouch-out-as-morocco-prime-minister-by-december-31-2026",
+      "legs": [
+        {
+          "venue": "polymarket",
+          "side": "YES",
+          "price": 0.925,
+          "size_usd": 18.5,
+          "role": "taker",
+          "fee_usd": 0.0694
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.119,
+          "size_usd": 2.38,
+          "role": "taker",
+          "fee_usd": 0.1048
+        }
+      ],
+      "gross_edge_bps": -421.46,
+      "executable_net_edge_bps": -504.89,
+      "depth_usd": 4116.4546,
+      "capital_usd": 20.88,
+      "days_to_resolution": 116.8029,
+      "annualized_pct": -15.78,
+      "status": "rejected",
+      "rejection_reason": "non_positive_executable_edge",
+      "rule_match": "unverified",
+      "first_seen_at": "2026-09-04T05:08:06.070Z",
+      "last_seen_at": "2026-09-05T04:43:49.853Z",
+      "open_seconds": 84943
+    },
+    {
+      "id": "924bd048-190a-4de2-a447-0258db5e4c39",
+      "strategy": "within_market_fast_arb",
+      "venues": [
+        "polymarket"
+      ],
+      "title": "Ink FDV above $100M one day after launch?",
+      "market_ref": "ink-fdv-above-100m-one-day-after-launch",
+      "legs": [
+        {
+          "venue": "polymarket",
+          "side": "YES",
+          "price": 0.48,
+          "size_usd": 9.6,
+          "role": "taker",
+          "fee_usd": 0.2496
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.55,
+          "size_usd": 11,
+          "role": "taker",
+          "fee_usd": 0.2475
+        }
+      ],
+      "gross_edge_bps": -291.26,
+      "executable_net_edge_bps": -532.57,
+      "depth_usd": 60284.6314,
+      "capital_usd": 20.6,
+      "days_to_resolution": 118.0112,
+      "annualized_pct": -16.47,
+      "status": "rejected",
+      "rejection_reason": "non_positive_executable_edge",
+      "rule_match": "unverified",
+      "first_seen_at": "2026-09-05T03:13:58.400Z",
+      "last_seen_at": "2026-09-05T04:43:50.533Z",
+      "open_seconds": 5392
+    },
+    {
+      "id": "1a85a65b-c46e-46d2-bce9-8fd9b0916fda",
+      "strategy": "within_market_fast_arb",
+      "venues": [
+        "polymarket"
+      ],
+      "title": "2026 Balance of Power: R Senate, D House",
+      "market_ref": "2026-balance-of-power-r-senate-d-house-444",
+      "legs": [
+        {
+          "venue": "polymarket",
+          "side": "YES",
+          "price": 0.36,
+          "size_usd": 7.2,
+          "role": "taker",
+          "fee_usd": 0.1843
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.65,
+          "size_usd": 13,
+          "role": "taker",
+          "fee_usd": 0.182
+        }
+      ],
+      "gross_edge_bps": -99.01,
+      "executable_net_edge_bps": -280.36,
+      "depth_usd": 771367.2771,
+      "capital_usd": 20.2,
+      "days_to_resolution": 58.8029,
+      "annualized_pct": -17.4,
+      "status": "rejected",
+      "rejection_reason": "non_positive_executable_edge",
+      "rule_match": "unverified",
+      "first_seen_at": "2026-09-04T05:08:05.839Z",
+      "last_seen_at": "2026-09-05T04:43:49.572Z",
+      "open_seconds": 84943
+    },
+    {
+      "id": "1ebd6b07-e788-4812-8c2d-e3170fc5e2b4",
+      "strategy": "within_market_fast_arb",
+      "venues": [
+        "polymarket"
+      ],
+      "title": "Billionaire one-time wealth tax passes in California election 2026?",
+      "market_ref": "billionaire-one-time-wealth-tax-passes-in-california-election-2026",
+      "legs": [
+        {
+          "venue": "polymarket",
+          "side": "YES",
+          "price": 0.29,
+          "size_usd": 5.8,
+          "role": "taker",
+          "fee_usd": 0.2059
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.72,
+          "size_usd": 14.4,
+          "role": "taker",
+          "fee_usd": 0.2016
+        }
+      ],
+      "gross_edge_bps": -99.01,
+      "executable_net_edge_bps": -300.74,
+      "depth_usd": 309260.6152,
+      "capital_usd": 20.2,
+      "days_to_resolution": 58.8029,
+      "annualized_pct": -18.67,
+      "status": "rejected",
+      "rejection_reason": "non_positive_executable_edge",
+      "rule_match": "unverified",
+      "first_seen_at": "2026-09-04T05:08:06.140Z",
+      "last_seen_at": "2026-09-05T04:43:49.952Z",
+      "open_seconds": 84943
+    },
+    {
+      "id": "c2c2f06e-1709-46b5-934e-795da52782f2",
+      "strategy": "within_market_fast_arb",
+      "venues": [
+        "polymarket"
+      ],
+      "title": "2026 Balance of Power: D Senate, D House",
+      "market_ref": "2026-balance-of-power-d-senate-d-house-949",
+      "legs": [
+        {
+          "venue": "polymarket",
+          "side": "YES",
+          "price": 0.5,
+          "size_usd": 10,
+          "role": "taker",
+          "fee_usd": 0.25
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.51,
+          "size_usd": 10.2,
+          "role": "taker",
+          "fee_usd": 0.2499
+        }
+      ],
+      "gross_edge_bps": -99.01,
+      "executable_net_edge_bps": -346.49,
+      "depth_usd": 1428997.8702,
+      "capital_usd": 20.2,
+      "days_to_resolution": 58.8029,
+      "annualized_pct": -21.51,
+      "status": "rejected",
+      "rejection_reason": "non_positive_executable_edge",
+      "rule_match": "unverified",
+      "first_seen_at": "2026-09-04T05:08:05.706Z",
+      "last_seen_at": "2026-09-05T04:43:49.482Z",
+      "open_seconds": 84943
+    },
+    {
+      "id": "cdef55f9-4f4e-465a-82e9-f9fda3dc8977",
+      "strategy": "within_market_fast_arb",
+      "venues": [
+        "polymarket"
+      ],
+      "title": "Another S&P 500 Company buys Bitcoin by December 31, 2026?",
+      "market_ref": "another-sp-500-company-buys-bitcoin-by-december-31-2026",
+      "legs": [
+        {
+          "venue": "polymarket",
+          "side": "YES",
+          "price": 0.242125,
+          "size_usd": 4.8425,
+          "role": "taker",
+          "fee_usd": 0.1835
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.947,
+          "size_usd": 18.94,
+          "role": "taker",
+          "fee_usd": 0.0502
+        }
+      ],
+      "gross_edge_bps": -1590.46,
+      "executable_net_edge_bps": -1688.72,
+      "depth_usd": 20098.152,
+      "capital_usd": 23.7825,
+      "days_to_resolution": 118.0112,
+      "annualized_pct": -52.23,
+      "status": "rejected",
+      "rejection_reason": "non_positive_executable_edge",
+      "rule_match": "unverified",
+      "first_seen_at": "2026-09-04T05:08:05.982Z",
+      "last_seen_at": "2026-09-05T04:43:49.760Z",
+      "open_seconds": 84943
+    },
+    {
+      "id": "2c2ea140-bf7b-432d-ac51-17421843ffe2",
+      "strategy": "within_market_fast_arb",
+      "venues": [
+        "polymarket"
+      ],
+      "title": "taylor-swift-pregnant-by-september-30",
+      "market_ref": "taylor-swift-pregnant-by-september-30",
+      "legs": [
+        {
+          "venue": "polymarket",
+          "side": "YES",
+          "price": 0.15,
+          "size_usd": 2.9762,
+          "role": "taker",
+          "fee_usd": 0.1265
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.98,
+          "size_usd": 19.4444,
+          "role": "taker",
+          "fee_usd": 0.0194
+        }
+      ],
+      "gross_edge_bps": -1150.44,
+      "executable_net_edge_bps": -1215.53,
+      "depth_usd": 659.1303,
+      "capital_usd": 22.4206,
+      "days_to_resolution": 26.0318,
+      "annualized_pct": -170.43,
+      "status": "rejected",
+      "rejection_reason": "non_positive_executable_edge",
+      "rule_match": "unverified",
+      "first_seen_at": "2026-09-04T22:00:10.796Z",
+      "last_seen_at": "2026-09-05T03:13:10.743Z",
+      "open_seconds": 18779
+    },
+    {
+      "id": "4750ea08-6dd0-41df-bf74-cef51b81a48a",
+      "strategy": "within_market_fast_arb",
+      "venues": [
+        "polymarket"
+      ],
+      "title": "GOP uses 'Nuclear Option' to break filibuster by December 31, 2026?",
+      "market_ref": "gop-uses-nuclear-option-to-break-filibuster-by-december-31-2026",
+      "legs": [
+        {
+          "venue": "polymarket",
+          "side": "YES",
+          "price": 0.19,
+          "size_usd": 3.8,
+          "role": "taker",
+          "fee_usd": 0.1539
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.96,
+          "size_usd": 19.2,
+          "role": "taker",
+          "fee_usd": 0.0384
+        }
+      ],
+      "gross_edge_bps": -1304.35,
+      "executable_net_edge_bps": -1387.96,
+      "depth_usd": 3728.802,
+      "capital_usd": 23,
+      "days_to_resolution": 0,
+      "annualized_pct": -5066.04,
+      "status": "rejected",
+      "rejection_reason": "non_positive_executable_edge",
+      "rule_match": "unverified",
+      "first_seen_at": "2026-09-04T05:08:15.873Z",
+      "last_seen_at": "2026-09-05T04:43:50.436Z",
+      "open_seconds": 84934
+    },
+    {
+      "id": "9ee99458-0f37-41d7-98ff-e8f23c13caff",
+      "strategy": "within_market_fast_arb",
+      "venues": [
+        "polymarket"
+      ],
+      "title": "will-dwayne-the-rock-johnson-win-the-2028-democratic-presidential-nomination",
+      "market_ref": "will-dwayne-the-rock-johnson-win-the-2028-democratic-presidential-nomination",
+      "legs": [
+        {
+          "venue": "polymarket",
+          "side": "YES",
+          "price": 0.011,
+          "size_usd": 0.2193,
+          "role": "taker",
+          "fee_usd": 0.0108
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.992498,
+          "size_usd": 19.7905,
+          "role": "taker",
+          "fee_usd": 0.0074
+        }
+      ],
+      "gross_edge_bps": -34.86,
+      "executable_net_edge_bps": -43.99,
+      "depth_usd": 478070.6052,
+      "capital_usd": 20.0099,
+      "days_to_resolution": null,
+      "annualized_pct": null,
+      "status": "rejected",
+      "rejection_reason": "non_positive_executable_edge",
+      "rule_match": "unverified",
+      "first_seen_at": "2026-09-04T04:46:27.039Z",
+      "last_seen_at": "2026-09-05T04:43:49.297Z",
+      "open_seconds": 86242
+    },
+    {
+      "id": "ff09a3b0-03b7-4e02-be6e-32eb379c0050",
+      "strategy": "within_market_fast_arb",
+      "venues": [
+        "polymarket"
+      ],
+      "title": "will-bernie-sanders-win-the-2028-democratic-presidential-nomination-879",
+      "market_ref": "will-bernie-sanders-win-the-2028-democratic-presidential-nomination-879",
+      "legs": [
+        {
+          "venue": "polymarket",
+          "side": "YES",
+          "price": 0.006,
+          "size_usd": 0.1196,
+          "role": "taker",
+          "fee_usd": 0.0059
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.997,
+          "size_usd": 19.8803,
+          "role": "taker",
+          "fee_usd": 0.003
+        }
+      ],
+      "gross_edge_bps": -29.91,
+      "executable_net_edge_bps": -34.37,
+      "depth_usd": 389153.0576,
+      "capital_usd": 19.9999,
+      "days_to_resolution": null,
+      "annualized_pct": null,
+      "status": "rejected",
+      "rejection_reason": "non_positive_executable_edge",
+      "rule_match": "unverified",
+      "first_seen_at": "2026-09-04T04:46:23.336Z",
+      "last_seen_at": "2026-09-05T04:43:49.207Z",
+      "open_seconds": 86245
+    },
+    {
+      "id": "3ffa3af0-31d0-4df4-8e56-e2ee36d70f41",
+      "strategy": "within_market_fast_arb",
+      "venues": [
+        "polymarket"
+      ],
+      "title": "will-byron-donalds-win-the-2028-republican-presidential-nomination",
+      "market_ref": "will-byron-donalds-win-the-2028-republican-presidential-nomination",
+      "legs": [
+        {
+          "venue": "polymarket",
+          "side": "YES",
+          "price": 0.005,
+          "size_usd": 0.0998,
+          "role": "taker",
+          "fee_usd": 0.005
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.997,
+          "size_usd": 19.9001,
+          "role": "taker",
+          "fee_usd": 0.003
+        }
+      ],
+      "gross_edge_bps": -19.96,
+      "executable_net_edge_bps": -23.94,
+      "depth_usd": 583904.6429,
+      "capital_usd": 19.9999,
+      "days_to_resolution": null,
+      "annualized_pct": null,
+      "status": "rejected",
+      "rejection_reason": "non_positive_executable_edge",
+      "rule_match": "unverified",
+      "first_seen_at": "2026-09-04T04:46:24.564Z",
+      "last_seen_at": "2026-09-05T04:43:49.116Z",
+      "open_seconds": 86244
+    },
+    {
+      "id": "1e04c8d8-6ce7-4ef5-8679-46196cd521ae",
+      "strategy": "within_market_fast_arb",
+      "venues": [
+        "polymarket"
+      ],
+      "title": "will-alexandria-ocasio-cortez-win-the-2028-us-presidential-election",
+      "market_ref": "will-alexandria-ocasio-cortez-win-the-2028-us-presidential-election",
+      "legs": [
+        {
+          "venue": "polymarket",
+          "side": "YES",
+          "price": 0.132,
+          "size_usd": 2.6347,
+          "role": "taker",
+          "fee_usd": 0.1143
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.87,
+          "size_usd": 17.3652,
+          "role": "taker",
+          "fee_usd": 0.1129
+        }
+      ],
+      "gross_edge_bps": -19.96,
+      "executable_net_edge_bps": -133.57,
+      "depth_usd": 1205721.2353,
+      "capital_usd": 19.9999,
+      "days_to_resolution": null,
+      "annualized_pct": null,
+      "status": "rejected",
+      "rejection_reason": "non_positive_executable_edge",
+      "rule_match": "unverified",
+      "first_seen_at": "2026-09-04T04:46:20.854Z",
+      "last_seen_at": "2026-09-05T04:43:49.028Z",
+      "open_seconds": 86248
+    },
+    {
+      "id": "72011bce-b69b-4a9c-a5dc-6ea777a2688c",
+      "strategy": "within_market_fast_arb",
+      "venues": [
+        "polymarket"
+      ],
+      "title": "will-jair-bolsonaro-win-the-2026-brazilian-presidential-election",
+      "market_ref": "will-jair-bolsonaro-win-the-2026-brazilian-presidential-election",
+      "legs": [
+        {
+          "venue": "polymarket",
+          "side": "YES",
+          "price": 0.002,
+          "size_usd": 0.04,
+          "role": "taker",
+          "fee_usd": 0.002
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.999,
+          "size_usd": 19.96,
+          "role": "taker",
+          "fee_usd": 0.001
+        }
+      ],
+      "gross_edge_bps": -9.99,
+      "executable_net_edge_bps": -11.49,
+      "depth_usd": 230949.6492,
+      "capital_usd": 20,
+      "days_to_resolution": null,
+      "annualized_pct": null,
+      "status": "rejected",
+      "rejection_reason": "non_positive_executable_edge",
+      "rule_match": "unverified",
+      "first_seen_at": "2026-09-04T05:00:32.462Z",
+      "last_seen_at": "2026-09-05T04:43:48.849Z",
+      "open_seconds": 85396
+    },
+    {
+      "id": "ccced9ef-bdaa-421a-b319-c3f3e1623fdc",
+      "strategy": "within_market_fast_arb",
+      "venues": [
+        "polymarket"
+      ],
+      "title": "will-graham-platner-win-the-2028-democratic-presidential-nomination",
+      "market_ref": "will-graham-platner-win-the-2028-democratic-presidential-nomination",
+      "legs": [
+        {
+          "venue": "polymarket",
+          "side": "YES",
+          "price": 0.002,
+          "size_usd": 0.04,
+          "role": "taker",
+          "fee_usd": 0.002
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.999,
+          "size_usd": 19.96,
+          "role": "taker",
+          "fee_usd": 0.001
+        }
+      ],
+      "gross_edge_bps": -9.99,
+      "executable_net_edge_bps": -11.49,
+      "depth_usd": 22031.0069,
+      "capital_usd": 20,
+      "days_to_resolution": null,
+      "annualized_pct": null,
+      "status": "rejected",
+      "rejection_reason": "non_positive_executable_edge",
+      "rule_match": "unverified",
+      "first_seen_at": "2026-09-04T04:58:39.011Z",
+      "last_seen_at": "2026-09-05T04:43:48.713Z",
+      "open_seconds": 85509
+    },
+    {
+      "id": "d47f2e3e-fd4d-47fc-8780-ae4b37f6c038",
+      "strategy": "within_market_fast_arb",
+      "venues": [
+        "polymarket"
+      ],
+      "title": "will-glenn-youngkin-win-the-2028-us-presidential-election",
+      "market_ref": "will-glenn-youngkin-win-the-2028-us-presidential-election",
+      "legs": [
+        {
+          "venue": "polymarket",
+          "side": "YES",
+          "price": 0.002,
+          "size_usd": 0.04,
+          "role": "taker",
+          "fee_usd": 0.002
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.999,
+          "size_usd": 19.96,
+          "role": "taker",
+          "fee_usd": 0.001
+        }
+      ],
+      "gross_edge_bps": -9.99,
+      "executable_net_edge_bps": -11.49,
+      "depth_usd": 10836.0531,
+      "capital_usd": 20,
+      "days_to_resolution": null,
+      "annualized_pct": null,
+      "status": "rejected",
+      "rejection_reason": "non_positive_executable_edge",
+      "rule_match": "unverified",
+      "first_seen_at": "2026-09-04T04:58:38.573Z",
+      "last_seen_at": "2026-09-05T04:43:48.626Z",
+      "open_seconds": 85510
+    },
+    {
+      "id": "88c8cc89-4392-48e8-b677-ec32aab7a885",
+      "strategy": "within_market_fast_arb",
+      "venues": [
+        "polymarket"
+      ],
+      "title": "will-glenn-youngkin-win-the-2028-republican-presidential-nomination",
+      "market_ref": "will-glenn-youngkin-win-the-2028-republican-presidential-nomination",
+      "legs": [
+        {
+          "venue": "polymarket",
+          "side": "YES",
+          "price": 0.01,
+          "size_usd": 0.1998,
+          "role": "taker",
+          "fee_usd": 0.0099
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.991,
+          "size_usd": 19.8002,
+          "role": "taker",
+          "fee_usd": 0.0089
+        }
+      ],
+      "gross_edge_bps": -9.99,
+      "executable_net_edge_bps": -19.39,
+      "depth_usd": 520604.9426,
+      "capital_usd": 20,
+      "days_to_resolution": null,
+      "annualized_pct": null,
+      "status": "rejected",
+      "rejection_reason": "non_positive_executable_edge",
+      "rule_match": "unverified",
+      "first_seen_at": "2026-09-04T04:58:38.500Z",
+      "last_seen_at": "2026-09-05T04:43:48.536Z",
+      "open_seconds": 85510
+    },
+    {
+      "id": "79c54d09-5131-4807-bb8f-d7cf15d89e22",
+      "strategy": "within_market_fast_arb",
+      "venues": [
+        "polymarket"
+      ],
+      "title": "will-gina-raimondo-win-the-2028-democratic-presidential-nomination-676",
+      "market_ref": "will-gina-raimondo-win-the-2028-democratic-presidential-nomination-676",
+      "legs": [
+        {
+          "venue": "polymarket",
+          "side": "YES",
+          "price": 0.002,
+          "size_usd": 0.04,
+          "role": "taker",
+          "fee_usd": 0.002
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.999,
+          "size_usd": 19.96,
+          "role": "taker",
+          "fee_usd": 0.001
+        }
+      ],
+      "gross_edge_bps": -9.99,
+      "executable_net_edge_bps": -11.49,
+      "depth_usd": 616344.4686,
+      "capital_usd": 20,
+      "days_to_resolution": null,
+      "annualized_pct": null,
+      "status": "rejected",
+      "rejection_reason": "non_positive_executable_edge",
+      "rule_match": "unverified",
+      "first_seen_at": "2026-09-04T04:58:11.518Z",
+      "last_seen_at": "2026-09-05T04:43:48.448Z",
+      "open_seconds": 85536
+    },
+    {
+      "id": "02c191d5-6ca1-4000-9b68-67406333cac2",
+      "strategy": "within_market_fast_arb",
+      "venues": [
+        "polymarket"
+      ],
+      "title": "will-george-clooney-win-the-2028-democratic-presidential-nomination",
+      "market_ref": "will-george-clooney-win-the-2028-democratic-presidential-nomination",
+      "legs": [
+        {
+          "venue": "polymarket",
+          "side": "YES",
+          "price": 0.002,
+          "size_usd": 0.04,
+          "role": "taker",
+          "fee_usd": 0.002
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.999,
+          "size_usd": 19.96,
+          "role": "taker",
+          "fee_usd": 0.001
+        }
+      ],
+      "gross_edge_bps": -9.99,
+      "executable_net_edge_bps": -11.49,
+      "depth_usd": 314516.3888,
+      "capital_usd": 20,
+      "days_to_resolution": null,
+      "annualized_pct": null,
+      "status": "rejected",
+      "rejection_reason": "non_positive_executable_edge",
+      "rule_match": "unverified",
+      "first_seen_at": "2026-09-04T04:58:10.996Z",
+      "last_seen_at": "2026-09-05T04:43:48.360Z",
+      "open_seconds": 85537
+    },
+    {
+      "id": "85e67840-5609-4a36-a0b4-1ec795f4ad9d",
+      "strategy": "within_market_fast_arb",
+      "venues": [
+        "polymarket"
+      ],
+      "title": "will-gavin-newsom-win-the-2028-democratic-presidential-nomination-568",
+      "market_ref": "will-gavin-newsom-win-the-2028-democratic-presidential-nomination-568",
+      "legs": [
+        {
+          "venue": "polymarket",
+          "side": "YES",
+          "price": 0.143,
+          "size_usd": 2.8571,
+          "role": "taker",
+          "fee_usd": 0.1224
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.858,
+          "size_usd": 17.1428,
+          "role": "taker",
+          "fee_usd": 0.1217
+        }
+      ],
+      "gross_edge_bps": -9.99,
+      "executable_net_edge_bps": -132.06,
+      "depth_usd": 1539934.4078,
+      "capital_usd": 20,
+      "days_to_resolution": null,
+      "annualized_pct": null,
+      "status": "rejected",
+      "rejection_reason": "non_positive_executable_edge",
+      "rule_match": "unverified",
+      "first_seen_at": "2026-09-04T04:58:10.838Z",
+      "last_seen_at": "2026-09-05T04:43:48.272Z",
+      "open_seconds": 85537
+    },
+    {
+      "id": "a0062451-4773-4bd3-b2d0-1750a283fc6f",
+      "strategy": "within_market_fast_arb",
+      "venues": [
+        "polymarket"
+      ],
+      "title": "will-flvio-bolsonaro-win-the-2026-brazilian-presidential-election",
+      "market_ref": "will-flvio-bolsonaro-win-the-2026-brazilian-presidential-election",
+      "legs": [
+        {
+          "venue": "polymarket",
+          "side": "YES",
+          "price": 0.4,
+          "size_usd": 7.992,
+          "role": "taker",
+          "fee_usd": 0.2398
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.601,
+          "size_usd": 12.008,
+          "role": "taker",
+          "fee_usd": 0.2396
+        }
+      ],
+      "gross_edge_bps": -9.99,
+      "executable_net_edge_bps": -249.65,
+      "depth_usd": 867105.9434,
+      "capital_usd": 20,
+      "days_to_resolution": null,
+      "annualized_pct": null,
+      "status": "rejected",
+      "rejection_reason": "non_positive_executable_edge",
+      "rule_match": "unverified",
+      "first_seen_at": "2026-09-04T04:58:10.739Z",
+      "last_seen_at": "2026-09-05T04:43:48.184Z",
+      "open_seconds": 85537
+    },
+    {
+      "id": "e214e6f7-87ae-4919-b980-f352435112ed",
+      "strategy": "within_market_fast_arb",
+      "venues": [
+        "polymarket"
+      ],
+      "title": "will-erika-kirk-win-the-2028-republican-presidential-nomination",
+      "market_ref": "will-erika-kirk-win-the-2028-republican-presidential-nomination",
+      "legs": [
+        {
+          "venue": "polymarket",
+          "side": "YES",
+          "price": 0.002,
+          "size_usd": 0.04,
+          "role": "taker",
+          "fee_usd": 0.002
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.999,
+          "size_usd": 19.96,
+          "role": "taker",
+          "fee_usd": 0.001
+        }
+      ],
+      "gross_edge_bps": -9.99,
+      "executable_net_edge_bps": -11.49,
+      "depth_usd": 124761.9532,
+      "capital_usd": 20,
+      "days_to_resolution": null,
+      "annualized_pct": null,
+      "status": "rejected",
+      "rejection_reason": "non_positive_executable_edge",
+      "rule_match": "unverified",
+      "first_seen_at": "2026-09-04T04:58:10.576Z",
+      "last_seen_at": "2026-09-05T04:43:48.089Z",
+      "open_seconds": 85537
+    },
+    {
+      "id": "6a9531fc-dcb5-464f-b100-658e551ae84f",
+      "strategy": "within_market_fast_arb",
+      "venues": [
+        "polymarket"
+      ],
+      "title": "will-eric-trump-win-the-2028-republican-presidential-nomination",
+      "market_ref": "will-eric-trump-win-the-2028-republican-presidential-nomination",
+      "legs": [
+        {
+          "venue": "polymarket",
+          "side": "YES",
+          "price": 0.003,
+          "size_usd": 0.0599,
+          "role": "taker",
+          "fee_usd": 0.003
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.998,
+          "size_usd": 19.94,
+          "role": "taker",
+          "fee_usd": 0.002
+        }
+      ],
+      "gross_edge_bps": -9.99,
+      "executable_net_edge_bps": -12.48,
+      "depth_usd": 52579.3217,
+      "capital_usd": 20,
+      "days_to_resolution": null,
+      "annualized_pct": null,
+      "status": "rejected",
+      "rejection_reason": "non_positive_executable_edge",
+      "rule_match": "unverified",
+      "first_seen_at": "2026-09-04T04:46:28.612Z",
+      "last_seen_at": "2026-09-05T04:43:48.001Z",
+      "open_seconds": 86239
+    },
+    {
+      "id": "f01a74e2-b73f-491e-aa62-37a2b9b6869a",
+      "strategy": "within_market_fast_arb",
+      "venues": [
+        "polymarket"
+      ],
+      "title": "will-elon-musk-win-the-2028-us-presidential-election",
+      "market_ref": "will-elon-musk-win-the-2028-us-presidential-election",
+      "legs": [
+        {
+          "venue": "polymarket",
+          "side": "YES",
+          "price": 0.002,
+          "size_usd": 0.04,
+          "role": "taker",
+          "fee_usd": 0.002
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.999,
+          "size_usd": 19.96,
+          "role": "taker",
+          "fee_usd": 0.001
+        }
+      ],
+      "gross_edge_bps": -9.99,
+      "executable_net_edge_bps": -11.49,
+      "depth_usd": 1125497.6158,
+      "capital_usd": 20,
+      "days_to_resolution": null,
+      "annualized_pct": null,
+      "status": "rejected",
+      "rejection_reason": "non_positive_executable_edge",
+      "rule_match": "unverified",
+      "first_seen_at": "2026-09-04T04:46:28.187Z",
+      "last_seen_at": "2026-09-05T04:43:47.912Z",
+      "open_seconds": 86239
+    },
+    {
+      "id": "417603cb-2ca1-4167-b3fd-22d18f17bba8",
+      "strategy": "within_market_fast_arb",
+      "venues": [
+        "polymarket"
+      ],
+      "title": "will-elon-musk-win-the-2028-republican-presidential-nomination",
+      "market_ref": "will-elon-musk-win-the-2028-republican-presidential-nomination",
+      "legs": [
+        {
+          "venue": "polymarket",
+          "side": "YES",
+          "price": 0.002,
+          "size_usd": 0.04,
+          "role": "taker",
+          "fee_usd": 0.002
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.999,
+          "size_usd": 19.96,
+          "role": "taker",
+          "fee_usd": 0.001
+        }
+      ],
+      "gross_edge_bps": -9.99,
+      "executable_net_edge_bps": -11.49,
+      "depth_usd": 378391.1601,
+      "capital_usd": 20,
+      "days_to_resolution": null,
+      "annualized_pct": null,
+      "status": "rejected",
+      "rejection_reason": "non_positive_executable_edge",
+      "rule_match": "unverified",
+      "first_seen_at": "2026-09-04T04:46:28.110Z",
+      "last_seen_at": "2026-09-05T04:43:47.824Z",
+      "open_seconds": 86239
+    },
+    {
+      "id": "e180f09e-3187-4ebe-8b5a-b336a67a7e76",
+      "strategy": "within_market_fast_arb",
+      "venues": [
+        "polymarket"
+      ],
+      "title": "will-elise-stefanik-win-the-2028-republican-presidential-nomination",
+      "market_ref": "will-elise-stefanik-win-the-2028-republican-presidential-nomination",
+      "legs": [
+        {
+          "venue": "polymarket",
+          "side": "YES",
+          "price": 0.004,
+          "size_usd": 0.0799,
+          "role": "taker",
+          "fee_usd": 0.004
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.997,
+          "size_usd": 19.9201,
+          "role": "taker",
+          "fee_usd": 0.003
+        }
+      ],
+      "gross_edge_bps": -9.99,
+      "executable_net_edge_bps": -13.47,
+      "depth_usd": 560499.561,
+      "capital_usd": 20,
+      "days_to_resolution": null,
+      "annualized_pct": null,
+      "status": "rejected",
+      "rejection_reason": "non_positive_executable_edge",
+      "rule_match": "unverified",
+      "first_seen_at": "2026-09-04T04:46:28.033Z",
+      "last_seen_at": "2026-09-05T04:43:47.735Z",
+      "open_seconds": 86239
+    },
+    {
+      "id": "4eb903e5-adfe-4650-8c59-454f2d0c1eed",
+      "strategy": "within_market_fast_arb",
+      "venues": [
+        "polymarket"
+      ],
+      "title": "will-dwayne-the-rock-johnson-win-the-2028-us-presidential-election",
+      "market_ref": "will-dwayne-the-rock-johnson-win-the-2028-us-presidential-election",
+      "legs": [
+        {
+          "venue": "polymarket",
+          "side": "YES",
+          "price": 0.015,
+          "size_usd": 0.2997,
+          "role": "taker",
+          "fee_usd": 0.0148
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.986,
+          "size_usd": 19.7003,
+          "role": "taker",
+          "fee_usd": 0.0138
+        }
+      ],
+      "gross_edge_bps": -9.99,
+      "executable_net_edge_bps": -24.27,
+      "depth_usd": 399181.4528,
+      "capital_usd": 20,
+      "days_to_resolution": null,
+      "annualized_pct": null,
+      "status": "rejected",
+      "rejection_reason": "non_positive_executable_edge",
+      "rule_match": "unverified",
+      "first_seen_at": "2026-09-04T04:46:27.112Z",
+      "last_seen_at": "2026-09-05T04:43:47.649Z",
+      "open_seconds": 86240
+    },
+    {
+      "id": "261851a2-f0e1-4a75-98a3-632763e32f38",
+      "strategy": "within_market_fast_arb",
+      "venues": [
+        "polymarket"
+      ],
+      "title": "will-donald-trump-win-the-2028-us-presidential-election",
+      "market_ref": "will-donald-trump-win-the-2028-us-presidential-election",
+      "legs": [
+        {
+          "venue": "polymarket",
+          "side": "YES",
+          "price": 0.024,
+          "size_usd": 0.4795,
+          "role": "taker",
+          "fee_usd": 0.0234
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.977,
+          "size_usd": 19.5205,
+          "role": "taker",
+          "fee_usd": 0.0224
+        }
+      ],
+      "gross_edge_bps": -9.99,
+      "executable_net_edge_bps": -32.92,
+      "depth_usd": 2503939.649,
+      "capital_usd": 20,
+      "days_to_resolution": null,
+      "annualized_pct": null,
+      "status": "rejected",
+      "rejection_reason": "non_positive_executable_edge",
+      "rule_match": "unverified",
+      "first_seen_at": "2026-09-04T04:46:26.970Z",
+      "last_seen_at": "2026-09-05T04:43:47.562Z",
+      "open_seconds": 86240
+    },
+    {
+      "id": "e4a2bec3-02e4-42a7-8276-95597ac8a39e",
+      "strategy": "within_market_fast_arb",
+      "venues": [
+        "polymarket"
+      ],
+      "title": "will-donald-trump-win-the-2028-republican-presidential-nomination",
+      "market_ref": "will-donald-trump-win-the-2028-republican-presidential-nomination",
+      "legs": [
+        {
+          "venue": "polymarket",
+          "side": "YES",
+          "price": 0.021,
+          "size_usd": 0.4196,
+          "role": "taker",
+          "fee_usd": 0.0205
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.98,
+          "size_usd": 19.5804,
+          "role": "taker",
+          "fee_usd": 0.0196
+        }
+      ],
+      "gross_edge_bps": -9.99,
+      "executable_net_edge_bps": -30.05,
+      "depth_usd": 1751523.597,
+      "capital_usd": 20,
+      "days_to_resolution": null,
+      "annualized_pct": null,
+      "status": "rejected",
+      "rejection_reason": "non_positive_executable_edge",
+      "rule_match": "unverified",
+      "first_seen_at": "2026-09-04T04:46:26.901Z",
+      "last_seen_at": "2026-09-05T04:43:47.464Z",
+      "open_seconds": 86240
+    },
+    {
+      "id": "e97821a5-e789-4b7d-a607-f9e9f5ce9857",
+      "strategy": "within_market_fast_arb",
+      "venues": [
+        "polymarket"
+      ],
+      "title": "will-donald-trump-jr-win-the-2028-us-presidential-election",
+      "market_ref": "will-donald-trump-jr-win-the-2028-us-presidential-election",
+      "legs": [
+        {
+          "venue": "polymarket",
+          "side": "YES",
+          "price": 0.007,
+          "size_usd": 0.1399,
+          "role": "taker",
+          "fee_usd": 0.0069
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.994,
+          "size_usd": 19.8601,
+          "role": "taker",
+          "fee_usd": 0.006
+        }
+      ],
+      "gross_edge_bps": -9.99,
+      "executable_net_edge_bps": -16.44,
+      "depth_usd": 2112479.3095,
+      "capital_usd": 20,
+      "days_to_resolution": null,
+      "annualized_pct": null,
+      "status": "rejected",
+      "rejection_reason": "non_positive_executable_edge",
+      "rule_match": "unverified",
+      "first_seen_at": "2026-09-04T04:46:26.834Z",
+      "last_seen_at": "2026-09-05T04:43:47.375Z",
+      "open_seconds": 86240
+    },
+    {
+      "id": "8effce2d-08ec-4daf-8ccd-addd0bf69e84",
+      "strategy": "within_market_fast_arb",
+      "venues": [
+        "polymarket"
+      ],
+      "title": "will-donald-trump-jr-win-the-2028-republican-presidential-nomination",
+      "market_ref": "will-donald-trump-jr-win-the-2028-republican-presidential-nomination",
+      "legs": [
+        {
+          "venue": "polymarket",
+          "side": "YES",
+          "price": 0.017,
+          "size_usd": 0.3397,
+          "role": "taker",
+          "fee_usd": 0.0167
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.984,
+          "size_usd": 19.6603,
+          "role": "taker",
+          "fee_usd": 0.0157
+        }
+      ],
+      "gross_edge_bps": -9.99,
+      "executable_net_edge_bps": -26.2,
+      "depth_usd": 3313926.7132,
+      "capital_usd": 20,
+      "days_to_resolution": null,
+      "annualized_pct": null,
+      "status": "rejected",
+      "rejection_reason": "non_positive_executable_edge",
+      "rule_match": "unverified",
+      "first_seen_at": "2026-09-04T04:46:26.765Z",
+      "last_seen_at": "2026-09-05T04:43:47.284Z",
+      "open_seconds": 86240
+    },
+    {
+      "id": "e7a98bd0-e6e1-4fde-a2f4-e4fafe94cafb",
+      "strategy": "within_market_fast_arb",
+      "venues": [
+        "polymarket"
+      ],
+      "title": "will-corey-booker-win-the-2028-democratic-presidential-nomination-125",
+      "market_ref": "will-corey-booker-win-the-2028-democratic-presidential-nomination-125",
+      "legs": [
+        {
+          "venue": "polymarket",
+          "side": "YES",
+          "price": 0.007,
+          "size_usd": 0.1399,
+          "role": "taker",
+          "fee_usd": 0.0069
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.994,
+          "size_usd": 19.8601,
+          "role": "taker",
+          "fee_usd": 0.006
+        }
+      ],
+      "gross_edge_bps": -9.99,
+      "executable_net_edge_bps": -16.44,
+      "depth_usd": 808542.31,
+      "capital_usd": 20,
+      "days_to_resolution": null,
+      "annualized_pct": null,
+      "status": "rejected",
+      "rejection_reason": "non_positive_executable_edge",
+      "rule_match": "unverified",
+      "first_seen_at": "2026-09-04T04:46:25.656Z",
+      "last_seen_at": "2026-09-05T04:43:47.187Z",
+      "open_seconds": 86241
+    },
+    {
+      "id": "ffc5b042-796d-42e2-9730-32fcb5318d3e",
+      "strategy": "within_market_fast_arb",
+      "venues": [
+        "polymarket"
+      ],
+      "title": "will-chris-murphy-win-the-2028-democratic-presidential-nomination",
+      "market_ref": "will-chris-murphy-win-the-2028-democratic-presidential-nomination",
+      "legs": [
+        {
+          "venue": "polymarket",
+          "side": "YES",
+          "price": 0.005,
+          "size_usd": 0.0999,
+          "role": "taker",
+          "fee_usd": 0.005
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.996,
+          "size_usd": 19.9001,
+          "role": "taker",
+          "fee_usd": 0.004
+        }
+      ],
+      "gross_edge_bps": -9.99,
+      "executable_net_edge_bps": -14.47,
+      "depth_usd": 490782.8764,
+      "capital_usd": 20,
+      "days_to_resolution": null,
+      "annualized_pct": null,
+      "status": "rejected",
+      "rejection_reason": "non_positive_executable_edge",
+      "rule_match": "unverified",
+      "first_seen_at": "2026-09-04T04:46:25.245Z",
+      "last_seen_at": "2026-09-05T04:43:47.098Z",
+      "open_seconds": 86241
+    },
+    {
+      "id": "32ba4bb6-2458-4165-b49a-277a66008f75",
+      "strategy": "within_market_fast_arb",
+      "venues": [
+        "polymarket"
+      ],
+      "title": "will-china-invade-taiwan-before-2027",
+      "market_ref": "will-china-invade-taiwan-before-2027",
+      "legs": [
+        {
+          "venue": "polymarket",
+          "side": "YES",
+          "price": 0.037,
+          "size_usd": 0.7393,
+          "role": "taker",
+          "fee_usd": 0.0356
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.964,
+          "size_usd": 19.2607,
+          "role": "taker",
+          "fee_usd": 0.0347
+        }
+      ],
+      "gross_edge_bps": -9.99,
+      "executable_net_edge_bps": -45.12,
+      "depth_usd": 470264.0522,
+      "capital_usd": 20,
+      "days_to_resolution": null,
+      "annualized_pct": null,
+      "status": "rejected",
+      "rejection_reason": "non_positive_executable_edge",
+      "rule_match": "unverified",
+      "first_seen_at": "2026-09-04T04:46:25.179Z",
+      "last_seen_at": "2026-09-05T04:43:47.007Z",
+      "open_seconds": 86241
+    },
+    {
+      "id": "7eeeaf52-0548-4aa1-9b9e-0a8aa7635911",
+      "strategy": "within_market_fast_arb",
+      "venues": [
+        "polymarket"
+      ],
+      "title": "will-chelsea-clinton-win-the-2028-democratic-presidential-nomination",
+      "market_ref": "will-chelsea-clinton-win-the-2028-democratic-presidential-nomination",
+      "legs": [
+        {
+          "venue": "polymarket",
+          "side": "YES",
+          "price": 0.003,
+          "size_usd": 0.0599,
+          "role": "taker",
+          "fee_usd": 0.003
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.998,
+          "size_usd": 19.94,
+          "role": "taker",
+          "fee_usd": 0.002
+        }
+      ],
+      "gross_edge_bps": -9.99,
+      "executable_net_edge_bps": -12.48,
+      "depth_usd": 595359.8138,
+      "capital_usd": 20,
+      "days_to_resolution": null,
+      "annualized_pct": null,
+      "status": "rejected",
+      "rejection_reason": "non_positive_executable_edge",
+      "rule_match": "unverified",
+      "first_seen_at": "2026-09-04T04:46:25.115Z",
+      "last_seen_at": "2026-09-05T04:43:46.921Z",
+      "open_seconds": 86241
+    },
+    {
+      "id": "3d102fc0-6fff-49d3-9ef3-4909f2a84552",
+      "strategy": "within_market_fast_arb",
+      "venues": [
+        "polymarket"
+      ],
+      "title": "will-brian-kemp-win-the-2028-republican-presidential-nomination",
+      "market_ref": "will-brian-kemp-win-the-2028-republican-presidential-nomination",
+      "legs": [
+        {
+          "venue": "polymarket",
+          "side": "YES",
+          "price": 0.004,
+          "size_usd": 0.0799,
+          "role": "taker",
+          "fee_usd": 0.004
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.997,
+          "size_usd": 19.9201,
+          "role": "taker",
+          "fee_usd": 0.003
+        }
+      ],
+      "gross_edge_bps": -9.99,
+      "executable_net_edge_bps": -13.47,
+      "depth_usd": 599714.7989,
+      "capital_usd": 20,
+      "days_to_resolution": null,
+      "annualized_pct": null,
+      "status": "rejected",
+      "rejection_reason": "non_positive_executable_edge",
+      "rule_match": "unverified",
+      "first_seen_at": "2026-09-04T04:46:24.499Z",
+      "last_seen_at": "2026-09-05T04:43:46.829Z",
+      "open_seconds": 86242
+    },
+    {
+      "id": "11c5179a-7e0e-406e-997b-f371a9b75b37",
+      "strategy": "within_market_fast_arb",
+      "venues": [
+        "polymarket"
+      ],
+      "title": "will-beto-orourke-win-the-2028-democratic-presidential-nomination",
+      "market_ref": "will-beto-orourke-win-the-2028-democratic-presidential-nomination",
+      "legs": [
+        {
+          "venue": "polymarket",
+          "side": "YES",
+          "price": 0.002,
+          "size_usd": 0.04,
+          "role": "taker",
+          "fee_usd": 0.002
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.999,
+          "size_usd": 19.96,
+          "role": "taker",
+          "fee_usd": 0.001
+        }
+      ],
+      "gross_edge_bps": -9.99,
+      "executable_net_edge_bps": -11.49,
+      "depth_usd": 313719.0469,
+      "capital_usd": 20,
+      "days_to_resolution": null,
+      "annualized_pct": null,
+      "status": "rejected",
+      "rejection_reason": "non_positive_executable_edge",
+      "rule_match": "unverified",
+      "first_seen_at": "2026-09-04T04:46:23.402Z",
+      "last_seen_at": "2026-09-05T04:43:46.737Z",
+      "open_seconds": 86243
+    },
+    {
+      "id": "d6acbabd-0b5d-4dc1-b6c9-8a36590fcd2b",
+      "strategy": "within_market_fast_arb",
+      "venues": [
+        "polymarket"
+      ],
+      "title": "will-barack-obama-win-the-2028-democratic-presidential-nomination-265",
+      "market_ref": "will-barack-obama-win-the-2028-democratic-presidential-nomination-265",
+      "legs": [
+        {
+          "venue": "polymarket",
+          "side": "YES",
+          "price": 0.003,
+          "size_usd": 0.0599,
+          "role": "taker",
+          "fee_usd": 0.003
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.998,
+          "size_usd": 19.94,
+          "role": "taker",
+          "fee_usd": 0.002
+        }
+      ],
+      "gross_edge_bps": -9.99,
+      "executable_net_edge_bps": -12.48,
+      "depth_usd": 562595.6196,
+      "capital_usd": 20,
+      "days_to_resolution": null,
+      "annualized_pct": null,
+      "status": "rejected",
+      "rejection_reason": "non_positive_executable_edge",
+      "rule_match": "unverified",
+      "first_seen_at": "2026-09-04T04:46:22.932Z",
+      "last_seen_at": "2026-09-05T04:43:46.647Z",
+      "open_seconds": 86243
+    },
+    {
+      "id": "b0ef5d1b-a1a6-4840-af80-903442d27e0f",
+      "strategy": "within_market_fast_arb",
+      "venues": [
+        "polymarket"
+      ],
+      "title": "will-andy-beshear-win-the-2028-us-presidential-election",
+      "market_ref": "will-andy-beshear-win-the-2028-us-presidential-election",
+      "legs": [
+        {
+          "venue": "polymarket",
+          "side": "YES",
+          "price": 0.011,
+          "size_usd": 0.2198,
+          "role": "taker",
+          "fee_usd": 0.0109
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.99,
+          "size_usd": 19.7802,
+          "role": "taker",
+          "fee_usd": 0.0099
+        }
+      ],
+      "gross_edge_bps": -9.99,
+      "executable_net_edge_bps": -20.37,
+      "depth_usd": 2487245.9072,
+      "capital_usd": 20,
+      "days_to_resolution": null,
+      "annualized_pct": null,
+      "status": "rejected",
+      "rejection_reason": "non_positive_executable_edge",
+      "rule_match": "unverified",
+      "first_seen_at": "2026-09-04T04:46:21.452Z",
+      "last_seen_at": "2026-09-05T04:43:46.553Z",
+      "open_seconds": 86245
+    },
+    {
+      "id": "53f69561-3b57-4219-b577-5972a25f982f",
+      "strategy": "within_market_fast_arb",
+      "venues": [
+        "polymarket"
+      ],
+      "title": "will-andy-beshear-win-the-2028-democratic-presidential-nomination-832",
+      "market_ref": "will-andy-beshear-win-the-2028-democratic-presidential-nomination-832",
+      "legs": [
+        {
+          "venue": "polymarket",
+          "side": "YES",
+          "price": 0.024,
+          "size_usd": 0.4795,
+          "role": "taker",
+          "fee_usd": 0.0234
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.977,
+          "size_usd": 19.5205,
+          "role": "taker",
+          "fee_usd": 0.0224
+        }
+      ],
+      "gross_edge_bps": -9.99,
+      "executable_net_edge_bps": -32.92,
+      "depth_usd": 934910.4983,
+      "capital_usd": 20,
+      "days_to_resolution": null,
+      "annualized_pct": null,
+      "status": "rejected",
+      "rejection_reason": "non_positive_executable_edge",
+      "rule_match": "unverified",
+      "first_seen_at": "2026-09-04T04:46:21.373Z",
+      "last_seen_at": "2026-09-05T04:43:46.458Z",
+      "open_seconds": 86245
+    }
+  ],
+  "paper_positions": [
+    {
+      "trade_id": "18790f74-2d8c-40da-8aa3-564ffedff461",
+      "opportunity_id": "38bba993-1170-462e-b34d-3ab5d2187151",
+      "strategy": "neg_risk_bracket_arb",
+      "title": "starmer-out-by-may-31-2026",
+      "opened_at": "2026-05-23T15:08:19.534Z",
+      "capital_usd": 0.96,
+      "expected_edge_bps": 400,
+      "status": "open",
+      "pnl_usd": null
+    },
+    {
+      "trade_id": "9094adb6-2d85-4e60-9843-35335b52090a",
+      "opportunity_id": "38bba993-1170-462e-b34d-3ab5d2187151",
+      "strategy": "neg_risk_bracket_arb",
+      "title": "starmer-out-by-june-30-2026-862-594-548-219",
+      "opened_at": "2026-05-23T15:08:19.528Z",
+      "capital_usd": 0.72,
+      "expected_edge_bps": 400,
+      "status": "open",
+      "pnl_usd": null
+    },
+    {
+      "trade_id": "1c53b6da-9a3c-4359-9d58-d45ade94e679",
+      "opportunity_id": "38bba993-1170-462e-b34d-3ab5d2187151",
+      "strategy": "neg_risk_bracket_arb",
+      "title": "starmer-out-by-december-31-2026-936-416-977-234-134-475",
+      "opened_at": "2026-05-23T15:08:19.522Z",
+      "capital_usd": 0.28,
+      "expected_edge_bps": 400,
+      "status": "open",
+      "pnl_usd": null
+    },
+    {
+      "trade_id": "86b9284b-ecfb-4efd-9098-c5c6e3249d2f",
+      "opportunity_id": "5ef1b049-314e-4805-9c29-0c4a3fb5bffe",
+      "strategy": "neg_risk_bracket_arb",
+      "title": "microstrategy-sells-any-bitcoin-by-may-31-2026",
+      "opened_at": "2026-05-23T15:08:19.352Z",
+      "capital_usd": 0.89,
+      "expected_edge_bps": 3610,
+      "status": "open",
+      "pnl_usd": null
+    },
+    {
+      "trade_id": "2be2548e-5ee4-410d-8143-185a432ab2ef",
+      "opportunity_id": "5ef1b049-314e-4805-9c29-0c4a3fb5bffe",
+      "strategy": "neg_risk_bracket_arb",
+      "title": "microstrategy-sells-any-bitcoin-by-june-30-2026",
+      "opened_at": "2026-05-23T15:08:19.347Z",
+      "capital_usd": 0.539,
+      "expected_edge_bps": 3610,
+      "status": "open",
+      "pnl_usd": null
+    },
+    {
+      "trade_id": "274571c8-9b7b-4065-9e50-567d3540660c",
+      "opportunity_id": "5ef1b049-314e-4805-9c29-0c4a3fb5bffe",
+      "strategy": "neg_risk_bracket_arb",
+      "title": "microstrategy-sells-any-bitcoin-by-december-31-2026",
+      "opened_at": "2026-05-23T15:08:19.342Z",
+      "capital_usd": 0.21,
+      "expected_edge_bps": 3610,
+      "status": "open",
+      "pnl_usd": null
+    },
+    {
+      "trade_id": "41da05a7-f884-4bec-b66f-1c0af8084600",
+      "opportunity_id": "0f135789-b3b7-44f2-b5b0-1086cbe58153",
+      "strategy": "neg_risk_bracket_arb",
+      "title": "will-jesus-christ-return-before-gta-vi-665",
+      "opened_at": "2026-05-23T15:08:19.162Z",
+      "capital_usd": 0.52,
+      "expected_edge_bps": 30710,
+      "status": "open",
+      "pnl_usd": null
+    },
+    {
+      "trade_id": "8066f388-5570-4bcd-907c-7e3605d88609",
+      "opportunity_id": "0f135789-b3b7-44f2-b5b0-1086cbe58153",
+      "strategy": "neg_risk_bracket_arb",
+      "title": "will-gpt-6-be-released",
+      "opened_at": "2026-05-23T15:08:19.157Z",
+      "capital_usd": 0.46,
+      "expected_edge_bps": 30710,
+      "status": "open",
+      "pnl_usd": null
+    },
+    {
+      "trade_id": "67eecbf0-76d8-41dc-92e5-aba28cce4928",
+      "opportunity_id": "0f135789-b3b7-44f2-b5b0-1086cbe58153",
+      "strategy": "neg_risk_bracket_arb",
+      "title": "will-china-invades-taiwan-before-gta-vi-716-644",
+      "opened_at": "2026-05-23T15:08:19.151Z",
+      "capital_usd": 0.5,
+      "expected_edge_bps": 30710,
+      "status": "open",
+      "pnl_usd": null
+    },
+    {
+      "trade_id": "27a04549-931c-4fd1-a5d8-efb33e4df3f4",
+      "opportunity_id": "0f135789-b3b7-44f2-b5b0-1086cbe58153",
+      "strategy": "neg_risk_bracket_arb",
+      "title": "will-bitcoin-hit-1m-before-gta-vi-872-424",
+      "opened_at": "2026-05-23T15:08:19.145Z",
+      "capital_usd": 0.509,
+      "expected_edge_bps": 30710,
+      "status": "open",
+      "pnl_usd": null
+    },
+    {
+      "trade_id": "3407e343-c375-46a0-9381-e4f9b12c3f8c",
+      "opportunity_id": "0f135789-b3b7-44f2-b5b0-1086cbe58153",
+      "strategy": "neg_risk_bracket_arb",
+      "title": "trump-out-as-president-before-gta-vi-846",
+      "opened_at": "2026-05-23T15:08:19.139Z",
+      "capital_usd": 0.5,
+      "expected_edge_bps": 30710,
+      "status": "open",
+      "pnl_usd": null
+    },
+    {
+      "trade_id": "2264bf9f-ebea-4196-9c77-c79ff2df1c2f",
+      "opportunity_id": "0f135789-b3b7-44f2-b5b0-1086cbe58153",
+      "strategy": "neg_risk_bracket_arb",
+      "title": "new-rhianna-album-before-gta-vi-926",
+      "opened_at": "2026-05-23T15:08:19.133Z",
+      "capital_usd": 0.46,
+      "expected_edge_bps": 30710,
+      "status": "open",
+      "pnl_usd": null
+    },
+    {
+      "trade_id": "1327ff29-357d-4692-a081-d0490b382966",
+      "opportunity_id": "0f135789-b3b7-44f2-b5b0-1086cbe58153",
+      "strategy": "neg_risk_bracket_arb",
+      "title": "new-playboi-carti-album-before-gta-vi-421",
+      "opened_at": "2026-05-23T15:08:19.128Z",
+      "capital_usd": 0.47,
+      "expected_edge_bps": 30710,
+      "status": "open",
+      "pnl_usd": null
+    },
+    {
+      "trade_id": "6fbef950-068a-465e-ae8f-beaac3ccb81f",
+      "opportunity_id": "0f135789-b3b7-44f2-b5b0-1086cbe58153",
+      "strategy": "neg_risk_bracket_arb",
+      "title": "another-pandemic-before-gta-vi",
+      "opened_at": "2026-05-23T15:08:19.123Z",
+      "capital_usd": 0.51,
+      "expected_edge_bps": 30710,
+      "status": "open",
+      "pnl_usd": null
+    },
+    {
+      "trade_id": "1d8f626d-985e-4eb1-8624-648bb4161e47",
+      "opportunity_id": "63e7ddb2-878d-432f-9ecf-d652a9a5b8fd",
+      "strategy": "neg_risk_bracket_arb",
+      "title": "Will Harvey Weinstein be sentenced to more than 30 years in prison?",
+      "opened_at": "2026-05-20T16:47:09.119Z",
+      "capital_usd": 0.999,
+      "expected_edge_bps": 80,
+      "status": "open",
+      "pnl_usd": null
+    },
+    {
+      "trade_id": "b475dec8-a12e-445c-b1d4-aa7021a0c97e",
+      "opportunity_id": "63e7ddb2-878d-432f-9ecf-d652a9a5b8fd",
+      "strategy": "neg_risk_bracket_arb",
+      "title": "Will Harvey Weinstein be sentenced to between 20 and 30 years in prison?",
+      "opened_at": "2026-05-20T16:47:09.110Z",
+      "capital_usd": 0.911,
+      "expected_edge_bps": 80,
+      "status": "open",
+      "pnl_usd": null
+    },
+    {
+      "trade_id": "fa74f4d6-704d-457a-917c-6c5d65034a6b",
+      "opportunity_id": "63e7ddb2-878d-432f-9ecf-d652a9a5b8fd",
+      "strategy": "neg_risk_bracket_arb",
+      "title": "Will Harvey Weinstein be sentenced to between 10 and 20 years in prison?",
+      "opened_at": "2026-05-20T16:47:09.101Z",
+      "capital_usd": 0.951,
+      "expected_edge_bps": 80,
+      "status": "open",
+      "pnl_usd": null
+    },
+    {
+      "trade_id": "1d5b2e2d-4150-403f-9c1f-31fee8f3bd6d",
+      "opportunity_id": "63e7ddb2-878d-432f-9ecf-d652a9a5b8fd",
+      "strategy": "neg_risk_bracket_arb",
+      "title": "Will Harvey Weinstein be sentenced to between 5 and 10 years in prison?",
+      "opened_at": "2026-05-20T16:47:09.093Z",
+      "capital_usd": 0.955,
+      "expected_edge_bps": 80,
+      "status": "open",
+      "pnl_usd": null
+    },
+    {
+      "trade_id": "bf601b4f-9e7e-4234-b098-5b9eb3413816",
+      "opportunity_id": "63e7ddb2-878d-432f-9ecf-d652a9a5b8fd",
+      "strategy": "neg_risk_bracket_arb",
+      "title": "Will Harvey Weinstein be sentenced to less than 5 years in prison?",
+      "opened_at": "2026-05-20T16:47:09.084Z",
+      "capital_usd": 0.958,
+      "expected_edge_bps": 80,
+      "status": "open",
+      "pnl_usd": null
+    },
+    {
+      "trade_id": "c4e71e5b-54ff-478f-b7f6-d4a5d0f5595f",
+      "opportunity_id": "63e7ddb2-878d-432f-9ecf-d652a9a5b8fd",
+      "strategy": "neg_risk_bracket_arb",
+      "title": "Will Harvey Weinstein be sentenced to no prison time?",
+      "opened_at": "2026-05-20T16:47:09.073Z",
+      "capital_usd": 0.218,
+      "expected_edge_bps": 80,
+      "status": "open",
+      "pnl_usd": null
+    },
+    {
+      "trade_id": "f16357e8-3ac0-432e-9fd7-782a98128779",
+      "opportunity_id": null,
+      "strategy": "neg_risk_bracket_arb",
+      "title": "Will Trump endorse Lindsey Graham for SC-Sen by Nov 2 2026 ET?",
+      "opened_at": "2026-05-19T17:11:12.338Z",
+      "capital_usd": 1,
+      "expected_edge_bps": null,
+      "status": "open",
+      "pnl_usd": null
+    },
+    {
+      "trade_id": "932910a8-e0f5-43da-b736-e2375e3186ae",
+      "opportunity_id": null,
+      "strategy": "neg_risk_bracket_arb",
+      "title": "Will Trump endorse Steve Hilton in CA-Gov for Nov 2 2026 ET?",
+      "opened_at": "2026-05-19T17:11:12.329Z",
+      "capital_usd": 1,
+      "expected_edge_bps": null,
+      "status": "open",
+      "pnl_usd": null
+    },
+    {
+      "trade_id": "8dab9250-e5a5-40ed-b0fa-625fde961bfb",
+      "opportunity_id": null,
+      "strategy": "neg_risk_bracket_arb",
+      "title": "Will Trump endorse Andy Barr for KY-Sen by Nov 2 2026 ET?",
+      "opened_at": "2026-05-19T17:11:12.319Z",
+      "capital_usd": 1,
+      "expected_edge_bps": null,
+      "status": "open",
+      "pnl_usd": null
+    },
+    {
+      "trade_id": "f0eaa672-c0cc-434e-b23a-7acc14b1ed94",
+      "opportunity_id": null,
+      "strategy": "neg_risk_bracket_arb",
+      "title": "Will Trump endorse John Cornyn for TX-Sen by Nov 2 2026 ET?",
+      "opened_at": "2026-05-19T17:11:12.308Z",
+      "capital_usd": 1,
+      "expected_edge_bps": null,
+      "status": "open",
+      "pnl_usd": null
+    },
+    {
+      "trade_id": "17792b31-d1ac-4ef1-abcc-d93e37f0c708",
+      "opportunity_id": null,
+      "strategy": "neg_risk_bracket_arb",
+      "title": "Will Trump endorse Susan Collins for ME-Sen by Nov 2 2026 ET?",
+      "opened_at": "2026-05-19T17:11:12.296Z",
+      "capital_usd": 1,
+      "expected_edge_bps": null,
+      "status": "open",
+      "pnl_usd": null
+    },
+    {
+      "trade_id": "350e03ee-2c7e-4e83-9c98-14d819ccb6e7",
+      "opportunity_id": null,
+      "strategy": "neg_risk_bracket_arb",
+      "title": "Will Trump endorse Winsome Earle-Sears for VA-Gov by Nov 2 2025 ET?",
+      "opened_at": "2026-05-19T17:11:12.284Z",
+      "capital_usd": 1,
+      "expected_edge_bps": null,
+      "status": "open",
+      "pnl_usd": null
+    },
+    {
+      "trade_id": "4adab67b-c906-48ed-9710-34351ae8e428",
+      "opportunity_id": null,
+      "strategy": "neg_risk_bracket_arb",
+      "title": "Will Trump endorse Ken Paxton for TX-Sen by Nov 2 2026 ET?",
+      "opened_at": "2026-05-19T17:11:12.273Z",
+      "capital_usd": 1,
+      "expected_edge_bps": null,
+      "status": "open",
+      "pnl_usd": null
+    },
+    {
+      "trade_id": "9ed03c4e-87bd-4dd8-9660-b55ae3852e97",
+      "opportunity_id": null,
+      "strategy": "neg_risk_bracket_arb",
+      "title": "Will Bernie endorse Zach Wahls for IA-Sen Nov 2 2026 ET?",
+      "opened_at": "2026-05-19T17:11:12.255Z",
+      "capital_usd": 1,
+      "expected_edge_bps": null,
+      "status": "open",
+      "pnl_usd": null
+    },
+    {
+      "trade_id": "42704813-be26-4522-999b-6de93f6e73f0",
+      "opportunity_id": null,
+      "strategy": "neg_risk_bracket_arb",
+      "title": "Will Bernie endorse Omar Fateh in Minneapolis Mayor for Nov 3 2026 ET?",
+      "opened_at": "2026-05-19T17:11:12.245Z",
+      "capital_usd": 1,
+      "expected_edge_bps": null,
+      "status": "open",
+      "pnl_usd": null
+    },
+    {
+      "trade_id": "02c43061-f653-4a8f-a903-77b83e15d546",
+      "opportunity_id": null,
+      "strategy": "neg_risk_bracket_arb",
+      "title": "Will Bernie endorse Dan Osborn for NE-Sen by Nov 2 2026 ET?",
+      "opened_at": "2026-05-19T17:11:12.235Z",
+      "capital_usd": 1,
+      "expected_edge_bps": null,
+      "status": "open",
+      "pnl_usd": null
+    },
+    {
+      "trade_id": "b6f701ff-5255-4c20-90be-a979ebe9ca1c",
+      "opportunity_id": null,
+      "strategy": "neg_risk_bracket_arb",
+      "title": "Will Bernie endorse James Talarico for TX-Sen by Nov 2 2026 ET?",
+      "opened_at": "2026-05-19T17:11:12.226Z",
+      "capital_usd": 1,
+      "expected_edge_bps": null,
+      "status": "open",
+      "pnl_usd": null
+    },
+    {
+      "trade_id": "28cc516a-c062-4c4f-b111-d09d8466c3b5",
+      "opportunity_id": null,
+      "strategy": "neg_risk_bracket_arb",
+      "title": "Will Bernie endorse Alan Grayson for FL-Sen Nov 2 2026 ET?",
+      "opened_at": "2026-05-19T17:11:12.217Z",
+      "capital_usd": 1,
+      "expected_edge_bps": null,
+      "status": "open",
+      "pnl_usd": null
+    },
+    {
+      "trade_id": "0df45993-ab53-47ec-b4ba-10a247ba75da",
+      "opportunity_id": null,
+      "strategy": "neg_risk_bracket_arb",
+      "title": "Will Bernie endorse Antonio Delgado for NY-Gov by Nov 2 2026 ET?",
+      "opened_at": "2026-05-19T17:11:12.207Z",
+      "capital_usd": 1,
+      "expected_edge_bps": null,
+      "status": "open",
+      "pnl_usd": null
+    },
+    {
+      "trade_id": "376a0ceb-5656-4ba6-abe0-7f5c74b3fd1e",
+      "opportunity_id": null,
+      "strategy": "neg_risk_bracket_arb",
+      "title": "Will Bernie endorse Kshama Sawant for WA-09 by Nov 2 2026 ET?",
+      "opened_at": "2026-05-19T17:11:12.198Z",
+      "capital_usd": 1,
+      "expected_edge_bps": null,
+      "status": "open",
+      "pnl_usd": null
+    },
+    {
+      "trade_id": "b4eebe9a-538a-4557-abb2-5786f2642df4",
+      "opportunity_id": null,
+      "strategy": "neg_risk_bracket_arb",
+      "title": "Will Sunderland finish in the top 4 of the EPL 2025–26 standings?",
+      "opened_at": "2026-05-19T17:11:12.178Z",
+      "capital_usd": 1,
+      "expected_edge_bps": null,
+      "status": "open",
+      "pnl_usd": null
+    },
+    {
+      "trade_id": "bbb7b07c-9c8a-4db6-9ba1-7f7ca4277fea",
+      "opportunity_id": null,
+      "strategy": "neg_risk_bracket_arb",
+      "title": "Will Leeds finish in the top 4 of the EPL 2025–26 standings?",
+      "opened_at": "2026-05-19T17:11:12.170Z",
+      "capital_usd": 1,
+      "expected_edge_bps": null,
+      "status": "open",
+      "pnl_usd": null
+    },
+    {
+      "trade_id": "0da9c2c0-1299-4da5-a2f4-9a8857c46a0d",
+      "opportunity_id": null,
+      "strategy": "neg_risk_bracket_arb",
+      "title": "Will Wolves finish in the top 4 of the EPL 2025–26 standings?",
+      "opened_at": "2026-05-19T17:11:12.161Z",
+      "capital_usd": 1,
+      "expected_edge_bps": null,
+      "status": "open",
+      "pnl_usd": null
+    },
+    {
+      "trade_id": "0b76a888-4a1d-4810-958d-065471354d2e",
+      "opportunity_id": null,
+      "strategy": "neg_risk_bracket_arb",
+      "title": "Will Brighton finish in the top 4 of the EPL 2025–26 standings?",
+      "opened_at": "2026-05-19T17:11:12.152Z",
+      "capital_usd": 1,
+      "expected_edge_bps": null,
+      "status": "open",
+      "pnl_usd": null
+    },
+    {
+      "trade_id": "8f6f006c-4cf0-4894-902c-9d993154be91",
+      "opportunity_id": null,
+      "strategy": "neg_risk_bracket_arb",
+      "title": "Will Bournemouth finish in the top 4 of the EPL 2025–26 standings?",
+      "opened_at": "2026-05-19T17:11:12.143Z",
+      "capital_usd": 1,
+      "expected_edge_bps": null,
+      "status": "open",
+      "pnl_usd": null
+    },
+    {
+      "trade_id": "bba9ad7e-ff3b-4f4c-860b-fca5a835b346",
+      "opportunity_id": null,
+      "strategy": "neg_risk_bracket_arb",
+      "title": "Will Everton finish in the top 4 of the EPL 2025–26 standings?",
+      "opened_at": "2026-05-19T17:11:12.134Z",
+      "capital_usd": 1,
+      "expected_edge_bps": null,
+      "status": "open",
+      "pnl_usd": null
+    },
+    {
+      "trade_id": "7dd5cb4a-e8c3-4189-a3d9-2bebb28bd97d",
+      "opportunity_id": null,
+      "strategy": "neg_risk_bracket_arb",
+      "title": "Will Newcastle finish in the top 4 of the EPL 2025–26 standings?",
+      "opened_at": "2026-05-19T17:11:12.126Z",
+      "capital_usd": 1,
+      "expected_edge_bps": null,
+      "status": "open",
+      "pnl_usd": null
+    },
+    {
+      "trade_id": "eb829c32-2e5f-4ed9-bb70-1efb33722c9a",
+      "opportunity_id": null,
+      "strategy": "neg_risk_bracket_arb",
+      "title": "Will Manchester United finish in the top 4 of the EPL 2025–26 standings?",
+      "opened_at": "2026-05-19T17:11:12.117Z",
+      "capital_usd": 1,
+      "expected_edge_bps": null,
+      "status": "open",
+      "pnl_usd": null
+    },
+    {
+      "trade_id": "6910f505-0592-4fc2-80e0-c20d977b63f2",
+      "opportunity_id": null,
+      "strategy": "neg_risk_bracket_arb",
+      "title": "Will Chelsea finish in the top 4 of the EPL 2025–26 standings?",
+      "opened_at": "2026-05-19T17:11:12.108Z",
+      "capital_usd": 1,
+      "expected_edge_bps": null,
+      "status": "open",
+      "pnl_usd": null
+    },
+    {
+      "trade_id": "7343b90a-cfad-4495-a546-c4af9da705d8",
+      "opportunity_id": null,
+      "strategy": "neg_risk_bracket_arb",
+      "title": "Will Liverpool finish in the top 4 of the EPL 2025–26 standings?",
+      "opened_at": "2026-05-19T17:11:12.099Z",
+      "capital_usd": 1,
+      "expected_edge_bps": null,
+      "status": "open",
+      "pnl_usd": null
+    },
+    {
+      "trade_id": "425c7c1c-d256-4573-8d83-12b2cee91211",
+      "opportunity_id": null,
+      "strategy": "neg_risk_bracket_arb",
+      "title": "Will Fulham finish in the top 4 of the EPL 2025–26 standings?",
+      "opened_at": "2026-05-19T17:11:12.090Z",
+      "capital_usd": 1,
+      "expected_edge_bps": null,
+      "status": "open",
+      "pnl_usd": null
+    },
+    {
+      "trade_id": "396fc81a-07d7-4911-afe1-c302581da71d",
+      "opportunity_id": null,
+      "strategy": "neg_risk_bracket_arb",
+      "title": "Will Burnley finish in the top 4 of the EPL 2025–26 standings?",
+      "opened_at": "2026-05-19T17:11:12.081Z",
+      "capital_usd": 1,
+      "expected_edge_bps": null,
+      "status": "open",
+      "pnl_usd": null
+    },
+    {
+      "trade_id": "3fc6aae8-40db-46ac-8dbf-30f89147ebd2",
+      "opportunity_id": null,
+      "strategy": "neg_risk_bracket_arb",
+      "title": "Will West Ham finish in the top 4 of the EPL 2025–26 standings?",
+      "opened_at": "2026-05-19T17:11:12.072Z",
+      "capital_usd": 1,
+      "expected_edge_bps": null,
+      "status": "open",
+      "pnl_usd": null
+    },
+    {
+      "trade_id": "8277252c-59a0-49c8-90ae-d881e087f1da",
+      "opportunity_id": null,
+      "strategy": "neg_risk_bracket_arb",
+      "title": "Will Crystal Palace finish in the top 4 of the EPL 2025–26 standings?",
+      "opened_at": "2026-05-19T17:11:12.064Z",
+      "capital_usd": 1,
+      "expected_edge_bps": null,
+      "status": "open",
+      "pnl_usd": null
+    },
+    {
+      "trade_id": "49047c81-668d-43a6-a5b8-014b10298a04",
+      "opportunity_id": null,
+      "strategy": "neg_risk_bracket_arb",
+      "title": "Will Brentford finish in the top 4 of the EPL 2025–26 standings?",
+      "opened_at": "2026-05-19T17:11:12.055Z",
+      "capital_usd": 1,
+      "expected_edge_bps": null,
+      "status": "open",
+      "pnl_usd": null
+    },
+    {
+      "trade_id": "ac96ae47-fc49-40fb-b32a-65e48256d564",
+      "opportunity_id": null,
+      "strategy": "neg_risk_bracket_arb",
+      "title": "Will Nottingham Forest finish in the top 4 of the EPL 2025–26 standings?",
+      "opened_at": "2026-05-19T17:11:12.046Z",
+      "capital_usd": 1,
+      "expected_edge_bps": null,
+      "status": "open",
+      "pnl_usd": null
+    }
+  ]
+}
