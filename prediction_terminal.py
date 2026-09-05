@@ -37,6 +37,7 @@ from app import quant as qm
 from app import run_sim as rsim
 from app import signals as sig
 from app import suspicion as susp
+from app import wallet_origin as wo
 from app import track_record as trec
 from app import venue_units as vu
 from src import copy_trading as ct
@@ -2152,6 +2153,15 @@ def load_wallet_position_values(wallets: tuple[str, ...], limit: int = 120) -> p
 ACCOUNT_AGE_MEASURED = "measured"
 ACCOUNT_AGE_WINDOW_CAPPED = "window_capped"
 ACCOUNT_AGE_UNKNOWN = "unknown"
+
+
+@st.cache_data(ttl=900, show_spinner=False)
+def load_wallet_origins(wallets: tuple[str, ...], budget: int = 20) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
+    """Measured first trades for the given wallets (app/wallet_origin.py):
+    from the trade store when known, else one venue call each up to the
+    budget. Returns (origins, meta)."""
+
+    return wo.first_trade_map(wallets, budget=budget)
 
 
 @st.cache_data(ttl=900, show_spinner=False)
@@ -12387,6 +12397,22 @@ def page_suspicious() -> None:
     # Cluster bonus only from the STRICT syndicate rule — the loosened
     # fallback network is display-only evidence, too weak for a score bump.
     wallet_risk = susp.apply_cluster_bonus(wallet_risk, cluster_assignments)
+    # The measured first trade of the whale-sized wallets in this tape: the
+    # freshness the public cases describe, one venue call per wallet never
+    # asked before, kept in the trade store. Behind a toggle because it can
+    # take a few seconds on a window full of new wallets.
+    if st.toggle("Measure first trades of the whale wallets (one venue call per wallet never asked before)",
+                 value=False, key="susp_origin_toggle") and not wallet_risk.empty:
+        kandidaten = tuple(wo.origin_candidates(trades, whale_threshold=whale_floor))
+        origins, origin_meta = safe_load("Wallet first trades", load_wallet_origins, kandidaten, default=({}, {}))
+        if origins:
+            event_risk = susp.apply_first_trade_bonus(event_risk, trades, origins, whale_threshold=whale_floor)
+            wallet_risk = susp.apply_first_trade_bonus_wallets(wallet_risk, origins)
+        st.caption(
+            f"First trades: {int(origin_meta.get('cached', 0))} known from the store, {int(origin_meta.get('fetched', 0))} "
+            f"asked now, {int(origin_meta.get('skipped', 0))} beyond the budget of {int(origin_meta.get('budget', 0))}. "
+            f"Fresh means a first trade under {susp.fresh_trade_days():g} days before the print."
+        )
     event_risk = susp.apply_category_context(event_risk, market_categories)
     wallet_risk = susp.apply_wallet_category_context(wallet_risk, trades, market_categories)
     # Sports odds, weather and crypto/market prices are excluded from this
@@ -12400,19 +12426,14 @@ def page_suspicious() -> None:
     # flow is sports/crypto.
     wallet_risk_all = wallet_risk
     wallet_risk = susp.exclude_contexts(wallet_risk)
-    if st.toggle("Check real account ages for the top wallets (slower)", value=False, key="susp_age_toggle") and not wallet_risk.empty:
-        top_wallets = tuple(wallet_risk.head(10)["wallet"].astype(str))
-        account_stats = safe_load("Wallet account stats", load_wallet_account_stats, top_wallets, default=pd.DataFrame())
-        wallet_risk = susp.apply_account_age_bonus(wallet_risk, account_stats)
-
     high_events = int((numeric_col(event_risk, "event_insider_score") >= 70).sum()) if not event_risk.empty else 0
     high_wallets = int((numeric_col(wallet_risk, "wallet_insider_score") >= 70).sum()) if not wallet_risk.empty else 0
     stat_cols = st.columns(5)
     stat_cols[0].metric("Events screened", f"{len(event_risk):,}", help="Markets with whale-sized prints in the current trade sample.")
     stat_cols[1].metric("Events at 70+ pts", f"{high_events:,}",
-                        help="Markets whose flow tripped most of the screen's nine checks.")
+                        help="Markets whose flow tripped most of the screen's ten checks.")
     stat_cols[2].metric("Wallets at 70+ pts", f"{high_wallets:,}",
-                        help="Wallets whose prints tripped most of the screen's nine checks.")
+                        help="Wallets whose prints tripped most of the screen's ten checks.")
     stat_cols[3].metric(
         "Whale volume",
         money(numeric_col(event_risk, "notional").sum()),
@@ -12422,10 +12443,11 @@ def page_suspicious() -> None:
 
     with st.expander("How to read this page"):
         st.markdown(
-            f"- **{susp.SCORE_NAME.capitalize()} (0–100 points):** nine flow features, each capped at a fixed number of points and "
-            "summed: unusual size, the biggest single print, money on long odds, concentration, one-sided pressure, trade bursts, flow "
-            "close to resolution, a favorable price move, and a wallet cluster or a fresh wallet. Fresh-wallet, timing and account-age "
-            "bonuses and a category multiplier are applied on top. The caps are the weights, and they were chosen, not estimated. "
+            f"- **{susp.SCORE_NAME.capitalize()} (0–100 points):** ten flow features, each capped at a fixed number of points and "
+            "summed: unusual size, the biggest single print, money on long odds (35¢ and under, 20¢ and under in full), concentration, "
+            "one-sided pressure, trade bursts, flow close to resolution, a favorable price move, a wallet cluster or a fresh wallet, and "
+            "money from wallets whose first trade on the venue was under 3 days old. Fresh-wallet and timing bonuses and a category "
+            "multiplier are applied on top. The caps are the weights, and they were chosen, not estimated. "
             f"Bands: {band_hinweis}.\n"
             f"- **What has not been measured:** {caveat('insider_score_unvalidated')} The one outcome this project "
             "does measure about the screen is a different quantity: whether the price of the flagged side was higher 30 min, 2 h and "
@@ -12436,7 +12458,8 @@ def page_suspicious() -> None:
             "and reach full weight at 5; a single print is always \"100% one wallet\" and means nothing.\n"
             "- **Category context:** sports odds, weather and crypto/market prices are excluded entirely — game results and weather models cannot be insider-traded, "
             "and asset prices are public, so a whale there is a trader, not an insider (the 15-minute crypto markets would otherwise flood this page). "
-            "Politics/geopolitics, awards and corporate/legal outcomes are where insider knowledge plausibly flows.\n"
+            "Geopolitics and conflict, central banks and data releases, politics and elections, awards and corporate/legal "
+            "outcomes are where insider knowledge plausibly flows, and each is its own group on the cards and in the log.\n"
             "- **One-wallet share:** how much of a market's *sampled whale volume* comes from its single biggest wallet — shown as n/a below 3 prints.\n"
             "- **Clusters:** wallets that repeatedly take the same side of the same markets, or hit the same market within minutes, are flagged as possibly linked. "
             "True linkage would need on-chain funding tracing, which this screen does not do.\n"

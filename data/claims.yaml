@@ -21,7 +21,7 @@
 # against this file by scripts/lint_claims.py.
 
 version: 1
-updated: 2026-08-28
+updated: 2026-09-05
 
 # `surfaces` names the files that must render the entry, as a caveat('<key>')
 # call. scripts/lint_claims.py fails when one of them does not, so an entry
@@ -72,13 +72,15 @@ disclaimers:
       - app/api_views.py
       - prediction_terminal.py
   # The risk screen's 0-100 number. "High" next to it read as a probability
-  # of insider trading; it is a points total over nine flow features whose
+  # of insider trading; it is a points total over ten flow features whose
   # weights were chosen by hand and never checked against a case that was
   # later established. The bands say how many checks fired (app.suspicion
   # SCORE_BANDS); this entry is the standing sentence that goes with them.
+  # data/insider_cases.yaml replays documented public cases through the
+  # screen; that is a regression suite for the patterns, not a hit rate.
   insider_score_unvalidated:
-    de: "Punktesumme aus neun Flow-Merkmalen mit gesetzten Gewichten, keine Wahrscheinlichkeit fuer Insiderhandel. Der Score wurde nie gegen bestaetigte Faelle gemessen, es gibt fuer ihn also keine Trefferquote."
-    en: "A points total over nine flow features with hand-set weights, not a probability of insider trading. The score has never been measured against established cases, so no hit rate exists for it."
+    de: "Punktesumme aus zehn Flow-Merkmalen mit gesetzten Gewichten, keine Wahrscheinlichkeit fuer Insiderhandel. Der Score wurde nie gegen bestaetigte Faelle gemessen, es gibt fuer ihn also keine Trefferquote."
+    en: "A points total over ten flow features with hand-set weights, not a probability of insider trading. The score has never been measured against established cases, so no hit rate exists for it."
     surfaces:
       - web/js/pages/trader_pages.js
       - app/api_views.py

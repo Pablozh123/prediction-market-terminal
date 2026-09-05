@@ -2,7 +2,7 @@
 //
 // Vorher stand neben ihr HIGH / MEDIUM / ELEVATED / LOW. Neben einer Zahl
 // von 0 bis 100 liest sich "HIGH" als Wahrscheinlichkeit fuer Insiderhandel,
-// und das ist die Zahl nicht: sie ist die Punktesumme aus neun Flow-Merkmalen
+// und das ist die Zahl nicht: sie ist die Punktesumme aus zehn Flow-Merkmalen
 // gegen feste Kappen, die Gewichte sind gesetzt und nicht geschaetzt, und
 // gegen einen bestaetigten Fall wurde sie nie gemessen. Die Baender zaehlen
 // deshalb, wie viele Pruefungen des Screens angesprochen haben.

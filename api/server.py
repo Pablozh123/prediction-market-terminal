@@ -153,6 +153,7 @@ from app import venue_fees as vf
 from app.analysis_views import load_publish_payload
 from src import prediction_markets as md
 from src import trade_store as ts
+from app import wallet_origin as wo
 
 
 def _env_float(name: str, default: float) -> float:
@@ -1489,7 +1490,15 @@ def risk_screen_basis() -> tuple[pd.DataFrame, pd.DataFrame, float]:
     trades = load_tape(limit=1000, min_cash=tape_floor)
     if trades.empty:
         return pd.DataFrame(), pd.DataFrame(), whale_threshold
-    screened = susp.filter_insider_prone_trades(trades)
+    # Two passes. The title pass drops nine prints in ten (sports, weather,
+    # price ladders) at no cost; the parent-event titles (cached 10 min) are
+    # then looked up only for what survived, and catch the sub-markets that
+    # carry no sports word of their own ("Will Mexico win on 2026-06-11?").
+    # Looking them up for the whole tape cost minutes per scan.
+    vorfilter = susp.filter_insider_prone_trades(trades)
+    if vorfilter is None or vorfilter.empty:
+        return trades, pd.DataFrame(), whale_threshold
+    screened = susp.filter_insider_prone_trades(vorfilter, _tape_categories(vorfilter))
     return trades, (screened if screened is not None else pd.DataFrame()), whale_threshold
 
 
@@ -1513,28 +1522,38 @@ def build_risk_payload() -> dict[str, Any]:
         # spaet sie im Ein-Tages-Band auftaucht. Ohne Store bleibt die Map
         # leer und das Signal rechnet wie bisher.
         bekannt = store_known_since(base["wallet"].astype(str)) if "wallet" in base else {}
-        wallet_scores = md.whale_wallet_risk_scores(
-            base, whale_threshold=whale_threshold, known_since=bekannt)
-        event_scores = md.whale_event_risk_scores(base, whale_threshold=whale_threshold)
-        fresh = pd.DataFrame()
-        coord = pd.DataFrame()
+        # The measured first trade of every whale-sized wallet in the window
+        # (app/wallet_origin.py): from the store when known, else one venue
+        # call each within the budget. What the lookup did rides along in
+        # the payload, so "no fresh wallet" and "did not ask" stay apart.
+        origins: dict[str, Any] = {}
+        origin_meta: dict[str, Any] = {}
         try:
-            fresh = susp.fresh_wallet_clusters(base, whale_threshold=whale_threshold)
-            coord = susp.coordinated_clusters(base)
-            # Same ladder as the Streamlit "Suspicious" page: fresh-wallet and
-            # timing bonuses, then the insider-plausibility multiplier of the
-            # market's context group. Each step leaves its points in a column
-            # (component_*), so the card and the flag log can say WHY.
-            event_scores = susp.apply_fresh_wallet_bonus(event_scores, fresh)
-            event_scores = susp.apply_coordination_bonus(event_scores, coord)
-            event_scores = susp.apply_category_context(event_scores)
-            # Side of the flow, price range, first/last print, top wallets,
-            # market link — what a review of the flag needs afterwards.
-            event_scores = susp.enrich_event_flow(
-                event_scores, base, whale_threshold=whale_threshold)
+            kandidaten = wo.origin_candidates(base, whale_threshold=whale_threshold)
+            origins, origin_meta = wo.first_trade_map(kandidaten)
         except Exception as exc:
-            print(f"[warn] event flow details: {exc}")
+            print(f"[warn] wallet origins: {exc}")
+            origin_meta = {"error": f"{type(exc).__name__}: {_oeffentlich(exc)}"[:200]}
+        # One ladder for every surface (susp.screen_tape): base scores,
+        # fresh-cluster and timing bonuses, first-trade points, the context
+        # multiplier with the parent-event titles, then the flow details the
+        # cards and the flag log need. Each step leaves its points in a
+        # column (component_*), so the card can say WHY.
+        ergebnis = susp.screen_tape(
+            base, whale_threshold=whale_threshold, known_since=bekannt,
+            origins=origins, market_categories=_tape_categories(base))
+        wallet_scores, event_scores = ergebnis.wallets, ergebnis.events
+        fresh, coord = ergebnis.fresh, ergebnis.coord
         payload = apv.risk_payload(wallet_scores, event_scores)
+        payload["origin_lookup"] = {
+            **origin_meta,
+            "fresh_days": susp.fresh_trade_days(),
+            "young_days": susp.YOUNG_TRADE_DAYS,
+            "note": ("First trade per wallet from the venue, one call per wallet never asked before, "
+                     "kept in the trade store. A wallet whose first trade lies under fresh_days before "
+                     "its print is fresh; asked counts the whale-sized wallets of this window, skipped "
+                     "the ones beyond the budget."),
+        }
         try:
             # Der Netzwerk-Tape geht bewusst tiefer als der Screen-Tape: das
             # letzte Tausend Prints deckt auf dieser Venue rund eine Minute ab,
@@ -1614,6 +1633,11 @@ def _record_risk_flags(payload: dict[str, Any]) -> None:
         result = risk_log.record_flags(payload.get("events") or [])
         if result.get("written") or result.get("updated"):
             print(f"[risk-log] {result['written']} new, {result['updated']} updated -> {result['path']}")
+        # The wallets too: a single fresh wallet that clears the screen must
+        # leave a trace even when its market's card did not.
+        wallets = risk_log.record_wallet_flags(payload.get("wallets") or [])
+        if wallets.get("written") or wallets.get("updated"):
+            print(f"[risk-log] wallets: {wallets['written']} new, {wallets['updated']} updated -> {wallets['path']}")
     except Exception as exc:
         print(f"[warn] risk flag log: {exc}")
 
@@ -1709,10 +1733,30 @@ def risk_book(
 
 
 @app.get("/api/risk/log")
-def risk_log_endpoint(limit: int = Query(100, ge=1, le=500), enrich: int = 0, since: str | None = None) -> dict[str, Any]:
+def risk_log_endpoint(limit: int = Query(100, ge=1, le=500), enrich: int = 0, since: str | None = None,
+                      kind: str = "event") -> dict[str, Any]:
     from app import risk_log
     from app import suspicion as susp
 
+    if str(kind or "event").lower() == "wallet":
+        # The wallet log: one row per venue, wallet and UTC day at or above
+        # the flag floor, with the measured first trade and the flags.
+        wallet_rows = risk_log.read_wallet_flags(limit=limit, since=since)
+        return {
+            "kind": "wallet",
+            "rows": wallet_rows,
+            "count": len(wallet_rows),
+            "score_name": susp.SCORE_NAME,
+            "score_bands": susp.score_band_table(),
+            "min_score": risk_log.min_score(),
+            "dedupe_hours": risk_log.DEDUPE_HOURS,
+            "sampler_interval_min": RISK_LOG_INTERVAL_MIN,
+            "fresh_days": susp.fresh_trade_days(),
+            "note": ("Every wallet the screen lists at or above min_score is logged once per venue, wallet and UTC "
+                     "day with its score, flags, context group, the market it was mostly in and the measured first "
+                     "trade (days before its last print here; the state says when nobody measured it)."),
+            "as_of": md.now_utc_label(),
+        }
     rows = risk_log.read_flags(limit=limit, since=since)
     enriched = 0
     if enrich:

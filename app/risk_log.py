@@ -128,6 +128,13 @@ def flag_row(event: dict[str, Any], as_of: Any = None) -> dict[str, Any]:
         "unique_wallets": int(_num(event.get("wallets")) or 0),
         "prints": int(_num(event.get("prints")) or 0),
         "top_wallets": list(event.get("top_wallets") or []),
+        # The first-trade reading at flag time (app/wallet_origin.py): how
+        # many measured wallets were fresh, their money, the youngest first
+        # trade in days, and how many wallets were measured at all.
+        "first_trade_wallets": int(_num(event.get("first_trade_wallets")) or 0),
+        "first_trade_notional": _num(event.get("first_trade_notional")),
+        "first_trade_youngest_days": _num(event.get("first_trade_youngest_days")),
+        "first_trade_measured": int(_num(event.get("first_trade_measured")) or 0),
         "score": _num(event.get("score")),
         "sev": str(event.get("sev") or ""),
         "components": list(event.get("components") or []),
@@ -162,6 +169,17 @@ def _write_all(path: Path, rows: Iterable[dict[str, Any]]) -> None:
         for row in rows:
             handle.write(json.dumps(row, ensure_ascii=False, default=str) + "\n")
     os.replace(tmp, path)
+
+
+#: What the stronger reading of a repeated flag overwrites. Identity fields
+#: (flag_id, first_seen, venue, market, title) never move.
+EVENT_UPDATE_KEYS = (
+    "score", "sev", "kind", "flags", "components", "side", "side_share", "side_notional",
+    "side_split", "price_outcome", "price_at_flag", "price_min", "price_max", "notional",
+    "unique_wallets", "prints", "top_wallets", "window_start", "window_end",
+    "window_minutes", "url", "token_id", "category",
+    "first_trade_wallets", "first_trade_notional", "first_trade_youngest_days", "first_trade_measured",
+)
 
 
 def record_flags(
@@ -218,11 +236,155 @@ def record_flags(
                 if new_score > old_score:
                     # The stronger reading wins, with the side/price/wallets
                     # of that reading — those are what a review needs.
-                    for key in ("score", "sev", "kind", "flags", "components", "side", "side_share", "side_notional",
-                                "side_split", "price_outcome", "price_at_flag", "price_min", "price_max", "notional",
-                                "unique_wallets", "prints", "top_wallets", "window_start", "window_end",
-                                "window_minutes", "url", "token_id"):
+                    for key in EVENT_UPDATE_KEYS:
                         existing[key] = candidate[key]
+                result["updated"] += 1
+                changed = True
+            if changed:
+                if len(rows) > MAX_ROWS:
+                    rows = rows[-MAX_ROWS:]
+                _write_all(target, rows)
+        except OSError as exc:
+            result["error"] = f"{type(exc).__name__}: {exc}"
+            print(f"[warn] risk flag log not writable ({target}): {exc}")
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Wallet flags. The event log answers "which market looked wrong"; a wallet
+# that clears the screen on its own (one fresh wallet, one big print) used to
+# leave no trace unless its market did too. Every wallet row the screen
+# hands out at or above the flag floor lands here, one line per venue,
+# wallet and UTC day, with the measured first trade, the flags and the
+# market it was mostly in, so the review afterwards can start from the who.
+# ---------------------------------------------------------------------------
+
+WALLET_FILE_NAME = "wallets.jsonl"
+
+#: What a repeated wallet flag's stronger reading overwrites.
+WALLET_UPDATE_KEYS = (
+    "score", "sev", "band", "flags", "category", "top_market", "prints", "notional", "largest",
+    "first_trade_days", "first_trade_state", "first_print", "latest_print",
+)
+
+
+def wallet_log_path() -> Path:
+    return log_dir() / WALLET_FILE_NAME
+
+
+def wallet_flag_id(venue: Any, wallet: Any, day: Any) -> str:
+    """Stable id of a wallet flag: venue + wallet + UTC day."""
+
+    raw = "|".join(str(part or "").strip().lower() for part in (venue, wallet, day))
+    return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16]
+
+
+def wallet_flag_row(wallet: dict[str, Any], as_of: Any = None) -> dict[str, Any]:
+    """The log row of one wallet as ``api_views.risk_payload`` shapes it."""
+
+    seen = _utc(as_of)
+    venue = str(wallet.get("venue") or "Polymarket")
+    address = str(wallet.get("address") or wallet.get("wallet") or "")
+    when = _iso(seen)
+    band = wallet.get("band")
+    band_label = str(band.get("label") or "") if isinstance(band, dict) else str(band or "")
+    score = _num(wallet.get("score"))
+    return {
+        "flag_id": wallet_flag_id(venue, address, seen.strftime("%Y-%m-%d")),
+        "first_seen": when,
+        "last_seen": when,
+        "times_seen": 1,
+        "venue": venue,
+        "wallet": address,
+        "name": str(wallet.get("wallet") or ""),
+        "score": score,
+        "sev": "high" if (score or 0.0) >= 70 else "medium" if (score or 0.0) >= 55 else "low",
+        "band": band_label,
+        "flags": list(wallet.get("flags") or []),
+        "category": str(wallet.get("category") or ""),
+        "top_market": str(wallet.get("context") or ""),
+        "prints": int(_num(wallet.get("prints")) or 0),
+        "notional": _num(wallet.get("notional_usd")),
+        "largest": _num(wallet.get("largest_usd")),
+        "first_trade_days": _num(wallet.get("first_trade_days")),
+        "first_trade_state": str(wallet.get("first_trade_state") or ""),
+        "first_print": str(wallet.get("firstSeen") or ""),
+        "latest_print": str(wallet.get("latest_print") or ""),
+    }
+
+
+def record_wallet_flags(
+    wallets: Iterable[dict[str, Any]],
+    as_of: Any = None,
+    *,
+    path: Path | str | None = None,
+    min_score_value: float | None = None,
+    dedupe_hours: float = DEDUPE_HOURS,
+) -> dict[str, Any]:
+    """Append the wallet rows at or above the flag floor to the wallet log.
+
+    Same contract as :func:`record_flags`: dedupe by id within
+    ``dedupe_hours`` (the stronger reading wins), never raises for I/O.
+    """
+
+    target = Path(path) if path is not None else wallet_log_path()
+    threshold = float(min_score_value) if min_score_value is not None else min_score()
+    seen = _utc(as_of)
+    incoming = [row for row in (wallets or []) if isinstance(row, dict)]
+    candidates = [
+        wallet_flag_row(row, seen) for row in incoming
+        if (_num(row.get("score")) or 0.0) >= threshold and str(row.get("address") or row.get("wallet") or "").strip()
+    ]
+    return _upsert_rows(target, candidates, seen, dedupe_hours, WALLET_UPDATE_KEYS, len(incoming) - len(candidates))
+
+
+def read_wallet_flags(limit: int = 200, since: Any = None, *, path: Path | str | None = None) -> list[dict[str, Any]]:
+    """Wallet log rows newest first, like :func:`read_flags`."""
+
+    return read_flags(limit=limit, since=since, path=Path(path) if path is not None else wallet_log_path())
+
+
+def _upsert_rows(
+    target: Path,
+    candidates: list[dict[str, Any]],
+    seen: datetime,
+    dedupe_hours: float,
+    update_keys: tuple[str, ...],
+    skipped: int,
+) -> dict[str, Any]:
+    """Append or update rows by ``flag_id`` within the dedupe window."""
+
+    result: dict[str, Any] = {"written": 0, "updated": 0, "skipped": skipped, "path": str(target), "error": None}
+    if not candidates:
+        return result
+    horizon = seen - timedelta(hours=float(dedupe_hours))
+    with _LOCK:
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            rows = _read_all(target)
+            by_id: dict[str, int] = {}
+            for index, row in enumerate(rows):
+                last = pd.to_datetime(row.get("last_seen"), utc=True, errors="coerce")
+                if pd.isna(last):
+                    continue
+                if last.to_pydatetime() >= horizon:
+                    by_id[str(row.get("flag_id"))] = index
+            changed = False
+            for candidate in candidates:
+                index = by_id.get(candidate["flag_id"])
+                if index is None:
+                    rows.append(candidate)
+                    by_id[candidate["flag_id"]] = len(rows) - 1
+                    result["written"] += 1
+                    changed = True
+                    continue
+                existing = rows[index]
+                existing["last_seen"] = candidate["last_seen"]
+                existing["times_seen"] = int(existing.get("times_seen") or 1) + 1
+                if (_num(candidate.get("score")) or 0.0) > (_num(existing.get("score")) or 0.0):
+                    for key in update_keys:
+                        if key in candidate:
+                            existing[key] = candidate[key]
                 result["updated"] += 1
                 changed = True
             if changed:

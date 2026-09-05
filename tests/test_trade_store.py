@@ -283,6 +283,47 @@ class MaybeRecordTests(unittest.TestCase):
                 finally:
                     conn.close()
 
+class WalletOriginCacheTests(unittest.TestCase):
+    """Die Tabelle wallet_origin: der gemessene erste Trade je Wallet, einmal gefragt, fuer immer behalten."""
+
+    def setUp(self) -> None:
+        self.tmp = TemporaryDirectory()
+        self.conn = ts.connect(Path(self.tmp.name) / "store.sqlite")
+
+    def tearDown(self) -> None:
+        self.conn.close()
+        self.tmp.cleanup()
+
+    def test_rows_round_trip_lowercased_and_limited_to_the_asked_wallets(self) -> None:
+        ts.record_origins(self.conn, [
+            {"wallet": "0xAAA", "first_trade_ts": 100, "state": "measured", "fetched_at": 5},
+            {"wallet": "0xbbb", "first_trade_ts": None, "state": "none", "fetched_at": 6},
+            {"wallet": "", "first_trade_ts": 1, "state": "measured", "fetched_at": 7},
+        ])
+        alle = ts.origin_map(self.conn)
+        self.assertEqual(set(alle), {"0xaaa", "0xbbb"})
+        self.assertEqual(alle["0xaaa"], {"first_trade_ts": 100, "state": "measured", "fetched_at": 5})
+        self.assertIsNone(alle["0xbbb"]["first_trade_ts"])
+        self.assertEqual(set(ts.origin_map(self.conn, ["0xAAA", "0xzzz"])), {"0xaaa"})
+
+    def test_a_measured_first_trade_survives_a_later_error(self) -> None:
+        ts.record_origins(self.conn, [{"wallet": "0xa", "first_trade_ts": 100, "state": "measured", "fetched_at": 5}])
+        ts.record_origins(self.conn, [{"wallet": "0xa", "first_trade_ts": None, "state": "error", "fetched_at": 9}])
+        row = ts.origin_map(self.conn, ["0xa"])["0xa"]
+        self.assertEqual(row["state"], "measured")
+        self.assertEqual(row["first_trade_ts"], 100)
+        self.assertEqual(row["fetched_at"], 9)
+
+    def test_an_error_gives_way_to_a_later_measurement(self) -> None:
+        ts.record_origins(self.conn, [{"wallet": "0xa", "first_trade_ts": None, "state": "error", "fetched_at": 5}])
+        ts.record_origins(self.conn, [{"wallet": "0xa", "first_trade_ts": 77, "state": "measured", "fetched_at": 9}])
+        self.assertEqual(ts.origin_map(self.conn, ["0xa"])["0xa"], {"first_trade_ts": 77, "state": "measured", "fetched_at": 9})
+
+    def test_prune_leaves_the_origins_alone(self) -> None:
+        ts.record_origins(self.conn, [{"wallet": "0xa", "first_trade_ts": 100, "state": "measured", "fetched_at": 5}])
+        ts.prune(self.conn, keep_days=0.0)
+        self.assertIn("0xa", ts.origin_map(self.conn))
+
 
 if __name__ == "__main__":
     unittest.main()

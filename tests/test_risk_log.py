@@ -459,6 +459,99 @@ class FlagLogRouteBeschriftungTests(unittest.TestCase):
         self.assertEqual(record["components"][0]["fact"], "f")
         self.assertNotIn("wallets_total", record)
 
+class FirstTradeFieldsTests(unittest.TestCase):
+    def test_the_event_row_carries_the_first_trade_reading(self) -> None:
+        row = risk_log.flag_row(_event(first_trade_wallets=1, first_trade_notional=170000.0,
+                                       first_trade_youngest_days=0.42, first_trade_measured=3))
+        self.assertEqual(row["first_trade_wallets"], 1)
+        self.assertAlmostEqual(row["first_trade_notional"], 170000.0)
+        self.assertAlmostEqual(row["first_trade_youngest_days"], 0.42)
+        self.assertEqual(row["first_trade_measured"], 3)
+        # Absent: zero measured, nothing invented.
+        bare = risk_log.flag_row(_event())
+        self.assertEqual(bare["first_trade_wallets"], 0)
+        self.assertIsNone(bare["first_trade_youngest_days"])
+
+    def test_the_stronger_reading_brings_its_first_trade_fields_along(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "flags.jsonl"
+            risk_log.record_flags([_event(score=50)], "2026-08-16T12:00:00Z", path=path)
+            risk_log.record_flags([_event(score=70, first_trade_wallets=1, first_trade_youngest_days=0.5,
+                                          category="Macro & central banks")], "2026-08-16T13:00:00Z", path=path)
+            rows = risk_log.read_flags(path=path)
+            self.assertEqual(len(rows), 1)
+            self.assertEqual(rows[0]["first_trade_wallets"], 1)
+            self.assertEqual(rows[0]["category"], "Macro & central banks")
+
+
+def _wallet(**overrides):
+    base = {
+        "wallet": "magnusmajor", "address": "0xde0828bb8493e55928bc5f44367d70f67f127cd3", "context": "Fed hike?",
+        "score": 61, "band": {"label": "MANY PATTERNS"}, "flags": ["one-sided flow", "first trade 16 h before this print"],
+        "prints": 1, "notional": "$40.7k", "largest": "$40.7k", "notional_usd": 40740.0, "largest_usd": 40740.0,
+        "firstSeen": "2026-08-30", "firstTrade": "16 h", "first_trade_days": 0.67, "first_trade_state": "measured",
+        "category": "Macro & central banks", "latest_print": "2026-08-30 23:49:10",
+    }
+    base.update(overrides)
+    return base
+
+
+class WalletLogTests(unittest.TestCase):
+    """Jede Wallet ab der Flag-Schwelle bekommt ihre eigene Zeile: Venue, Wallet, UTC-Tag."""
+
+    def test_writes_one_row_per_wallet_and_day_with_the_first_trade(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "wallets.jsonl"
+            result = risk_log.record_wallet_flags([_wallet(), _wallet(address="0xother", score=39)], "2026-08-30T23:55:00Z", path=path)
+            self.assertEqual((result["written"], result["skipped"], result["error"]), (1, 1, None))
+            rows = risk_log.read_wallet_flags(path=path)
+            self.assertEqual(len(rows), 1)
+            row = rows[0]
+            self.assertEqual(row["wallet"], "0xde0828bb8493e55928bc5f44367d70f67f127cd3")
+            self.assertEqual(row["name"], "magnusmajor")
+            self.assertEqual(row["category"], "Macro & central banks")
+            self.assertEqual(row["top_market"], "Fed hike?")
+            self.assertAlmostEqual(row["first_trade_days"], 0.67)
+            self.assertEqual(row["first_trade_state"], "measured")
+            self.assertAlmostEqual(row["notional"], 40740.0)
+            self.assertEqual(row["band"], "MANY PATTERNS")
+            self.assertEqual(row["sev"], "medium")
+            self.assertEqual(row["flag_id"], risk_log.wallet_flag_id("Polymarket", row["wallet"], "2026-08-30"))
+
+    def test_a_repeat_within_the_window_updates_and_the_stronger_reading_wins(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "wallets.jsonl"
+            risk_log.record_wallet_flags([_wallet(score=61)], "2026-08-30T20:55:00Z", path=path)
+            risk_log.record_wallet_flags([_wallet(score=58, flags=["weaker"])], "2026-08-30T21:10:00Z", path=path)
+            result = risk_log.record_wallet_flags([_wallet(score=74, flags=["stronger"])], "2026-08-30T21:20:00Z", path=path)
+            self.assertEqual((result["written"], result["updated"]), (0, 1))
+            rows = risk_log.read_wallet_flags(path=path)
+            self.assertEqual(len(rows), 1)
+            self.assertEqual(rows[0]["times_seen"], 3)
+            self.assertEqual(rows[0]["score"], 74)
+            self.assertEqual(rows[0]["flags"], ["stronger"])
+            self.assertEqual(rows[0]["last_seen"], "2026-08-30T21:20:00Z")
+
+    def test_a_wallet_without_an_address_is_not_logged(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "wallets.jsonl"
+            result = risk_log.record_wallet_flags([_wallet(address="", wallet="")], path=path)
+            self.assertEqual(result["written"], 0)
+            self.assertEqual(risk_log.read_wallet_flags(path=path), [])
+
+    def test_the_wallet_log_lives_next_to_the_event_log(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            old = os.environ.get("RISK_LOG_DIR")
+            os.environ["RISK_LOG_DIR"] = tmp
+            try:
+                self.assertEqual(risk_log.wallet_log_path(), Path(tmp) / "wallets.jsonl")
+                self.assertEqual(risk_log.wallet_log_path().parent, risk_log.log_path().parent)
+            finally:
+                if old is None:
+                    os.environ.pop("RISK_LOG_DIR", None)
+                else:
+                    os.environ["RISK_LOG_DIR"] = old
+
 
 if __name__ == "__main__":
     unittest.main()

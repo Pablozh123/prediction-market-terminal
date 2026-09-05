@@ -222,7 +222,17 @@ class CategoryContextTests(unittest.TestCase):
             ("Will the film win Best Picture at the Oscars?", "", susp.CONTEXT_AWARDS),
             ("Will the CEO resign before July?", "", susp.CONTEXT_CORPORATE),
             ("Who wins the 2026 election?", "Politics", susp.CONTEXT_POLITICS),
-            ("Will there be a ceasefire by July?", "", susp.CONTEXT_POLITICS),
+            ("Will there be a ceasefire by July?", "", susp.CONTEXT_GEOPOLITICS),
+            ("Will US forces enter Iran before March 31?", "", susp.CONTEXT_GEOPOLITICS),
+            ("US announces end of Iranian blockade by September 14, 2026?", "", susp.CONTEXT_GEOPOLITICS),
+            ("Will the Fed decrease interest rates by 25 bps after the September 2026 meeting?", "", susp.CONTEXT_MACRO),
+            ("Fed Rate Hike by October 2026 Meeting?", "", susp.CONTEXT_MACRO),
+            ("Will inflation hit 4% in 2026?", "", susp.CONTEXT_MACRO),
+            ("Clarity Act (H.R.3633) signed into law in 2026?", "", susp.CONTEXT_POLITICS),
+            ("Will Renan Santos win the 2026 Brazilian presidential election?", "", susp.CONTEXT_POLITICS),
+            ("Some niche market", "Geopolitics", susp.CONTEXT_GEOPOLITICS),
+            ("Some niche market", "Economics", susp.CONTEXT_MACRO),
+            ("Will Hubert Hurkacz win the 2026 Men's US Open?", "", susp.CONTEXT_SPORTS),
             ("Some niche market", "Sports", susp.CONTEXT_SPORTS),
             ("Spread: Knicks (-1.5)", "", susp.CONTEXT_SPORTS),
             ("Lakers moneyline tonight", "", susp.CONTEXT_SPORTS),
@@ -294,7 +304,7 @@ class CategoryContextTests(unittest.TestCase):
         )
         mapping = susp.dominant_context_map(trades)
         self.assertEqual(mapping["0xaaa"], susp.CONTEXT_SPORTS)
-        self.assertEqual(mapping["0xbbb"], susp.CONTEXT_POLITICS)
+        self.assertEqual(mapping["0xbbb"], susp.CONTEXT_GEOPOLITICS)
 
     def test_dominant_context_map_empty_tape(self):
         self.assertEqual(susp.dominant_context_map(pd.DataFrame()), {})
@@ -685,7 +695,7 @@ class AuditRegressionTests(unittest.TestCase):
         group, _, _ = susp.classify_insider_context("Epic vs Apple ruling upheld?")
         self.assertEqual(group, susp.CONTEXT_CORPORATE)
         group, _, _ = susp.classify_insider_context("Zelensky vs Putin meeting in 2025?")
-        self.assertEqual(group, susp.CONTEXT_POLITICS)
+        self.assertEqual(group, susp.CONTEXT_GEOPOLITICS)
 
     def test_esports_counter_strike_is_sports_not_politics(self):
         # "strike" inside "Counter-Strike" must not trigger the politics
@@ -695,7 +705,7 @@ class AuditRegressionTests(unittest.TestCase):
         )
         self.assertEqual(group, susp.CONTEXT_SPORTS)
         group, _, _ = susp.classify_insider_context("Will Russia strike Kyiv in July?")
-        self.assertEqual(group, susp.CONTEXT_POLITICS)
+        self.assertEqual(group, susp.CONTEXT_GEOPOLITICS)
 
     def test_wnba_and_finals_are_sports(self):
         group, _, _ = susp.classify_insider_context("Will Atlanta Dream win the 2026 WNBA Finals?")
@@ -1165,7 +1175,7 @@ class EventComponentFactsTests(unittest.TestCase):
             "component_concentration": 14.5, "component_direction": 10.0, "component_burst": 15.0,
             "component_late": 0.0, "price_move_score": 2.4, "component_cluster": 10.0,
             "component_fresh_wallets": 0.0, "component_coordination": 4.0,
-            "context_multiplier": 1.1, "insider_context": "Politics & geopolitics",
+            "context_multiplier": 1.1, "insider_context": "Politics & elections",
             "context_note": "decisions are known to officials before the public",
             "whale_base": 2500.0, "notional": 1020.0, "largest_trade": 400.0,
             "top_wallet": "0x07be0000000000000000000000000000005233", "top_wallet_share": 0.97,
@@ -1188,10 +1198,10 @@ class EventComponentFactsTests(unittest.TestCase):
         self.assertEqual(parts["component_cluster"]["fact"], "4 wallets, 60 prints an hour")
         self.assertEqual(parts["component_coordination"]["fact"], "4 wallets on NO within 0 min")
         self.assertIn("halved because", parts["component_coordination"]["rule"])
-        self.assertEqual(parts["component_long_odds"]["fact"], "no money placed at 20¢ or below")
+        self.assertEqual(parts["component_long_odds"]["fact"], "no money placed at 35¢ or below")
         self.assertEqual(parts["component_long_odds"]["rule"], "")
         self.assertEqual(parts["context_multiplier"]["label"], "Context")
-        self.assertEqual(parts["context_multiplier"]["fact"], "Politics & geopolitics — decisions are known to officials before the public")
+        self.assertEqual(parts["context_multiplier"]["fact"], "Politics & elections — decisions are known to officials before the public")
         self.assertNotIn("weight", parts["component_concentration"])
         # Every component names what it measures.
         self.assertTrue(all(c["measures"] for c in parts.values()))
@@ -1234,7 +1244,7 @@ class ScoreBeschriftungTests(unittest.TestCase):
     """Die Beschriftung der 0-100-Zahl muss sagen, was die Zahl ist.
 
     Neben einer Zahl von 0 bis 100 las sich "High" als Wahrscheinlichkeit
-    fuer Insiderhandel. Die Zahl ist die Summe von neun Flow-Merkmalen gegen
+    fuer Insiderhandel. Die Zahl ist die Summe von zehn Flow-Merkmalen gegen
     feste Punktkappen: die Kappen sind die Gewichte, die Gewichte sind
     gesetzt und nicht geschaetzt, und gegen einen spaeter bestaetigten Fall
     ist der Score nie gemessen worden. Diese Tests halten fest, dass die
@@ -1279,18 +1289,23 @@ class ScoreBeschriftungTests(unittest.TestCase):
             self.assertEqual(len(passend), 1, punkte)
             self.assertEqual(susp.score_band(punkte)["label"], passend[0]["label"])
 
-    def test_basis_nennt_neun_merkmale_und_die_herkunft_der_gewichte(self) -> None:
+    def test_basis_nennt_zehn_merkmale_und_die_herkunft_der_gewichte(self) -> None:
         basis = susp.score_basis()
-        self.assertEqual(len(basis["features"]), 9)
+        self.assertEqual(len(basis["features"]), 10)
         self.assertEqual(basis["scale"]["max"], 100)
         self.assertEqual(basis["flag_floor"], 40)
         # Die Kappen sind die Gewichte, und beide Summen liegen ueber 100:
         # eine Zeile kann mehrere Merkmale ausreizen und trotzdem nicht 100
         # erreichen. Steht so in der Basis, damit die Karte nicht "77 von den
-        # erreichbaren 77" rechnet.
-        self.assertEqual(sum(f["cap_event"] for f in basis["features"]), susp.SCORE_RAW_MAX)
-        self.assertEqual(sum(f["cap_wallet"] for f in basis["features"]), susp.SCORE_RAW_MAX)
+        # erreichbaren 77" rechnet. Seit dem Erster-Trade-Merkmal tragen die
+        # beiden Seiten verschiedene Summen, und die Basis nennt beide.
+        self.assertEqual(sum(f["cap_event"] for f in basis["features"]), susp.SCORE_RAW_MAX_EVENT)
+        self.assertEqual(sum(f["cap_wallet"] for f in basis["features"]), susp.SCORE_RAW_MAX_WALLET)
+        self.assertEqual(basis["scale"]["raw_max"], susp.SCORE_RAW_MAX_EVENT)
+        self.assertEqual(basis["scale"]["raw_max_wallet"], susp.SCORE_RAW_MAX_WALLET)
         self.assertIn("chosen, not estimated", basis["weights"])
+        # Das zehnte Merkmal ist der gemessene erste Trade der Wallet.
+        self.assertIn("first_trade", [f["key"] for f in basis["features"]])
 
     def test_merkmale_decken_die_komponenten_der_karte_ab(self) -> None:
         # Die Basis darf keine Merkmale erfinden, die der Scorer nicht hat:
@@ -1312,6 +1327,10 @@ class ScoreBeschriftungTests(unittest.TestCase):
         # Stelle.
         self.assertIn("price", pruefung["measured_instead"]["quantity"])
         self.assertIn("flag_scoreboard", pruefung["measured_instead"]["source"])
+        # Die Fallliste steht daneben und sagt selbst, was sie nicht ist.
+        self.assertEqual(pruefung["case_list"]["path"], "data/insider_cases.yaml")
+        self.assertGreater(pruefung["case_list"]["n"], 0)
+        self.assertIn("not a hit rate", pruefung["case_list"]["reads"])
 
     def test_vorbehalt_kommt_aus_dem_register(self) -> None:
         from app import claims
@@ -1347,3 +1366,163 @@ class ScoreBandFrontendTests(unittest.TestCase):
             # Kein eigenes Band mehr in der Seite: die alte Schwellenkette
             # stand zweimal im Repo und konnte auseinanderlaufen.
             self.assertNotIn("['HIGH', 'var(--warn)']", quelle, datei)
+
+class FirstTradeFreshnessTests(unittest.TestCase):
+    """Die Frische einer Wallet ist ihr erster Trade auf der Venue, nicht die
+    Form der Stichprobe. Ein einzelner grosser Print einer frischen Wallet
+    muss die Flag-Schwelle allein ueber Groesse und ersten Trade erreichen."""
+
+    NOW = pd.Timestamp("2026-03-27T18:00:00Z")
+    TITLE = "Will US forces enter Iran before March 31?"
+
+    def _tape(self, notional=170_000.0, price=0.22, wallet="0xfresh", extra=None):
+        rows = [{
+            "platform": "Polymarket", "time": self.NOW - pd.Timedelta(minutes=4), "wallet": wallet, "trader": "",
+            "side": "BUY", "outcome": "Yes", "title": self.TITLE, "price": price, "size": notional / price,
+            "notional": notional, "market_key": "0xiran", "end_time": pd.Timestamp("2026-03-31T23:59:00Z"),
+        }]
+        for i in range(6):
+            rows.append({
+                "platform": "Polymarket", "time": self.NOW - pd.Timedelta(minutes=30 - 4 * i), "wallet": f"0xbg{i}",
+                "trader": "", "side": "BUY", "outcome": "Yes", "title": f"Will item {i} be announced?", "price": 0.5,
+                "size": 3000.0, "notional": 1500.0, "market_key": f"0xbg{i}", "end_time": self.NOW + pd.Timedelta(days=20),
+            })
+        rows.extend(extra or [])
+        return pd.DataFrame(rows)
+
+    def _origins(self, days, wallet="0xfresh"):
+        stamp = (self.NOW - pd.Timedelta(minutes=4)).timestamp() - days * 86_400
+        return {wallet: {"first_trade_ts": int(stamp), "state": "measured"}}
+
+    def test_ages_are_measured_at_the_print_and_unmeasured_stays_nan(self):
+        ages = susp.first_trade_ages(self._tape(), self._origins(1.5))
+        mine = ages[ages["wallet"].eq("0xfresh")].iloc[0]
+        self.assertTrue(bool(mine["measured"]))
+        self.assertAlmostEqual(float(mine["first_trade_days"]), 1.5, places=4)
+        other = ages[ages["wallet"].eq("0xbg0")].iloc[0]
+        self.assertFalse(bool(other["measured"]))
+        self.assertTrue(pd.isna(other["first_trade_days"]))
+        # A first trade after the print (API lag) is age zero, not negative.
+        late = susp.first_trade_ages(self._tape(), self._origins(-0.5))
+        self.assertEqual(float(late[late["wallet"].eq("0xfresh")].iloc[0]["first_trade_days"]), 0.0)
+
+    def test_a_lone_fresh_wallet_earns_the_event_cap_and_a_flag(self):
+        tape = self._tape()
+        events = md.whale_event_risk_scores(tape, whale_threshold=2500.0, now=self.NOW)
+        before = float(events[events["title"].eq(self.TITLE)].iloc[0]["event_insider_score"])
+        bumped = susp.apply_first_trade_bonus(events, tape, self._origins(1.0), whale_threshold=2500.0)
+        row = bumped[bumped["title"].eq(self.TITLE)].iloc[0]
+        self.assertEqual(float(row["component_first_trade"]), susp.FIRST_TRADE_EVENT_CAP)
+        self.assertEqual(int(row["first_trade_wallets"]), 1)
+        self.assertEqual(int(row["first_trade_measured"]), 1)
+        self.assertAlmostEqual(float(row["first_trade_notional"]), 170_000.0)
+        self.assertAlmostEqual(float(row["first_trade_youngest_days"]), 1.0, places=4)
+        self.assertAlmostEqual(float(row["event_insider_score"]), before + susp.FIRST_TRADE_EVENT_CAP)
+        self.assertIn("fresh wallet: first trade 1.0 d before, $170.0k", row["event_insider_flags"])
+        # Untouched markets keep their score and say "not measured".
+        other = bumped[bumped["title"].eq("Will item 0 be announced?")].iloc[0]
+        self.assertEqual(float(other["component_first_trade"]), 0.0)
+        self.assertEqual(int(other["first_trade_measured"]), 0)
+
+    def test_points_scale_with_the_fresh_money_up_to_four_whale_thresholds(self):
+        tape = self._tape(notional=5_000.0)
+        events = md.whale_event_risk_scores(tape, whale_threshold=2500.0, now=self.NOW)
+        bumped = susp.apply_first_trade_bonus(events, tape, self._origins(0.2), whale_threshold=2500.0)
+        row = bumped[bumped["title"].eq(self.TITLE)].iloc[0]
+        self.assertAlmostEqual(float(row["component_first_trade"]), 12.5)
+
+    def test_an_old_wallet_earns_nothing_but_counts_as_measured(self):
+        tape = self._tape()
+        events = md.whale_event_risk_scores(tape, whale_threshold=2500.0, now=self.NOW)
+        bumped = susp.apply_first_trade_bonus(events, tape, self._origins(120.0), whale_threshold=2500.0)
+        row = bumped[bumped["title"].eq(self.TITLE)].iloc[0]
+        self.assertEqual(float(row["component_first_trade"]), 0.0)
+        self.assertEqual(int(row["first_trade_wallets"]), 0)
+        self.assertEqual(int(row["first_trade_measured"]), 1)
+        self.assertNotIn("first trade", row["event_insider_flags"])
+        facts = {c["key"]: c for c in susp.event_components(row)}
+        self.assertIn("none of the 1 measured wallet had a first trade under 3 d", facts["component_first_trade"]["fact"])
+
+    def test_without_origins_nothing_moves_and_the_fact_says_not_measured(self):
+        tape = self._tape()
+        events = md.whale_event_risk_scores(tape, whale_threshold=2500.0, now=self.NOW)
+        bumped = susp.apply_first_trade_bonus(events, tape, {}, whale_threshold=2500.0)
+        row = bumped[bumped["title"].eq(self.TITLE)].iloc[0]
+        self.assertEqual(float(row["component_first_trade"]), 0.0)
+        facts = {c["key"]: c for c in susp.event_components(row)}
+        self.assertEqual(facts["component_first_trade"]["fact"], "first trades of the wallets not measured in this window")
+
+    def test_the_wallet_side_adds_points_by_age_and_takes_the_sample_proxy_back(self):
+        tape = self._tape()
+        wallets = md.whale_wallet_risk_scores(tape, whale_threshold=2500.0, now=self.NOW)
+        base = float(wallets[wallets["wallet"].eq("0xfresh")].iloc[0]["wallet_insider_score"])
+        fresh = susp.apply_first_trade_bonus_wallets(wallets, self._origins(0.5), now=self.NOW)
+        row = fresh[fresh["wallet"].eq("0xfresh")].iloc[0]
+        self.assertEqual(row["first_trade_state"], "measured")
+        self.assertAlmostEqual(float(row["first_trade_age_days"]), 0.5, places=4)
+        self.assertEqual(float(row["component_first_trade"]), susp.FIRST_TRADE_WALLET_BONUS)
+        self.assertEqual(float(row["wallet_insider_score"]), min(100.0, base + susp.FIRST_TRADE_WALLET_BONUS))
+        self.assertIn("first trade 12 h before this print", row["wallet_insider_flags"])
+        young = susp.apply_first_trade_bonus_wallets(wallets, self._origins(10.0), now=self.NOW)
+        self.assertEqual(float(young[young["wallet"].eq("0xfresh")].iloc[0]["component_first_trade"]), susp.YOUNG_TRADE_WALLET_BONUS)
+        self.assertIn("first trade 10 d ago", young[young["wallet"].eq("0xfresh")].iloc[0]["wallet_insider_flags"])
+        # Measured old: the sample-relative "fresh" points and flag go away.
+        raw = wallets[wallets["wallet"].eq("0xfresh")].iloc[0]
+        self.assertTrue(bool(raw["sample_fresh"]))
+        old = susp.apply_first_trade_bonus_wallets(wallets, self._origins(400.0), now=self.NOW)
+        row_old = old[old["wallet"].eq("0xfresh")].iloc[0]
+        self.assertFalse(bool(row_old["sample_fresh"]))
+        self.assertNotIn(susp.SAMPLE_FRESH_FLAG, row_old["wallet_insider_flags"])
+        self.assertEqual(float(row_old["wallet_insider_score"]), base - susp.SAMPLE_FRESH_POINTS)
+        # Unmeasured wallets keep everything.
+        unmeasured = old[old["wallet"].eq("0xbg0")].iloc[0]
+        self.assertEqual(unmeasured["first_trade_state"], susp.ORIGIN_UNMEASURED)
+
+    def test_screen_tape_flags_the_lone_fresh_whale_and_only_with_the_measurement(self):
+        tape = self._tape()
+        with_origins = susp.screen_tape(tape, whale_threshold=2500.0, now=self.NOW, origins=self._origins(1.0))
+        row = with_origins.events[with_origins.events["title"].eq(self.TITLE)].iloc[0]
+        self.assertGreaterEqual(float(row["event_insider_score"]), 40.0)
+        self.assertEqual(row["insider_context"], susp.CONTEXT_GEOPOLITICS)
+        top = row["top_wallets"][0]
+        self.assertEqual(top["wallet"], "0xfresh")
+        self.assertAlmostEqual(top["first_trade_days"], 1.0, places=2)
+        self.assertEqual(top["first_trade_state"], "measured")
+        self.assertIn("whose first trade was 1.0 d before", susp.event_story(row))
+        without = susp.screen_tape(tape, whale_threshold=2500.0, now=self.NOW)
+        row0 = without.events[without.events["title"].eq(self.TITLE)].iloc[0]
+        self.assertLess(float(row0["event_insider_score"]), 40.0)
+        self.assertIsNone(row0["top_wallets"][0]["first_trade_days"])
+        self.assertEqual(row0["top_wallets"][0]["first_trade_state"], susp.ORIGIN_UNMEASURED)
+        # The wallet side of the same pass carries the age and the group.
+        wallet = with_origins.wallets[with_origins.wallets["wallet"].eq("0xfresh")].iloc[0]
+        self.assertAlmostEqual(float(wallet["first_trade_age_days"]), 1.0, places=2)
+        self.assertEqual(wallet["insider_context"], susp.CONTEXT_GEOPOLITICS)
+
+    def test_the_horizon_reads_the_environment(self):
+        import os
+        from unittest import mock
+
+        with mock.patch.dict(os.environ, {"RISK_FRESH_TRADE_DAYS": "7"}):
+            self.assertEqual(susp.fresh_trade_days(), 7.0)
+        with mock.patch.dict(os.environ, {"RISK_FRESH_TRADE_DAYS": "nonsense"}):
+            self.assertEqual(susp.fresh_trade_days(), susp.FRESH_TRADE_DAYS)
+
+
+class GradedLongOddsTests(unittest.TestCase):
+    """Long odds reach to 35 cents: full weight to 20, 60 percent to 35, nothing above."""
+
+    def test_weights(self):
+        weight = md.long_odds_weight(pd.Series([0.05, 0.20, 0.21, 0.35, 0.36, 0.0, float("nan")]))
+        self.assertEqual(list(weight), [1.0, 1.0, 0.6, 0.6, 0.0, 0.0, 0.0])
+
+    def test_a_22_cent_print_now_carries_long_odds_money(self):
+        now = pd.Timestamp("2026-03-27T18:00:00Z")
+        tape = pd.DataFrame([{
+            "platform": "Polymarket", "time": now, "wallet": "0xa", "trader": "", "side": "BUY", "outcome": "Yes",
+            "title": "Will US forces enter Iran before March 31?", "price": 0.22, "size": 1000.0, "notional": 20_000.0,
+            "market_key": "0x1", "end_time": now + pd.Timedelta(days=4),
+        }])
+        events = md.whale_event_risk_scores(tape, whale_threshold=2500.0, now=now)
+        self.assertAlmostEqual(float(events.iloc[0]["long_odds_notional"]), 12_000.0)
+        self.assertIn("long-odds big bet", events.iloc[0]["event_insider_flags"])

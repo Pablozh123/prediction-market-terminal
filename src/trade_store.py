@@ -26,7 +26,7 @@ import os
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Iterable, Mapping
 
 import pandas as pd
 
@@ -74,6 +74,12 @@ CREATE TABLE IF NOT EXISTS wallets (
     wallet     TEXT PRIMARY KEY,
     first_seen INTEGER NOT NULL,
     last_seen  INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS wallet_origin (
+    wallet         TEXT PRIMARY KEY,
+    first_trade_ts INTEGER,
+    state          TEXT NOT NULL,
+    fetched_at     INTEGER NOT NULL
 );
 """
 
@@ -204,6 +210,67 @@ def first_seen_map(conn: sqlite3.Connection, wallets: Any | None = None) -> dict
             f"SELECT wallet, first_seen FROM wallets WHERE wallet IN ({marken})", stueck)
         ergebnis.update({str(w): int(ts) for w, ts in cursor.fetchall()})
     return ergebnis
+
+
+def origin_map(conn: sqlite3.Connection, wallets: Any | None = None) -> dict[str, dict[str, Any]]:
+    """Wallet -> ``{first_trade_ts, state, fetched_at}`` from the origin cache.
+
+    The first trade of a wallet on the venue, as the Data API named it
+    (app/wallet_origin.py). Unlike ``first_seen`` this is not a floor but the
+    thing itself, and it never changes once measured: one answer per wallet,
+    kept for good. Keys are lowercased.
+    """
+
+    if wallets is None:
+        cursor = conn.execute("SELECT wallet, first_trade_ts, state, fetched_at FROM wallet_origin")
+        rows = cursor.fetchall()
+    else:
+        schluessel = sorted({str(w).strip().lower() for w in wallets if str(w).strip()})
+        rows = []
+        for start in range(0, len(schluessel), 500):
+            stueck = schluessel[start:start + 500]
+            marken = ",".join("?" for _ in stueck)
+            rows.extend(conn.execute(
+                f"SELECT wallet, first_trade_ts, state, fetched_at FROM wallet_origin WHERE wallet IN ({marken})",
+                stueck).fetchall())
+    return {
+        str(wallet): {
+            "first_trade_ts": int(stamp) if stamp is not None else None,
+            "state": str(state),
+            "fetched_at": int(fetched or 0),
+        }
+        for wallet, stamp, state, fetched in rows
+    }
+
+
+def record_origins(conn: sqlite3.Connection, rows: Iterable[Mapping[str, Any]]) -> int:
+    """Upsert origin rows (``wallet``, ``first_trade_ts``, ``state``,
+    ``fetched_at``). A measured first trade is never overwritten by a later
+    ``none`` or ``error``: the venue does not un-know a trade."""
+
+    eintraege = []
+    for row in rows or []:
+        wallet = str(row.get("wallet") or "").strip().lower()
+        if not wallet:
+            continue
+        stamp = row.get("first_trade_ts")
+        try:
+            stamp = int(stamp) if stamp is not None else None
+        except (TypeError, ValueError):
+            stamp = None
+        eintraege.append((wallet, stamp, str(row.get("state") or ""), int(row.get("fetched_at") or 0)))
+    if not eintraege:
+        return 0
+    conn.executemany(
+        "INSERT INTO wallet_origin (wallet, first_trade_ts, state, fetched_at) VALUES (?, ?, ?, ?) "
+        "ON CONFLICT(wallet) DO UPDATE SET "
+        "first_trade_ts = COALESCE(wallet_origin.first_trade_ts, excluded.first_trade_ts), "
+        "state = CASE WHEN wallet_origin.state = 'measured' THEN wallet_origin.state ELSE excluded.state END, "
+        "fetched_at = excluded.fetched_at",
+        eintraege,
+    )
+    conn.commit()
+    return len(eintraege)
 
 
 def load_window(

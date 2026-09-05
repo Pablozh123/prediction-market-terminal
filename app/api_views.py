@@ -2131,6 +2131,11 @@ def risk_event_row(row: Any) -> dict[str, Any]:
                 "share": round(_num(item.get("share"), 0.0) or 0.0, 4),
                 "side": _text(item.get("side")),
                 "fresh": bool(fresh) if fresh is not None else None,
+                # Measured first trade on the venue (app/wallet_origin.py):
+                # days before this wallet's last print here, or None with
+                # the state saying why (unmeasured, none, error).
+                "first_trade_days": _num(item.get("first_trade_days")),
+                "first_trade_state": _text(item.get("first_trade_state")) or susp.ORIGIN_UNMEASURED,
                 "url": wallet_profile_url(venue, address),
             })
     window_minutes = _num(row.get("window_minutes"))
@@ -2177,9 +2182,42 @@ def risk_event_row(row: Any) -> dict[str, Any]:
         "print_offsets": print_offsets,
         "prints": int(_num(row.get("trades"), 0.0) or 0),
         "top_wallets": top_wallets,
+        # The first-trade reading of the market: how many measured wallets
+        # were fresh, their money, the youngest first trade, and how many
+        # wallets were measured at all (0 fresh of 0 measured is not a result).
+        "first_trade_wallets": int(_num(row.get("first_trade_wallets"), 0.0) or 0),
+        "first_trade_notional": round(_num(row.get("first_trade_notional"), 0.0) or 0.0, 2),
+        "first_trade_youngest_days": _num(row.get("first_trade_youngest_days")),
+        "first_trade_measured": int(_num(row.get("first_trade_measured"), 0.0) or 0),
         "components": susp.event_components(row),
         "token_id": _text(row.get("token_id")),
     }
+
+
+def first_trade_label(age_days: Any, state: Any = "") -> str:
+    """The measured first trade of a wallet as a column value.
+
+    An unmeasured wallet says so instead of showing nothing: "not asked"
+    (no lookup ran), "no trade" (the venue returned none), "lookup failed".
+    """
+
+    age = _num(age_days)
+    if age is None:
+        text = _text(state)
+        if text == "none":
+            return "no trade"
+        if text == "error":
+            return "lookup failed"
+        return "not asked"
+    if age < 1.0 / 24.0:
+        return "<1 h"
+    if age < 1.0:
+        return f"{age * 24:.0f} h"
+    if age < 45.0:
+        return f"{age:.1f} d"
+    if age < 400.0:
+        return f"{age / 30.4:.0f} mo"
+    return f"{age / 365.25:.1f} y"
 
 
 #: Breite eines Bins der Score-Verteilung des Risk-Screens, in Punkten.
@@ -2272,10 +2310,24 @@ def risk_payload(
                 # money_label, not a k-rounder: a $450 wallet showed as "$0k".
                 "notional": money_label(_num(row.get("notional"), 0.0) or 0.0),
                 "largest": money_label(largest) if largest > 0 else "",
+                "notional_usd": round(_num(row.get("notional"), 0.0) or 0.0, 2),
+                "largest_usd": round(largest, 2),
                 "firstSeen": _text(row.get("first_seen"))[:10] or "—",
+                # The measured first trade on the venue, days before the
+                # wallet's last print in this window; the label carries the
+                # state when there is no number.
+                "firstTrade": first_trade_label(row.get("first_trade_age_days"), row.get("first_trade_state")),
+                "first_trade_days": _num(row.get("first_trade_age_days")),
+                "first_trade_state": _text(row.get("first_trade_state")) or susp.ORIGIN_UNMEASURED,
+                "category": _text(row.get("insider_context")),
+                "latest_print": _text(row.get("latest_trade"))[:19] or "",
             })
     high_events = sum(1 for e in events if e["sev"] == "high")
     high_wallets = sum(1 for w in wallets if w["score"] >= 70)
+    # Cards whose points include money from a measured-fresh wallet: the
+    # single-wallet pattern the tracker posts describe, counted as a KPI so
+    # the page can say how often the window held one.
+    fresh_first_trade_events = sum(1 for e in events if int(e.get("first_trade_wallets") or 0) > 0)
     return {
         # Aus dem Register, nicht aus dieser Datei: derselbe Satz steht auf
         # der Risk-Seite, und zwei Fassungen desselben Vorbehalts sind eine
@@ -2284,7 +2336,7 @@ def risk_payload(
         # Wie die Zahl heissen darf, woraus sie besteht und was ueber sie
         # gemessen wurde. Vorher stand neben einer 0-100-Zahl das Wort "High",
         # was sich wie eine Wahrscheinlichkeit fuer Insiderhandel liest; die
-        # Zahl ist eine Punktesumme aus neun Flow-Merkmalen mit gesetzten
+        # Zahl ist eine Punktesumme aus zehn Flow-Merkmalen mit gesetzten
         # Gewichten und ohne gemessene Trefferquote. Die Beschriftung sagt
         # das jetzt selbst, statt es dem Leser zu ueberlassen.
         "score_name": susp.SCORE_NAME,
@@ -2319,6 +2371,7 @@ def risk_payload(
             # like. cluster_payload fills these in when it succeeds.
             "fresh_clusters": None,
             "coordinated_clusters": None,
+            "fresh_first_trade_events": fresh_first_trade_events,
         },
         "events": events,
         "wallets": wallets,
