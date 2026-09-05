@@ -253,6 +253,9 @@ function tapeLivePanel(T) {
 // Eine Preiszelle blitzt einmal auf, wenn der Poll sie bewegt hat. Ohne
 // lebende Maerkte gibt es kein Band. Fuer Screenreader ist es verborgen —
 // die Maerkte stehen als richtige Tabelle einen Klick entfernt.
+// Die Veraenderung traegt ihr Cent-Zeichen wie der Preis daneben: sie stand
+// als nackte "+35" neben "70¢", und auf der Marktseite heisst dieselbe Zahl
+// "+87¢". Zwei Schreibweisen fuer dieselbe Groesse auf derselben Seite.
 function wireStrip(T) {
   const maerkte = T.markets.slice().sort((a, b) => volOrd(b) - volOrd(a)).slice(0, 10);
   if (!maerkte.length) return '';
@@ -263,7 +266,7 @@ function wireStrip(T) {
     return '<span style="display:inline-flex; align-items:baseline; gap:var(--sp-3); padding:0 var(--sp-6); border-right:1px solid var(--line-2)">'
       + '<span style="color:var(--ink-3)">' + esc(m.title) + '</span>'
       + '<span' + blitz + ' style="font-weight:600; border-radius:3px; padding:0 var(--sp-2)">' + num(m.yes) + '¢</span>'
-      + (m.chg ? '<span style="color:' + (m.chg > 0 ? 'var(--pos)' : 'var(--neg)') + '">' + (m.chg > 0 ? '+' : '−') + Math.abs(m.chg) + '</span>' : '')
+      + (m.chg ? '<span style="color:' + (m.chg > 0 ? 'var(--pos)' : 'var(--neg)') + '">' + (m.chg > 0 ? '+' : '−') + Math.abs(m.chg) + '¢</span>' : '')
       + '</span>';
   }).join('');
   T._wireVorher = new Map(maerkte.map((m) => [m.id, m.yes]));
