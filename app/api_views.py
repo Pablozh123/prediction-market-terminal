@@ -1601,6 +1601,89 @@ def _wallet_categories(
     }
 
 
+def wallet_headline(track: Any, edge: Any, attribution: Any, sample: Any) -> dict[str, Any]:
+    """Die drei bis fuenf Saetze, die ganz oben stehen muessen.
+
+    Die Wallet-Seite rechnet alles aus und begraebt die Antwort unter zwanzig
+    Kacheln. Wer sie liest, muss selbst zusammensetzen, was der Datensatz
+    hergibt. Diese Funktion setzt es zusammen, und zwar aus Feldern, die
+    ohnehin schon berechnet sind: Stichprobe, korrigierte Quote mit Intervall,
+    realisierter Edge mit Intervall, Konzentration des Gewinns, Farmer-Flag.
+
+    Entscheidend ist ``allowed``. ``app/scorecard.py::sample_quality`` sagt
+    ausdruecklich, ob die Stichprobe ein Urteil traegt. Ist sie das nicht,
+    faellt der Kopf nicht weg, aber er sagt zuerst, dass hier kein Urteil
+    steht. Ein Kopf, der bei n = 8 genauso klingt wie bei n = 200, waere
+    genau der Fehler, gegen den die ganze Seite gebaut ist.
+
+    Rueckgabe: ``{"allowed": bool, "lead": str, "clauses": [str, ...]}``.
+    ``clauses`` ist leer, wenn die Bloecke fehlen; dann steht nur ``lead``.
+    """
+
+    tr = track if isinstance(track, dict) else {}
+    ed = edge if isinstance(edge, dict) else {}
+    at = attribution if isinstance(attribution, dict) else {}
+    sa = sample if isinstance(sample, dict) else {}
+
+    gate = tr.get("survivorship_gate") if isinstance(tr.get("survivorship_gate"), dict) else {}
+    corrected = tr.get("corrected") if isinstance(tr.get("corrected"), dict) else {}
+    per_dollar = ed.get("per_dollar") if isinstance(ed.get("per_dollar"), dict) else {}
+    conc = tr.get("concentration") if isinstance(tr.get("concentration"), dict) else {}
+    wash = tr.get("wash_flag") if isinstance(tr.get("wash_flag"), dict) else {}
+
+    allowed = bool(sa.get("verdict_allowed"))
+    quality = _text(sa.get("quality")) or "unknown"
+    n_events = sa.get("n_resolved")
+
+    if allowed:
+        lead = (f"Sample: {quality}, {_num(n_events, 0):.0f} resolved events. "
+                "The figures below carry their own intervals.")
+    elif quality == "unknown":
+        lead = ("Sample quality is not stated by this payload, so nothing here is read as a verdict.")
+    else:
+        lead = (f"Sample: {quality}, {_num(n_events, 0):.0f} resolved events. "
+                "That is below the threshold for a verdict, so read every figure below as a description "
+                "of what happened, not as a finding.")
+
+    clauses: list[str] = []
+
+    markets = gate.get("resolved_markets")
+    span = _num(gate.get("span_days"))
+    if markets is not None and span is not None:
+        zustand = "clears the sample gate" if gate.get("ok") else "does not clear the sample gate"
+        clauses.append(f"{_num(markets, 0):.0f} resolved markets over {span:.0f} days {zustand}.")
+
+    rate = _num(corrected.get("win_rate"))
+    ci = corrected.get("ci95")
+    if rate is not None and corrected.get("n"):
+        satz = (f"Corrected win rate {rate * 100:.0f}% on {_num(corrected.get('n'), 0):.0f} events, "
+                "netted per event")
+        if isinstance(ci, (list, tuple)) and len(ci) == 2 and ci[0] is not None:
+            satz += f", 95% CI {ci[0] * 100:.0f}% to {ci[1] * 100:.0f}%"
+        clauses.append(satz + ".")
+
+    e = _num(per_dollar.get("edge"))
+    if e is not None:
+        satz = f"Realised edge {e * 100:.1f} cents per dollar staked"
+        lo, hi = _num(per_dollar.get("ci_low")), _num(per_dollar.get("ci_high"))
+        if lo is not None and hi is not None:
+            satz += f", 95% CI {lo * 100:.1f} to {hi * 100:.1f}"
+            satz += ", excluding zero" if per_dollar.get("significant") else ", which includes zero"
+        clauses.append(satz + ".")
+
+    top = _num(at.get("top_event_share"))
+    if top is not None:
+        satz = f"The largest single event is {top * 100:.0f}% of gross profit"
+        if conc.get("one_hit_flag"):
+            satz += ", which trips the one-hit flag"
+        clauses.append(satz + ".")
+
+    if wash.get("flag"):
+        clauses.append("Flagged as churn: heavy volume against a negligible realised edge per dollar.")
+
+    return {"allowed": allowed, "lead": lead, "clauses": clauses}
+
+
 def _wallet_context(activity: pd.DataFrame | None, as_of: str) -> dict[str, Any]:
     if activity is None or activity.empty:
         return {"as_of": as_of, "n_trades": 0, "notional": 0.0, "groups": [], "insider_prone_share": None,
@@ -1738,6 +1821,11 @@ def wallet_detail(
         payload["risk_profile"]["heatmap"]["note"] += " — the window was truncated at the page cap"
     payload["categories"] = _wallet_categories(activity, resolved, classify, stamp)
     payload["context"] = _wallet_context(activity, stamp)
+    # Der Kopf zuletzt: er liest die Bloecke, die oben entstanden sind, und
+    # setzt aus ihnen die drei bis fuenf Saetze zusammen, die vor allen
+    # Kacheln stehen.
+    payload["headline"] = wallet_headline(
+        payload["track_record"], payload["edge"], payload.get("attribution"), payload.get("sample"))
     payload["limits"] = list(WALLET_LIMITS)
     return payload
 

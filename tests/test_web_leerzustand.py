@@ -2465,6 +2465,20 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertIn("65% of the composite weight", text)
         self.assertIn("n = 250 wallets ranked together", text)
 
+    def test_die_wallet_faengt_mit_dem_wichtigsten_satz_an(self) -> None:
+        # Die Seite rechnet alles aus und begrub die Antwort unter zwanzig
+        # Kacheln. Der Kopf steht jetzt vor allem anderen, und er sagt zuerst,
+        # ob die Stichprobe ueberhaupt ein Urteil traegt.
+        text = _sichtbarer_text(self.ausgabe["live"]["wallet"])
+        kopf = text.index("READ THIS FIRST")
+        self.assertLess(kopf, text.index("SETTLED PNL"))
+        self.assertIn("below the threshold for a verdict", text)
+        self.assertIn("not as a finding", text)
+        # Jede Zeile darunter traegt n oder Intervall.
+        self.assertIn("Corrected win rate 73% on 11 events", text)
+        self.assertIn("95% CI 43% to 91%", text)
+        self.assertIn("does not clear the sample gate", text)
+
     def test_studienstempel_ueberlebt_die_publish_uhr(self) -> None:
         """Der Stempel aus studies.js steht auf der Seite, nicht nur die Uhr.
 

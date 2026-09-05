@@ -978,6 +978,19 @@ function walletNutzlast() {
     },
     // Risk profile from the 12 resolved rows (alternating win/loss in the
     // fixture) and the three trades on the clock: Wed/Thu/Fri 10:00 UTC.
+    // Der Kopf kommt aus api_views.wallet_headline. Die Harness-Wallet liegt
+    // absichtlich unter der Urteilsschwelle: dann muss der Kopf das zuerst
+    // sagen und darf nicht klingen wie bei einer grossen Stichprobe.
+    headline: {
+      allowed: false,
+      lead: 'Sample: developing, 11 resolved events. That is below the threshold for a verdict, so read every figure below as a description of what happened, not as a finding.',
+      clauses: [
+        '12 resolved markets over 11 days does not clear the sample gate.',
+        'Corrected win rate 73% on 11 events, netted per event, 95% CI 43% to 91%.',
+        'Realised edge 35.0 cents per dollar staked, 95% CI 12.0 to 55.0, excluding zero.',
+        'The largest single event is 45% of gross profit.'
+      ]
+    },
     risk_profile: {
       as_of: '2026-08-17 19:00 UTC', partial: false, n_rows: 12, n_win: 6, n_loss: 6,
       profit_factor: 0.8, risk_reward: 0.8, conviction: 1.0, win_streak: 1, loss_streak: 1, current_streak: 1, current_streak_kind: 'loss',
