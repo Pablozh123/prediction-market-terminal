@@ -8,6 +8,10 @@ nur mit ``closed=true``. Ohne den Parameter bekam der Scanner fuer jeden
 abgerechneten Markt "nicht gefunden", und so standen 167 Trades drei Monate
 lang auf "open", obwohl die Maerkte laengst abgerechnet waren.
 
+Seit 2026-09-05 fragt der Bot selbst mit ``closed=true`` und schliesst
+Fills nach dem Close mit Grund statt Zahl (prediction-alpha-bot#4). Dieser
+Lauf bleibt als unabhaengige Gegenprobe ueber dasselbe Journal.
+
 Dieses Modul macht die Aufloesung nachtraeglich und ohne den Bot anzufassen:
 je Trade den Markt nachschlagen (mit ``closed=true``), den Abrechnungspreis
 der gehandelten Seite lesen, daraus Auszahlung, Gewinn und Haltedauer
