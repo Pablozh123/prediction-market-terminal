@@ -3,10 +3,31 @@
 // tests/test_web_util.py liest das und prueft die Einheiten: was unter
 // welcher Ueberschrift landet, entscheidet sich hier.
 
-import { mapMarket, mapTrade, money, liveStatusLabel } from '../web/js/util.js';
+import { mapMarket, mapTrade, money, liveStatusLabel, livePollFaellig, LIVE_ROUTEN, LIVE_TAKT_RUHIG_MS } from '../web/js/util.js';
 import { STUDIEN, studienSlug, studienIndexAus } from '../web/js/studies.js';
 
+// Der Takt des Live-Polls je Route. Auf einer Route, die die Zeilen nicht
+// zeigt, soll er nur alle fuenf Minuten laufen; die Kopfzeile und der Zaehler
+// am Eintrag Live tape brauchen ihn dort, der Rumpf nicht.
+const T0 = 1_000_000;
+const pollTakt = {
+  routen: LIVE_ROUTEN,
+  ruhig_ms: LIVE_TAKT_RUHIG_MS,
+  // Auf einer lauten Route immer, egal wie kurz der letzte Lauf her ist.
+  laute_route_sofort: livePollFaellig('markets', false, T0, T0 + 1000),
+  ruhige_route_gleich_danach: livePollFaellig('research', false, T0, T0 + 1000),
+  ruhige_route_nach_zwei_minuten: livePollFaellig('research', false, T0, T0 + 120000),
+  ruhige_route_nach_fuenf_minuten: livePollFaellig('research', false, T0, T0 + 300000),
+  // Der erste Lauf ueberhaupt wartet nicht.
+  ruhige_route_ohne_vorlauf: livePollFaellig('settings', false, 0, T0),
+  // Ein offenes Overlay liest die Zeilen und kann ueber jeder Route stehen.
+  ruhige_route_mit_overlay: livePollFaellig('research', true, T0, T0 + 1000),
+  // Eine unbekannte Route zaehlt als ruhig, nicht als laut.
+  unbekannte_route: livePollFaellig('gibtsnicht', false, T0, T0 + 1000)
+};
+
 const ausgabe = {
+  poll_takt: pollTakt,
   // Ein Markt, der heute nicht gehandelt wurde, aber ueber sein Leben 4.2m
   // Umsatz gesehen hat. activity_volume traegt in diesem Fall das
   // Lebensvolumen, nicht den Tageswert.
