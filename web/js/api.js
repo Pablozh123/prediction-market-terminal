@@ -48,6 +48,11 @@ export const STATISCH = {
   '/api/research/wallet-ledger': 'wallet_ledger.json',
   '/api/research/meta': 'meta.json',
   '/api/research/arb-scan': 'arb_scan.json',
+  // Die Vorschau-Studien (studies.js, preview: true).
+  '/api/research/thesis': 'thesis_results.json',
+  '/api/research/reddit-sentiment': 'reddit_sentiment.json',
+  '/api/research/pre-registrations': 'preregistrations.json',
+  '/api/research/literature': 'literature.json',
   // Our own resolution pass over the scanner's journal (schema
   // arb_resolutions/1, scripts/resolve_arb_paper.py): joined onto the
   // paper book by trade_id.
