@@ -569,6 +569,49 @@ class CrossRowsTests(unittest.TestCase):
         self.assertEqual(rows[0]["sim"], 0.71)
 
 
+class CrossFeeDisputeTests(unittest.TestCase):
+    """Die NET-OF-FEES-Spalte ruht auf einem Satz, der nicht eindeutig belegt
+    ist. Jede Zeile sagt jetzt, ob sie darauf ruht."""
+
+    def _kandidat(self, key: str) -> pd.DataFrame:
+        return pd.DataFrame([{
+            "polymarket_title": "Will X happen?", "kalshi_title": "Will X happen?",
+            "polymarket_yes": 0.62, "kalshi_yes": 0.58, "similarity": 0.9,
+            "polymarket_volume_usd": 1000.0, "kalshi_volume_contracts": 1000.0,
+            "polymarket_market_key": key, "pair_verdict": cross_pairs.PAIR_UNVERIFIED,
+            "gross_edge_cents": 2.0, "fee_band_cents": 2.7, "net_edge_cents": -0.7,
+        }])
+
+    def test_eine_kategorie_auf_dem_allgemeinen_satz_wird_markiert(self) -> None:
+        from app import venue_fees as vf
+
+        # "other" ist die Kategorie, die auf dem strittigen Satz liegt.
+        self.assertTrue(vf.polymarket_rate_band("other")["disputed"])
+        rows = apv.cross_rows(self._kandidat("0xa"), {"0xa": "other"})
+        self.assertEqual(len(rows), 1)
+        self.assertTrue(rows[0]["feeDisputed"])
+
+    def test_eine_kategorie_mit_eigenem_satz_wird_nicht_markiert(self) -> None:
+        from app import venue_fees as vf
+
+        # Krypto und Politik haben eigene Saetze, an denen nichts strittig ist.
+        for kategorie in ("crypto", "politics"):
+            with self.subTest(kategorie=kategorie):
+                self.assertFalse(vf.polymarket_rate_band(kategorie)["disputed"])
+                rows = apv.cross_rows(self._kandidat("0xb"), {"0xb": kategorie})
+                self.assertFalse(rows[0]["feeDisputed"])
+
+    def test_der_hinweis_nennt_beide_saetze(self) -> None:
+        # Ein Hinweis, der nur "strittig" sagt, hilft niemandem. Beide Enden
+        # gehoeren hinein, und beide kommen aus derselben Konstante.
+        from app import venue_fees as vf
+
+        note = vf.POLYMARKET_RATE_DISPUTE_NOTE
+        self.assertIn(f"{vf.POLYMARKET_DISPUTED_RATE * 100:.0f} percent", note)
+        self.assertIn(f"{vf.POLYMARKET_DISPUTED_RATE_LOW * 100:.0f} percent", note)
+        self.assertLess(vf.POLYMARKET_DISPUTED_RATE_LOW, vf.POLYMARKET_DISPUTED_RATE)
+
+
 class RiskPayloadTests(unittest.TestCase):
     def test_builds_kpis_and_disclaimer(self) -> None:
         wallets = pd.DataFrame([

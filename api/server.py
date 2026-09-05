@@ -148,6 +148,7 @@ from app import pilot_result
 from app import scorecard as sc
 from app import signals as sig
 from app import track_record as trec
+from app import venue_fees as vf
 from app.analysis_views import load_publish_payload
 from src import prediction_markets as md
 from src import trade_store as ts
@@ -1301,6 +1302,12 @@ def cross(
         "gate": gate,
         "as_of": md.now_utc_label(),
         "note": CROSS_GATE_NOTE.format(sim=min_similarity),
+        # Der allgemeine Polymarket-Taker-Satz ist nicht eindeutig belegt, und
+        # die NET-OF-FEES-Spalte ruht auf ihm. Der Satz steht als Konstante in
+        # app/venue_fees.py und wird hier gereicht, nicht nacherzaehlt.
+        "fee_note": vf.POLYMARKET_RATE_DISPUTE_NOTE,
+        "fee_rate_documented": vf.POLYMARKET_DISPUTED_RATE,
+        "fee_rate_low": vf.POLYMARKET_DISPUTED_RATE_LOW,
     }
 
 

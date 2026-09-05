@@ -1194,6 +1194,17 @@ export function renderCross(T) {
     + '<div ' + T.act(() => T.setState({ crossQuery: '', crossSim: 0.5, crossMaxPairs: 50, crossMinGap: 0, crossLower: 'any', crossPmVol: 0, crossKsVol: 0, crossMinPrice: 0, crossMaxPrice: 100 })) + ' class="hv-edge-strong" style="font-size:var(--t-small); color:var(--ink-3); border:1px solid var(--line-1); border-radius:var(--r-control); padding:var(--sp-3) var(--sp-4); cursor:pointer">Reset filters</div>'
     + '</div></div>'
     + '<div style="font-size:var(--t-body); color:var(--ink-4); margin-top:var(--sp-4); max-width:760px">Matched by title similarity, not by ticker. ' + esc(gateNote) + '. GAP is the distance between the two mid prices, and nobody trades a mid. NET OF FEES prices the basket that would capture it (buy the yes side at the ask, buy the other side at the other venue&#39;s ask) and subtracts both venues&#39; taker fee curves. The top ' + num(cl.depth_rows || 12) + ' rows by net are re-quoted against both order books, so their number holds for the size shown beneath it; the rest price the touch at the fee clip of 100 and say so. Settlement rules and resolution sources still differ, and two matched titles can still be two different questions (studies 08 and 11).</div>'
+    // Die NET-OF-FEES-Spalte ruht auf einem Satz, der nicht eindeutig belegt
+    // ist. Weniger Gebuehr hiesse mehr Netto, die Spalte zeigt also das
+    // konservative Ende -- und wie viele der gezeigten Paare ueberhaupt
+    // betroffen sind, steht daneben, damit der Hinweis eine Groesse hat.
+    + (cl.fee_note && cRows.some((c) => c.feeDisputed)
+      ? '<div style="' + NOTIZ + '; margin-top:var(--sp-4); max-width:760px">' + esc(cl.fee_note)
+        + ' ' + num(cRows.filter((c) => c.feeDisputed).length) + ' of ' + num(cRows.length)
+        + ' pairs shown price the Polymarket leg at that rate. NET OF FEES uses the documented '
+        + (cl.fee_rate_documented != null ? (cl.fee_rate_documented * 100).toFixed(0) + ' percent' : 'rate')
+        + ', so it is the conservative end: at the lower rate the same pairs keep more.</div>'
+      : '')
     + crossSuppressedBlock(cl.suppressed)
     + crossMeasuredBlock(T)
 
