@@ -98,6 +98,8 @@ class Terminal {
       resQuery: '', resAnswer: 'all', resWindow: 'all', resSort: 'recent',
       setMarketSample: 250, setTradeSample: 250, setWhale: 2500, setBankroll: 1000, setFee: 20, setSlip: 15,
       alertTab: 'signals', alertQuery: '', alertPlatform: 'all', alertType: 'all', alertScope: 'all',
+      // Seitenzaehler der Signaltabelle. Jeder Filter setzt ihn zurueck.
+      alertPage: 1,
       thMove: 5, thSpread: 3, thWhale: 2500, thEnding: 72, thHolder: 40,
       riskFilter: 'all', riskOpen: {},
       detail: null,
