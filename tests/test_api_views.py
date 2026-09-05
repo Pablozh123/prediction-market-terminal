@@ -12,6 +12,7 @@ from app import api_views as apv
 from app import claims
 from app import cross_pairs
 from app import suspicion as susp
+from app import track_record as trec
 
 
 class LeaderboardRowsTests(unittest.TestCase):
@@ -449,6 +450,43 @@ class WalletPageBlocksTests(unittest.TestCase):
         self.assertEqual(unpriced["status"], "unknown")
         self.assertIsNone(unpriced["current_price"])
         self.assertIsNone(unpriced["value"])
+
+
+class SurvivorshipGateNoteTests(unittest.TestCase):
+    """Der Satz neben der Sample-Schranke, und warum seine Zahl gerechnet ist.
+
+    Neben der Kachel stand nur, was die Schwelle ist. Ohne den Grund liest
+    sich eine niedrigere Schwelle als laxere Pruefung. Der Satz sagt jetzt,
+    was der Deckel entscheidet und was nicht, und belegt es mit dem
+    Intervall, das an der Schwelle selbst gilt.
+    """
+
+    def test_der_satz_nennt_beide_schwellen_so_wie_sie_gelten(self) -> None:
+        satz = apv.survivorship_gate_note()
+        self.assertIn(f"{trec.MIN_RESOLVED_MARKETS} resolved markets", satz)
+        self.assertIn(f"{int(trec.MIN_SPAN_DAYS)} days", satz)
+
+    def test_das_intervall_im_satz_kommt_aus_derselben_funktion(self) -> None:
+        # Eine von Hand hingeschriebene Spanne waere genau die Sorte Zahl,
+        # die spaeter neben einer anderen Rechnung steht.
+        lo, hi = apv._wilson(7, 10)
+        satz = apv.survivorship_gate_note()
+        self.assertIn(f"{lo * 100:.0f}% to {hi * 100:.0f}%", satz)
+        # Und die Spanne ist wirklich weit: das ist die Aussage.
+        self.assertLess(lo, 0.5)
+        self.assertGreater(hi, 0.85)
+
+    def test_der_satz_verspricht_nichts_ueber_die_zahl_selbst(self) -> None:
+        satz = apv.survivorship_gate_note()
+        self.assertIn("whether a number is shown at all", satz)
+        self.assertIn("not whether it can be believed", satz)
+
+    def test_er_folgt_anderen_schwellen_statt_sie_fest_zu_schreiben(self) -> None:
+        satz = apv.survivorship_gate_note(min_markets=30, min_span_days=21)
+        self.assertIn("30 resolved markets", satz)
+        self.assertIn("21 days", satz)
+        lo, hi = apv._wilson(21, 30)
+        self.assertIn(f"{lo * 100:.0f}% to {hi * 100:.0f}%", satz)
 
 
 class RiskWalletAddressTests(unittest.TestCase):
