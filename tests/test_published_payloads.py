@@ -66,8 +66,12 @@ class AllePayloadsTests(unittest.TestCase):
         for pfad in self.dateien:
             with self.subTest(datei=pfad.name):
                 inhalt = json.loads(pfad.read_text(encoding="utf-8"))
-                stamp = _zeit(inhalt.get("stand_utc"))
-                self.assertIsNotNone(stamp, f"{pfad.name} hat kein lesbares stand_utc")
+                # Der Publish-Lauf schreibt stand_utc. Die Datei des Arb-Scanners
+                # (Schema arb_scan/1, aus dem Repo prediction-alpha-bot) und
+                # unser Aufloesungslauf darueber (arb_resolutions/1) nennen den
+                # Stempel generated_at, und die Seite liest ihn unter dem Namen.
+                stamp = _zeit(inhalt.get("stand_utc")) or _zeit(inhalt.get("generated_at"))
+                self.assertIsNotNone(stamp, f"{pfad.name} hat weder ein lesbares stand_utc noch ein lesbares generated_at")
                 # Eine Stunde Toleranz fuer Uhren, die auseinanderlaufen.
                 self.assertLess(stamp, jetzt + timedelta(hours=1),
                                 f"{pfad.name} traegt einen Stand in der Zukunft")
