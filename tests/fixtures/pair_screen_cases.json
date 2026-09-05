@@ -1,0 +1,134 @@
+{
+  "schema": "pair_screen_cases/1",
+  "description": "Stage 1 of the cross-venue pair protocol (docs/ARB_TAXONOMY.md, section 4): title pairs and the verdict the automated screen must reach. Both implementations, src/scanner/crossVenueQuestionMatch.ts here and app/cross_pairs.py in the website repo, run every case in their test suites. The verdict vocabulary is neutral so each implementation maps its own labels onto it. A case is added whenever a live run shows a mismatch that got through, with the run as its source.",
+  "vocabulary": ["passed", "inverted", "different_question", "compound_market", "resolution_time_mismatch"],
+  "resolution_gap_tolerance_days": 7,
+  "cases": [
+    {
+      "id": "result-against-margin",
+      "polymarket": { "title": "Will Abdul El-Sayed win the 2026 Michigan Democratic Senate primary?" },
+      "kalshi": { "title": "Michigan Democratic Senate primary margin of victory", "ticker": "KXMISENPRIMMARGIN-26" },
+      "expected": "different_question",
+      "source": "cross_venue_gaps_2026-07-31: apparent net +78.87 cents"
+    },
+    {
+      "id": "winning-against-running",
+      "polymarket": { "title": "Will Mark Kelly win the 2028 Democratic presidential nomination?" },
+      "kalshi": { "title": "Who will run for the Democratic presidential nomination in 2028?", "ticker": "KXDEMRUN-28" },
+      "expected": "different_question",
+      "source": "cross_venue_gaps_2026-07-31: apparent net +64.25 cents"
+    },
+    {
+      "id": "election-against-nomination",
+      "polymarket": { "title": "Will Gavin Newsom win the 2028 US Presidential Election?" },
+      "kalshi": { "title": "Will Gavin Newsom be the Democratic Presidential nominee in 2028?", "ticker": "KXPRESNOMD-28-GN" },
+      "expected": "different_question",
+      "source": "three of the six first gate pairs after the Kalshi universe fix of 2026-08-31"
+    },
+    {
+      "id": "champions-league-against-fa-cup",
+      "polymarket": { "title": "Will Manchester United win the 2026-27 Champions League?" },
+      "kalshi": { "title": "Will Manchester United win the 2026-27 FA Cup?", "ticker": "KXFACUP-27-MUN" },
+      "expected": "different_question",
+      "source": "first gate pair after the universe fix of 2026-08-31, printed +9.5 cents net"
+    },
+    {
+      "id": "club-world-cup-is-not-the-world-cup",
+      "polymarket": { "title": "Will Real Madrid win the 2029 Club World Cup?" },
+      "kalshi": { "title": "Will Spain win the 2030 World Cup? Real Madrid players", "ticker": "KXWC-30" },
+      "expected": "different_question",
+      "source": "app/cross_pairs.py, the longer phrase wins"
+    },
+    {
+      "id": "above-against-below-same-strike",
+      "polymarket": { "title": "Will Bitcoin be above $120,000 on December 31, 2026?" },
+      "kalshi": { "title": "Will Bitcoin be below $120,000 on December 31, 2026?", "ticker": "KXBTC-26DEC31-B120" },
+      "expected": "inverted",
+      "source": "similarity 0.78, apparent net +19.7 cents: the same bet twice"
+    },
+    {
+      "id": "at-least-against-at-most",
+      "polymarket": { "title": "Will the Fed cut rates at least 3 times in 2026?" },
+      "kalshi": { "title": "Fed rate cuts in 2026: 3 or fewer", "ticker": "KXFEDCUTS-26-L3" },
+      "expected": "inverted",
+      "source": "Kalshi writes its threshold markets in phrases every tokenizer discards"
+    },
+    {
+      "id": "negation-on-one-side",
+      "polymarket": { "title": "Will the government shut down in October 2026?" },
+      "kalshi": { "title": "Will the government not shut down in October 2026?", "ticker": "KXSHUTDOWN-26OCT" },
+      "expected": "inverted",
+      "source": "app/cross_pairs.py negation check"
+    },
+    {
+      "id": "different-thresholds",
+      "polymarket": { "title": "Bitcoin price on August 19, 2026? $120,000 or above" },
+      "kalshi": { "title": "Bitcoin price on August 19, 2026? $68,200 or above", "ticker": "KXBTCD-26AUG19-T68200" },
+      "expected": "different_question",
+      "source": "similarity 0.73, printed +70.4 cents net"
+    },
+    {
+      "id": "fed-september-against-december",
+      "polymarket": { "title": "Will the Fed cut rates at the September 2026 meeting?", "end": "2026-09-17T18:00:00Z" },
+      "kalshi": { "title": "Will the Fed cut rates at the December 2026 meeting?", "end": "2026-12-10T18:00:00Z", "ticker": "KXFEDDECISION-26DEC" },
+      "expected": "resolution_time_mismatch",
+      "source": "every word except the month; twelve weeks apart"
+    },
+    {
+      "id": "compound-kalshi-parlay",
+      "polymarket": { "title": "Will the Chiefs win on Sunday?" },
+      "kalshi": { "title": "Yes Chiefs, Yes Eagles, Yes Bills", "ticker": "KXMULTIGAME-26SEP07-CHIEFS-EAGLES-BILLS" },
+      "expected": "compound_market",
+      "source": "the near misses of the 2026-06-10 run were all compound Kalshi markets"
+    },
+    {
+      "id": "compound-kalshi-comma-clauses",
+      "polymarket": { "title": "Will Bitcoin close above $100,000 on Friday?" },
+      "kalshi": { "title": "Bitcoin above $100,000 on Friday, Ethereum above $5,000 on Friday, Solana above $200 on Friday", "ticker": "KXCRYPTOCOMBO-26SEP" },
+      "expected": "compound_market",
+      "source": "three comma clauses"
+    },
+    {
+      "id": "somaliland-recognition-passes",
+      "polymarket": { "title": "Will Trump recognize Somaliland before 2027?", "end": "2026-12-31T23:59:00Z" },
+      "kalshi": { "title": "Trump recognizes Somaliland before 2027", "end": "2027-01-01T15:00:00Z", "ticker": "KXRECOGSOMALI-29-27" },
+      "expected": "passed",
+      "source": "config/crossVenuePairs.json"
+    },
+    {
+      "id": "rewording-passes",
+      "polymarket": { "title": "Will Marco Rubio win the 2028 US Presidential Election?" },
+      "kalshi": { "title": "Marco Rubio elected President in 2028?", "ticker": "KXPRESPERSON-28-MRUB" },
+      "expected": "passed",
+      "source": "tests/crossVenueQuestionMatch.test.ts; the rulebooks still differ, which is stage 3, not stage 1"
+    },
+    {
+      "id": "nomination-on-both-sides-passes",
+      "polymarket": { "title": "Will J.B. Pritzker win the 2028 Democratic presidential nomination?" },
+      "kalshi": { "title": "Will J.B. Pritzker be the 2028 Democratic presidential nominee?", "ticker": "KXPRESNOMD-28-JBP" },
+      "expected": "passed",
+      "source": "app/cross_pairs.py scope groups"
+    },
+    {
+      "id": "same-competition-on-both-sides-passes",
+      "polymarket": { "title": "Will Manchester United win the 2026-27 Champions League?" },
+      "kalshi": { "title": "Champions League 2026-27 winner: Manchester United", "ticker": "KXUCL-27-MUN" },
+      "expected": "passed",
+      "source": "app/cross_pairs.py competitions"
+    },
+    {
+      "id": "hours-apart-passes",
+      "polymarket": { "title": "Will the Fed cut rates at the September 2026 meeting?", "end": "2026-09-17T18:00:00Z" },
+      "kalshi": { "title": "Fed cuts rates at the September 2026 meeting?", "end": "2026-09-18T15:00:00Z", "ticker": "KXFEDDECISION-26SEP" },
+      "expected": "passed",
+      "source": "close_time against endDate: hours, not a different question"
+    },
+    {
+      "id": "bare-year-is-not-a-threshold",
+      "polymarket": { "title": "Will Donald Trump win the 2028 US Presidential Election?" },
+      "kalshi": { "title": "Donald Trump wins the 2028 US Presidential Election", "ticker": "KXPRESPERSON-28-DTRU" },
+      "expected": "passed",
+      "source": "2028 is a date, not a strike"
+    }
+  ]
+}

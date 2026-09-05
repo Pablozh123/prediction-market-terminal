@@ -986,7 +986,9 @@ export const CROSS_GATE_TEXT = 'similarity ≥ 0.5, volume on both venues';
 // die Zeile verschwinden zu lassen.
 const CROSS_VERDICT_TEXT = {
   opposed: 'ask in opposite directions',
-  different_question: 'ask different questions'
+  different_question: 'ask different questions',
+  compound_market: 'one side bundles several outcomes',
+  resolution_time_mismatch: 'resolve at different times'
 };
 
 // Fuer wie viele Stueck die Netto-Spanne gilt, und ob das gemessen ist.

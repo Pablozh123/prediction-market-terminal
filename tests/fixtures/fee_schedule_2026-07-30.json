@@ -1,0 +1,37 @@
+{
+  "schema": "fee_schedule/1",
+  "version": "2026-07-30",
+  "description": "The venue fee curves both repositories price with: fee_usd = shares * rate * p * (1 - p). Maintained here next to src/core/venueFees.ts and copied to the website repo as tests/fixtures/fee_schedule_2026-07-30.json; a test in each repo checks its own constants against this file.",
+  "sources": {
+    "polymarket": "docs.polymarket.com/trading/fees (retrieved 2026-07-30)",
+    "kalshi": "help.kalshi.com Fees + kalshi.com/docs/kalshi-fee-schedule.pdf (retrieved 2026-07-30)"
+  },
+  "polymarket": {
+    "taker_rates_by_category": {
+      "crypto": 0.07,
+      "sports": 0.05,
+      "economics": 0.05,
+      "culture": 0.05,
+      "weather": 0.05,
+      "other": 0.05,
+      "finance": 0.04,
+      "politics": 0.04,
+      "mentions": 0.04,
+      "tech": 0.04,
+      "geopolitics": 0
+    },
+    "default_category": "other",
+    "maker_rate": 0,
+    "rounding": "none",
+    "general_rate_dispute": {
+      "documented": 0.05,
+      "secondary_sources": 0.03,
+      "used": "documented"
+    }
+  },
+  "kalshi": {
+    "taker_rate": 0.07,
+    "maker_rate": 0.0175,
+    "rounding": "order fee rounded up to the next cent"
+  }
+}

@@ -29,6 +29,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+from datetime import datetime, timezone
 from pathlib import Path
 
 import requests
@@ -53,7 +54,38 @@ FLAG_PATTERNS = {
     "deadline": r"\bdeadline|\bby \d|\bbefore \d|expiration|\bcutoff|\bet\b"
                 r"|\butc\b|\bdate\b",
     "partial": r"\bpartial|\bpro rata|\bprorat|\bsplit\b",
+    # Stufe 2 des Paar-Protokolls (2026-09-05): drei weitere Stellen, an
+    # denen zwei Regelwerke bei demselben Sachverhalt auseinanderlaufen.
+    # Eine Seite loest sofort bei der Ankuendigung auf, die andere erst beim
+    # Ereignis (Eurovision-Fall); eine Seite kennt einen Ausgang "Other";
+    # eine Seite regelt den Ersatz eines Kandidaten.
+    "early_resolution": r"resolves? (?:immediately|early|as soon as)"
+                        r"|upon (?:the )?(?:official )?announcement"
+                        r"|regardless of whether",
+    "other_outcome": r"resolves? (?:to |as )?(?:\"|“|')?other\b"
+                     r"|none of the above",
+    "replacement": r"\breplacement\b|\breplaced\b|\bsubstitut|\bwithdraw",
 }
+
+#: Wie weit die beiden Termine auseinanderliegen duerfen, bevor die
+#: Differenz selbst ein Lesehinweis ist. Dieselbe Toleranz wie der
+#: Titel-Screen (app/cross_pairs.py, MAX_RESOLUTION_GAP_DAYS).
+EXPIRATION_GAP_FLAG_DAYS = 7.0
+
+
+def expiration_gap_days(kalshi_expiration, polymarket_end) -> float | None:
+    """Abstand der beiden Termine in Tagen, None wenn einer fehlt."""
+
+    stamps = []
+    for value in (kalshi_expiration, polymarket_end):
+        try:
+            stamp = datetime.fromisoformat(str(value or "").replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        if stamp.tzinfo is None:
+            stamp = stamp.replace(tzinfo=timezone.utc)
+        stamps.append(stamp)
+    return round(abs((stamps[0] - stamps[1]).total_seconds()) / 86400.0, 3)
 
 
 def _get(url: str, params: dict, timeout: int = 25):
@@ -113,6 +145,7 @@ def compare_pair(pair: dict, get_json=_get) -> dict:
     poly_text = " ".join(filter(None, [poly.get("description", ""),
                                        poly.get("resolution_source", "")]))
     kalshi_flags, poly_flags = flags(kalshi_text), flags(poly_text)
+    gap = expiration_gap_days(kalshi.get("expiration"), poly.get("end_date"))
     return {
         "pair": kalshi.get("ticker"),
         "question": str(pair.get("question") or "")[:100],
@@ -124,6 +157,11 @@ def compare_pair(pair: dict, get_json=_get) -> dict:
         # bei demselben Sachverhalt auseinanderlaufen koennen.
         "one_sided_flags": sorted(set(kalshi_flags) ^ set(poly_flags)),
         "both_texts_present": bool(kalshi_text and poly_text),
+        # Beide Termine nebeneinander: wer spaeter settelt, bindet das
+        # Kapital bis dahin, und ein Jahr Abstand (Trump 2028) ist selbst
+        # ein Hinweis, dass die beiden Seiten nicht dasselbe fragen.
+        "expiration_gap_days": gap,
+        "expiration_gap_flagged": gap is not None and gap > EXPIRATION_GAP_FLAG_DAYS,
     }
 
 
@@ -172,6 +210,12 @@ def _markdown(results: dict, tag: str) -> str:
             "",
             f"Documented on one side only: "
             f"{', '.join(row['one_sided_flags']) or 'nothing stood out'}",
+            "",
+            (f"Resolution times {row['expiration_gap_days']:.0f} days apart"
+             + (" (more than a week: read both deadlines first)"
+                if row.get("expiration_gap_flagged") else "")
+             if row.get("expiration_gap_days") is not None
+             else "Resolution times: one side missing"),
             "",
             "**Kalshi**",
             "",

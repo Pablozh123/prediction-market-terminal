@@ -129,7 +129,9 @@ class PairVerdictTests(unittest.TestCase):
         self.assertTrue(cross_pairs.deep_cross_candidates(pm, ks, min_similarity=0.2).empty)
         row = cross_pairs.deep_cross_candidates(
             pm, ks, min_similarity=0.2, include_rejected=True).iloc[0]
-        self.assertEqual(row["pair_verdict"], cross_pairs.PAIR_DIFFERENT)
+        # Seit 2026-09-05 ein eigenes Urteil, wie im Scanner: der Termin ist
+        # eine andere Art von Unterschied als der Fragetyp.
+        self.assertEqual(row["pair_verdict"], cross_pairs.PAIR_TIME)
         self.assertIn("days apart", row["pair_reasons"])
 
     def test_two_close_times_of_the_same_event_stay_one_question(self) -> None:

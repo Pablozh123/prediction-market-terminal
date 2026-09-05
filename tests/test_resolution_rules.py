@@ -57,6 +57,47 @@ class FlagTests(unittest.TestCase):
     def test_empty_text_has_no_flags(self):
         self.assertEqual(rr.flags(""), [])
 
+    def test_an_early_resolution_clause_is_flagged(self):
+        # Der Eurovision-Fall: Polymarket loest bei der Ankuendigung auf,
+        # Kalshi erst, wenn die Stadt tatsaechlich Gastgeber ist.
+        self.assertIn("early_resolution", rr.flags(
+            "This market will resolve immediately based on the official announcement, "
+            "regardless of whether that decision is later changed."))
+        self.assertNotIn("early_resolution", rr.flags("If Sofia hosts Eurovision 2027, then Yes."))
+
+    def test_an_other_outcome_is_flagged(self):
+        self.assertIn("other_outcome", rr.flags('this market will resolve to "Other".'))
+        self.assertIn("other_outcome", rr.flags("resolves to Other if no decision"))
+        self.assertNotIn("other_outcome", rr.flags("the other candidates lose"))
+
+    def test_a_replacement_clause_is_flagged(self):
+        self.assertIn("replacement", rr.flags(
+            "Any replacement of the democratic nominee before election day will not change the resolution."))
+
+
+class ExpirationGapTests(unittest.TestCase):
+    def test_the_gap_is_measured_in_days(self):
+        self.assertEqual(rr.expiration_gap_days("2029-11-07T15:00:00Z", "2028-11-07T00:00:00Z"), 365.625)
+
+    def test_a_missing_side_is_none_not_zero(self):
+        self.assertIsNone(rr.expiration_gap_days(None, "2028-11-07T00:00:00Z"))
+        self.assertIsNone(rr.expiration_gap_days("kaputt", "2028-11-07T00:00:00Z"))
+
+    def test_a_year_apart_is_flagged_and_hours_are_not(self):
+        weit = rr.compare_pair(
+            {"kalshi_ticker": "KXA", "polymarket_market_id": "1", "question": "q"},
+            feed(kalshi={"market": {"rules_primary": "x", "rules_secondary": "",
+                                    "expiration_time": "2029-11-07T15:00:00Z"}},
+                 gamma=[{"description": "y", "resolutionSource": "",
+                         "endDate": "2028-11-07T00:00:00Z"}]))
+        self.assertTrue(weit["expiration_gap_flagged"])
+        self.assertAlmostEqual(weit["expiration_gap_days"], 365.625)
+        nah = rr.compare_pair(
+            {"kalshi_ticker": "KXA", "polymarket_market_id": "1", "question": "q"},
+            feed())
+        self.assertFalse(nah["expiration_gap_flagged"])
+        self.assertEqual(nah["expiration_gap_days"], 0.0)
+
 
 class FetchTests(unittest.TestCase):
     def test_kalshi_rules_are_read(self):

@@ -79,8 +79,17 @@ PAIR_UNVERIFIED = "unverified"
 #: Die beiden Seiten fragen nachweislich in entgegengesetzte Richtungen.
 PAIR_OPPOSED = "opposed"
 #: Sie fragen nachweislich verschiedene Dinge: andere Schwelle, anderer
-#: Fragetyp, anderer Aufloesungstermin.
+#: Fragetyp, anderer Wettbewerb, andere Reichweite.
 PAIR_DIFFERENT = "different_question"
+#: Die Kalshi-Seite buendelt mehrere Ausgaenge (Parlay, Multigame, Komma-
+#: Klauseln). Eine Seite mit mehreren Fragen ist kein Paar.
+PAIR_COMPOUND = "compound_market"
+#: Beide Seiten fragen dasselbe, aber zu verschiedenen Terminen. Bis
+#: 2026-09-05 lief das unter ``different_question``; die gemeinsame
+#: Spezifikation mit dem Scanner (tests/fixtures/pair_screen_cases.json)
+#: fuehrt es als eigenes Urteil, weil der Termin eine andere Art von
+#: Unterschied ist als der Fragetyp.
+PAIR_TIME = "resolution_time_mismatch"
 
 _WORD_RE = re.compile(r"[a-z0-9]+")
 
@@ -120,7 +129,39 @@ DIRECTION_PHRASES: tuple[tuple[str, str], ...] = (
     ("at least", "at most"),
     ("or more", "or less"),
     ("or more", "or fewer"),
+    # Kalshi schreibt "3 or fewer", Polymarket "at least 3": dieselbe
+    # Schwelle, entgegengesetzte Richtung, kein gemeinsames Wort.
+    ("at least", "or fewer"),
+    ("at least", "or less"),
+    ("at most", "or more"),
 )
+
+#: Kalshi-Ticker, die mehrere Ausgaenge buendeln.
+_COMPOUND_TICKER_RE = re.compile(r"MULTIGAME|CROSSCATEGORY|PARLAY|COMBO", re.IGNORECASE)
+#: Kommas in Zahlen ("$120,000") und Daten ("December 31, 2026") sind
+#: Zeichensetzung, keine Klauselgrenzen. Ohne diese Bereinigung zaehlte
+#: jeder Schwellenmarkt mit Tausendertrennzeichen als Parlay.
+_NUMBER_COMMA_RE = re.compile(r"(\d),(?=\d{3}\b)")
+_DATE_COMMA_RE = re.compile(r"\b([A-Za-z]{3,9}\.? \d{1,2}),\s*(\d{4})\b")
+
+
+def compound_reasons(title: str, ticker: str | None = None) -> list[str]:
+    """Warum die Kalshi-Seite mehrere Fragen ist: Ticker oder Komma-Klauseln.
+
+    Dieselbe Definition wie ``isCompoundKalshiMarket`` im Scanner. Drei
+    Klauseln, oder zwei, die beide mit Yes oder No beginnen, sind ein Korb
+    aus mehreren Ausgaengen; die Naeherungs-Treffer des Laufs vom
+    2026-06-10 waren alle von dieser Art.
+    """
+
+    if ticker and _COMPOUND_TICKER_RE.search(str(ticker)):
+        return ["Kalshi market bundles several outcomes (ticker)"]
+    text = _DATE_COMMA_RE.sub(r"\1 \2", _NUMBER_COMMA_RE.sub(r"\1", str(title or "")))
+    segments = [segment.strip() for segment in text.split(",") if segment.strip()]
+    yes_no = sum(1 for segment in segments if re.match(r"(?i)^(yes|no)\b", segment))
+    if len(segments) >= 3 or (len(segments) >= 2 and yes_no >= 2):
+        return ["Kalshi market bundles several outcomes"]
+    return []
 
 #: Was eine Frage eigentlich fragt, unabhaengig von der Formulierung. Die
 #: Pruefung laeuft ueber diese Gruppen statt ueber Einzelwoerter, weil
@@ -351,11 +392,15 @@ def resolution_gap_days(left: Any, right: Any) -> float | None:
 
 def pair_verdict(pm_row: Any, ks_row: Any,
                  max_resolution_gap_days: float = MAX_RESOLUTION_GAP_DAYS) -> dict[str, Any]:
-    """Urteil ueber ein Paar: ``unverified``, ``opposed`` oder ``different_question``.
+    """Urteil ueber ein Paar, Stufe 1 des Paar-Protokolls.
 
-    Erwartet zwei Mappings mit ``title`` und, wenn vorhanden, ``end`` bzw.
-    ``end_time``. Fehlt ein Termin, wird der Terminvergleich uebersprungen
-    statt geraten: unbekannt ist kein Treffer und kein Freispruch.
+    ``unverified``, ``compound_market``, ``opposed``, ``different_question``
+    oder ``resolution_time_mismatch``, in dieser Rangfolge: erst ob die
+    Kalshi-Seite ueberhaupt eine Frage ist, dann die Richtung, dann der
+    Fragetyp, zuletzt der Termin. Erwartet zwei Mappings mit ``title`` und,
+    wenn vorhanden, ``ticker`` (Kalshi) und ``end`` bzw. ``end_time``. Fehlt
+    ein Termin, wird der Terminvergleich uebersprungen statt geraten:
+    unbekannt ist kein Treffer und kein Freispruch.
     """
 
     pm_row = pm_row if isinstance(pm_row, dict) else dict(pm_row or {})
@@ -363,26 +408,32 @@ def pair_verdict(pm_row: Any, ks_row: Any,
     pm_title = str(pm_row.get("title") or "")
     ks_title = str(ks_row.get("title") or "")
 
+    kompakt = compound_reasons(ks_title, ks_row.get("ticker"))
     gegensatz = opposed_reasons(pm_title, ks_title)
     andere = question_reasons(pm_title, ks_title)
     abstand = resolution_gap_days(
         pm_row.get("end", pm_row.get("end_time")),
         ks_row.get("end", ks_row.get("end_time")))
+    termin: list[str] = []
     if abstand is not None and abstand > float(max_resolution_gap_days):
         # Ganze Tage: die Schranke liegt bei 7, jede Begruendung hier ist
         # also zweistellig oder mehr, und "396.583 days apart" behauptet
         # eine Praezision, die fuer das Urteil nichts traegt.
-        andere.append(f"resolution dates {abstand:.0f} days apart")
+        termin.append(f"resolution dates {abstand:.0f} days apart")
 
-    if gegensatz:
+    if kompakt:
+        verdict = PAIR_COMPOUND
+    elif gegensatz:
         verdict = PAIR_OPPOSED
     elif andere:
         verdict = PAIR_DIFFERENT
+    elif termin:
+        verdict = PAIR_TIME
     else:
         verdict = PAIR_UNVERIFIED
     return {
         "verdict": verdict,
-        "reasons": gegensatz + andere,
+        "reasons": kompakt + gegensatz + andere + termin,
         "resolution_gap_days": abstand,
     }
 
