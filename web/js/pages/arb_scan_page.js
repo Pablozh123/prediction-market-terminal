@@ -22,12 +22,19 @@
 // rejection reasons), the chances, the carry candidates, the rejections with
 // their gate, the cross-venue pair board with both rulebooks, the paper book,
 // and last the paragraph that says what the numbers do and do not mean.
+//
+// The paper book also reads public/data/arb_resolutions.json, our own
+// resolution pass over the scanner's journal (app/arb_resolution.py,
+// scripts/resolve_arb_paper.py). Where the scanner still says open, the
+// pass supplies status, settlement and figure; a row the scanner resolved
+// itself keeps the scanner's own figure.
 
 import { esc, num, money, stempel, stempelBlock, dauer } from '../util.js';
 import { caveatZeile } from '../claims.js';
 import { MONO as M, KARTE, LABEL, NOTIZ, kpi } from '../ui.js';
 
 export const ARB_SCAN_DATEI = 'arb_scan.json';
+export const ARB_RESOLUTIONS_DATEI = 'arb_resolutions.json';
 // The element id the old study route (#research/arb-scan) scrolls to on the
 // Cross-venue page. Starts with the page name: app.js drops pending anchors
 // that do not.
@@ -671,15 +678,83 @@ export function paarTafel(pairs, vok) {
     + '<div style="' + NOTIZ + '; margin-top:var(--sp-3)">SCREEN is the automated read of both titles and both settlement dates; REVIEW is what a person decided after reading both rulebooks, with the seven-point checklist. HEDGED appears only after an equivalent review; until then a basket across the pair is two open bets, whatever the net column says. Each row opens to both rule texts side by side.</div>';
 }
 
-export function paperBuch(positions, summary) {
+/** The resolution pass as a reading: a map trade_id -> row, or null when
+ *  the payload is absent, failed, or carries no trades. Exported for the
+ *  render harness. */
+export function aufloesungen(payload) {
+  const p = payload && typeof payload === 'object' && payload._quelle !== 'leer' && payload._quelle !== 'fehler' ? payload : null;
+  if (!p) return null;
+  const rows = liste(p.trades);
+  if (!rows.length) return null;
+  const map = new Map();
+  rows.forEach((r) => { const id = text(r.trade_id).trim(); if (id) map.set(id, r); });
+  return { map, summary: objekt(p.summary), baskets: liste(p.baskets), generated_at: text(p.generated_at), source: text(p.source), method: text(p.method) };
+}
+
+/** What one resolved leg made: the corrected figure, which exists only
+ *  where the market was open at the fill and the CLOB day price supports
+ *  the entry. The as-recorded figure stays in the file; on screen it would
+ *  turn a NO recorded at a few cents into hundreds of shares. */
+export function legPnl(r) {
+  return r ? zahl(r.pnl_corrected_usd) : null;
+}
+
+// Tiles for our own resolution pass. They sit under the scanner's tiles
+// and say where the figures come from, because the scanner's own tiles
+// still show zero resolved trades: its lookup never finds a settled
+// market (it asks Gamma without closed=true).
+export function aufloesungKennzahlen(auf) {
+  if (!auf) return '';
+  const s = auf.summary;
+  const pnl = zahl(s.pnl_corrected_usd);
+  const nKorr = zahl(s.with_corrected_pnl);
+  const won = zahl(s.won_corrected);
+  const lost = zahl(s.lost_corrected);
+  const flat = zahl(s.flat_corrected);
+  const tage = zahl(s.mean_days_held);
+  const nicht = zahl(s.baskets_not_exclusive);
+  const koerbe = zahl(s.baskets);
+  const nach = zahl(s.filled_after_close);
+  const tiles = [
+    { label: 'SETTLED MARKETS', wert: ganz(s.resolved) + ' / ' + ganz(s.trades), sub: 'journal trades whose market has settled' },
+    { label: 'FILLED AFTER CLOSE', wert: nach == null ? STRICH : ganz(nach), ton: nach ? 'down' : null, sub: 'paper fills on markets already closed' },
+    { label: 'WON · LOST · FLAT', wert: (won == null ? STRICH : ganz(won)) + ' · ' + (lost == null ? STRICH : ganz(lost)) + ' · ' + (flat == null ? STRICH : ganz(flat)), sub: 'n = ' + (nKorr == null ? STRICH : ganz(nKorr)) + ' legs with a supported entry' },
+    { label: 'MODELED PNL', wert: vorzeichenUsd(pnl), ton: pnl == null ? null : (pnl >= 0 ? 'up' : 'down'), sub: 'on ' + usd(s.cost_corrected_usd) + ' staked, before fees' },
+    { label: 'MEAN DAYS TO SETTLE', wert: tage == null ? STRICH : tage.toFixed(1), sub: 'fill to closedTime, n = ' + ganz(s.days_held_n) },
+    { label: 'BASKETS NOT EXCLUSIVE', wert: (nicht == null ? STRICH : ganz(nicht)) + ' / ' + (koerbe == null ? STRICH : ganz(koerbe)), sub: 'NO on every leg is no arbitrage there' }
+  ];
+  return '<div style="' + ABSCHNITT + '">RESOLUTION PASS · ' + esc((stempel(auf.generated_at) || 'time not in payload').toUpperCase()) + '</div>'
+    + '<div style="display:grid; grid-template-columns:repeat(6, minmax(0, 1fr)); gap:var(--sp-4)">'
+    + tiles.map((t) => kpi({ label: esc(t.label), wert: esc(t.wert), sub: esc(t.sub), ton: t.ton || null, kuerzen: t.label !== 'MODELED PNL' })).join('')
+    + '</div>'
+    + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-3); max-width:760px; line-height:var(--lh-prose)">'
+    + esc(auf.source ? auf.source + '. ' : '') + 'The scanner\'s own tiles above still show zero resolved trades: its lookup asks Gamma without closed=true and never finds a settled market. '
+    + 'A leg gets a figure only where the market was open at the fill and the CLOB day price supports the entry; where the journal stored the other side\'s price, the entry is 1 minus the recorded one. '
+    + 'Everything else carries a reason instead of a number.'
+    + '</div>';
+}
+
+export function paperBuch(positions, summary, resolutions) {
   const rows = liste(positions);
   const note = text(objekt(summary).sample_note).trim();
+  const auf = aufloesungen(resolutions);
   const SPALTEN = 'minmax(220px, 1fr) 150px 130px 84px 92px 84px 84px';
   const kopf = '<div style="display:grid; grid-template-columns:' + SPALTEN + '; gap:var(--sp-3); ' + KOPF + '">'
     + '<div>PAPER TRADE</div><div>STRATEGY</div><div>OPENED</div><div style="text-align:right">CAPITAL</div><div style="text-align:right">EXP. EDGE</div><div>STATUS</div><div style="text-align:right">PNL</div></div>';
   const koerper = rows.length ? rows.map((p) => {
-    const pnl = zahl(p.pnl_usd);
-    const status = text(p.status).trim().toLowerCase();
+    // Our resolution pass fills the gap the scanner leaves: where the
+    // scanner still says 'open' (it never finds a settled market, because
+    // it asks Gamma without closed=true), the pass supplies status, date
+    // and figure. A row the scanner has resolved itself keeps the
+    // scanner's own status and figure.
+    const eigen = text(p.status).trim().toLowerCase();
+    const r = auf && eigen !== 'resolved' ? auf.map.get(text(p.trade_id).trim()) || null : null;
+    const gel = !!(r && text(r.status).trim().toLowerCase() === 'resolved');
+    const pnl = gel ? legPnl(r) : zahl(p.pnl_usd);
+    const status = gel ? 'resolved' : eigen;
+    const settle = gel ? zahl(r.settlement_price) : null;
+    const tageGel = gel ? zahl(r.days_held) : null;
+    const grund = gel && pnl == null ? text(r.pnl_corrected_reason || r.pnl_reason).trim() : '';
     return '<div style="display:grid; grid-template-columns:' + SPALTEN + '; gap:var(--sp-3); align-items:center; padding:var(--sp-4) var(--sp-5); border-bottom:1px solid var(--line-3)">'
       + '<div style="min-width:0"><div style="font-size:var(--t-body); color:var(--ink-1); line-height:var(--lh-snug)">' + esc(text(p.title).trim() || STRICH) + '</div>'
       + '<div style="' + NOTIZ + '; margin-top:var(--sp-1)">' + esc(text(p.trade_id).trim() || STRICH) + (text(p.opportunity_id).trim() ? ' · from ' + esc(p.opportunity_id) : '') + '</div></div>'
@@ -687,8 +762,10 @@ export function paperBuch(positions, summary) {
       + '<div style="' + ZELLE + '; color:var(--ink-3)">' + esc(stempel(p.opened_at) || STRICH) + '</div>'
       + '<div style="text-align:right; ' + ZELLE + '; color:var(--text)">' + usd(p.capital_usd) + '</div>'
       + '<div style="text-align:right; ' + ZELLE + '; color:var(--text)">' + bps(p.expected_edge_bps) + '</div>'
-      + '<div style="' + ZELLE + '; color:' + (status === 'open' ? 'var(--info)' : 'var(--ink-3)') + '">' + esc(status || STRICH) + '</div>'
-      + '<div style="text-align:right; ' + ZELLE + '; color:' + (pnl == null ? 'var(--ink-4)' : pnl >= 0 ? 'var(--pos)' : 'var(--neg)') + '">' + (pnl == null ? (status === 'open' ? 'open' : STRICH) : vorzeichenUsd(pnl)) + '</div>'
+      + '<div style="' + ZELLE + '; color:' + (status === 'open' ? 'var(--info)' : 'var(--ink-3)') + '">' + esc(status || STRICH)
+      + (gel ? '<div style="' + NOTIZ + '; margin-top:var(--sp-1)">' + esc((stempel(r.resolved_at) || STRICH) + (tageGel == null ? '' : ' · ' + tage(tageGel))) + '</div>' : '') + '</div>'
+      + '<div style="text-align:right; ' + ZELLE + '; color:' + (pnl == null ? 'var(--ink-4)' : pnl >= 0 ? 'var(--pos)' : 'var(--neg)') + '">' + (pnl == null ? (status === 'open' ? 'open' : (grund ? esc(grund) : STRICH)) : vorzeichenUsd(pnl))
+      + (gel && settle != null ? '<div style="' + NOTIZ + '; margin-top:var(--sp-1)">' + esc('settled ' + preis(settle) + (text(r.entry_check).trim() === 'complement' ? ' · entry corrected' : '')) + '</div>' : '') + '</div>'
       + '</div>';
   }).join('') : leerSatz('No paper positions in the payload.');
   return '<div style="' + ABSCHNITT + '">PAPER BOOK · ' + (rows.length ? rows.length + ' POSITION' + (rows.length === 1 ? '' : 'S') : 'EMPTY') + '</div>'
@@ -749,8 +826,9 @@ export function leerzustand(payload) {
 /** The section on the Cross-venue page. payload is the parsed arb_scan.json,
  *  one of the loader's markers ({ _quelle: 'leer' | 'fehler' }), or null while
  *  the request runs. jetztMs is injectable so the harness can pin the clock;
- *  the app passes nothing. */
-export function renderArbScanAbschnitt(payload, jetztMs) {
+ *  the app passes nothing. resolutions is the parsed arb_resolutions.json in
+ *  the same three states; it only ever adds to the paper book. */
+export function renderArbScanAbschnitt(payload, jetztMs, resolutions) {
   const eyebrow = '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-max); color:var(--info)">PAPER SCANNER · EXECUTABLE EDGE</div>';
   const huelle = (inhalt) => '<div id="' + ARB_ANKER + '" style="padding:var(--sp-6); border-top:1px solid var(--line-2); scroll-margin-top:16px">' + eyebrow + inhalt + '</div>';
   const jetzt = typeof jetztMs === 'number' ? jetztMs : Date.now();
@@ -760,6 +838,9 @@ export function renderArbScanAbschnitt(payload, jetztMs) {
   const vok = vokabular(p);
 
   const gen = objekt(p.generator);
+  // The resolution pass explains the paper book's rows; without rows it
+  // has nothing to explain and stays away.
+  const auf = liste(p.paper_positions).length ? resolutions : null;
   const health = healthStand(p.health, jetzt);
   const verdikt = verdiktSatz(p.summary);
   const kennung = text(p.kennzeichnung).trim() || ((text(gen.mode).trim() || 'paper') + ' scanner / descriptive');
@@ -801,11 +882,13 @@ export function renderArbScanAbschnitt(payload, jetztMs) {
     + trichter(p.strategies, vok)
     + ablehnungen(p.rejections_24h, vok)
     + tafeln
-    + paperBuch(p.paper_positions, p.summary)
+    + aufloesungKennzahlen(aufloesungen(auf))
+    + paperBuch(p.paper_positions, p.summary, auf)
     + klassenTafel(vok)
     + methodik()
     + '<div style="display:flex; gap:var(--sp-5); align-items:center; flex-wrap:wrap; margin-top:var(--sp-6)">'
     + '<a href="./data/' + ARB_SCAN_DATEI + '" download="' + ARB_SCAN_DATEI + '" class="hv-edge-max" style="' + KNOPF + '">Download the data</a>'
+    + (aufloesungen(auf) ? '<a href="./data/' + ARB_RESOLUTIONS_DATEI + '" download="' + ARB_RESOLUTIONS_DATEI + '" class="hv-edge-max" style="' + KNOPF + '">Download the resolutions</a>' : '')
     + '<div style="' + NOTIZ + '">' + esc(schnappschuss.join(' · ')) + '</div>'
     + '</div>');
 }

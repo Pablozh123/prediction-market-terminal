@@ -24,6 +24,7 @@ from app import quant
 from app import risk_log
 from app import suspicion as susp
 from app import track_record as trec
+from app import venue_fees as vf
 from app import venue_units as vu
 from src import prediction_markets as md
 
@@ -48,6 +49,9 @@ RESEARCH_FILES = {
     # an alias: the file is arb_scan.json and the address gets typed from it.
     "arb-scan": "arb_scan",
     "arb_scan": "arb_scan",
+    # Our resolution pass over the scanner's journal (schema
+    # arb_resolutions/1), written by scripts/resolve_arb_paper.py.
+    "arb-resolutions": "arb_resolutions",
 }
 
 
@@ -791,6 +795,85 @@ def _wilson(wins: int, n: int) -> list[float] | None:
     return [round(float(lo), 4), round(float(hi), 4)]
 
 
+def win_rate_with_unredeemed(corrected: Any, worthless_n: Any) -> dict[str, Any] | None:
+    """Die korrigierte Quote mit den bekannten fehlenden Verlusten darin.
+
+    Eine Position, die gegen die Wallet aufgeloest und nie eingeloest wurde,
+    bleibt in ``/positions`` stehen und taucht im ``/closed-positions``-Feed
+    nie auf. Jede Quote aus diesem Feed laesst sie also weg, und es sind
+    ausschliesslich Verluste: die Quote ist nach oben verzerrt, und zwar um
+    einen Betrag, den man kennt.
+
+    Die Kachel nannte die Zahl der fehlenden Verluste bisher nur als Zusatz.
+    Ein Leser musste selbst rechnen, was 25 von 27 wert sind, wenn achtzehn
+    Verluste nicht im Nenner stehen. Diese Funktion rechnet es aus: dieselben
+    Treffer, der Nenner um die nicht eingeloesten Verluste erhoeht.
+
+    Bewusst konservativ. Der Nenner der korrigierten Quote zaehlt Ereignisse
+    (NegRisk-Beine sind genettet), die nicht eingeloesten Positionen zaehlen
+    Positionen. Gehoeren mehrere davon zu einem Ereignis, ist der Nenner hier
+    zu gross und die Schranke zu niedrig. Sie ist deshalb eine untere
+    Schranke, keine zweite Quote, und heisst auch so.
+
+    ``None``, wenn es nichts zu korrigieren gibt.
+    """
+
+    corr = corrected if isinstance(corrected, Mapping) else {}
+    n = int(corr.get("n") or 0)
+    wins = int(corr.get("wins") or 0)
+    fehlend = max(0, int(worthless_n or 0))
+    if not n or not fehlend:
+        return None
+    gesamt = n + fehlend
+    return {
+        "label": "per event, with the unredeemed losses counted",
+        "win_rate": wins / gesamt,
+        "wins": wins,
+        "n": gesamt,
+        "unredeemed": fehlend,
+        "ci95": _wilson(wins, gesamt),
+        "is_lower_bound": True,
+    }
+
+
+def edge_with_unredeemed(per_dollar: Any, worthless_cost: Any, worthless_n: Any) -> dict[str, Any] | None:
+    """Die realisierte Rendite je Dollar mit den fehlenden Verlusten darin.
+
+    Dieselbe Luecke wie bei der Trefferquote, an der zweiten Kennzahl
+    derselben Karte: die Rendite rechnet ueber den closed-positions-Feed, und
+    der laesst Positionen weg, die gegen die Wallet aufgeloest und nie
+    eingeloest wurden. Deren Einsatz ist bekannt und ihr Ruecklauf ist null.
+
+    Eingesetztes Geld plus dieser Einsatz im Nenner, Ruecklauf unveraendert
+    im Zaehler. Kein Intervall: die fehlenden Zeilen liegen nicht in der
+    Bootstrap-Stichprobe, aus der das Intervall der Quote stammt, und ein
+    Intervall, das nur so aussieht wie eines, waere schlimmer als keines.
+
+    ``None``, wenn nichts fehlt oder die Summen nicht bekannt sind.
+    """
+
+    pd_block = per_dollar if isinstance(per_dollar, Mapping) else {}
+    kosten = _num(pd_block.get("cost_usd"))
+    ruecklauf = _num(pd_block.get("payout_usd"))
+    fehlend_kosten = _num(worthless_cost)
+    fehlend_n = max(0, int(worthless_n or 0))
+    if kosten is None or ruecklauf is None or fehlend_kosten is None:
+        return None
+    fehlend_kosten = abs(fehlend_kosten)
+    if not fehlend_n or fehlend_kosten <= 0 or (kosten + fehlend_kosten) <= 0:
+        return None
+    return {
+        "label": "return per dollar, with the unredeemed losses counted",
+        "edge": (ruecklauf / (kosten + fehlend_kosten)) - 1.0,
+        "cost_usd": kosten + fehlend_kosten,
+        "unredeemed": fehlend_n,
+        "unredeemed_cost_usd": fehlend_kosten,
+        "is_lower_bound": True,
+        "ci_note": ("No interval: the omitted rows are not in the bootstrap sample the interval "
+                    "above comes from."),
+    }
+
+
 def _classify_titles(titles: list[str], classify: Callable[[Any, Any], Any] | None) -> list[str]:
     if classify is None:
         return ["Other"] * len(titles)
@@ -914,6 +997,7 @@ def _wallet_track_record(
             "span_days": _num(track.get("span_days")),
             "min_markets": trec.MIN_RESOLVED_MARKETS,
             "min_span_days": trec.MIN_SPAN_DAYS,
+            "note": survivorship_gate_note(),
         },
         "concentration": {
             "top_market_share": _num(track.get("top_market_share")),
@@ -1073,6 +1157,11 @@ def _wallet_edge(
             per_dollar = perf.cluster_bootstrap_edge(df, "group", cost_column="cost", payout_column="payout")
         except Exception:  # noqa: BLE001
             pass
+        # Die beiden Summen, aus denen die Quote entsteht. Ohne sie laesst
+        # sich ausserhalb nicht ausrechnen, was fehlende Zeilen an ihr
+        # aendern wuerden.
+        per_dollar["cost_usd"] = float(pd.to_numeric(df["cost"], errors="coerce").fillna(0.0).sum())
+        per_dollar["payout_usd"] = float(pd.to_numeric(df["payout"], errors="coerce").fillna(0.0).sum())
         titles = [_text(v) for v in df.get("title", pd.Series("", index=df.index)).tolist()]
         df["category"] = _classify_titles(titles, classify)
         for category, part in df.groupby("category", sort=False):
@@ -1103,12 +1192,43 @@ def _wallet_edge(
             "ci_high": _num(per_dollar.get("ci_high")),
             "groups": int(per_dollar.get("groups") or 0),
             "significant": bool(per_dollar.get("significant")),
+            # Die beiden Summen gehen mit hinaus: aus ihnen rechnet
+            # edge_with_unredeemed die Schranke, ohne den Frame zu brauchen.
+            "cost_usd": _num(per_dollar.get("cost_usd")),
+            "payout_usd": _num(per_dollar.get("payout_usd")),
             "method": "payout / cost - 1 over resolved positions; 95% CI from a cluster bootstrap "
                       "resampling whole events (4000 draws)",
         },
         "per_share": dict(realized) if realized else None,
         "by_category": by_category,
     }
+
+
+def survivorship_gate_note(min_markets: int = trec.MIN_RESOLVED_MARKETS,
+                           min_span_days: float = trec.MIN_SPAN_DAYS) -> str:
+    """Warum die Schwelle da liegt, wo sie liegt, mit gerechnetem Beispiel.
+
+    Neben der Kachel stand bisher nur, was die Schwelle ist. Ohne den Grund
+    liest sich eine niedrigere Zahl als laxere Pruefung, und die Schwelle
+    eines anderen Anbieters als die serioesere. Sie ist beides nicht: der
+    Deckel entscheidet, ob ueberhaupt eine Zahl gezeigt wird, nicht ob man
+    ihr glauben darf. Das entscheidet das Intervall daneben, und genau das
+    sagt der Satz -- mit dem Intervall, das an der Schwelle selbst gilt,
+    gerechnet mit derselben Funktion wie jede andere Spanne der Seite.
+    """
+
+    n = max(1, int(min_markets))
+    # Sieben von zehn: eine Quote, die auf einer Bestenliste stark aussieht.
+    wins = max(1, min(n - 1, int(round(n * 0.7))))
+    spanne = _wilson(wins, n)
+    tage = int(min_span_days) if float(min_span_days).is_integer() else min_span_days
+    satz = (f"The gate is {n} resolved markets and {tage} days of span. It decides whether a "
+            "number is shown at all, not whether it can be believed.")
+    if spanne:
+        satz += (f" At exactly {n} markets a {wins}/{n} record still carries a 95% interval of "
+                 f"{spanne[0] * 100:.0f}% to {spanne[1] * 100:.0f}%, so the interval beside "
+                 "each rate is what settles it, and a record just over the gate settles nothing.")
+    return satz
 
 
 def _wallet_positions(positions: pd.DataFrame | None, as_of: str, requested: int) -> dict[str, Any]:
@@ -1509,6 +1629,89 @@ def _wallet_categories(
     }
 
 
+def wallet_headline(track: Any, edge: Any, attribution: Any, sample: Any) -> dict[str, Any]:
+    """Die drei bis fuenf Saetze, die ganz oben stehen muessen.
+
+    Die Wallet-Seite rechnet alles aus und begraebt die Antwort unter zwanzig
+    Kacheln. Wer sie liest, muss selbst zusammensetzen, was der Datensatz
+    hergibt. Diese Funktion setzt es zusammen, und zwar aus Feldern, die
+    ohnehin schon berechnet sind: Stichprobe, korrigierte Quote mit Intervall,
+    realisierter Edge mit Intervall, Konzentration des Gewinns, Farmer-Flag.
+
+    Entscheidend ist ``allowed``. ``app/scorecard.py::sample_quality`` sagt
+    ausdruecklich, ob die Stichprobe ein Urteil traegt. Ist sie das nicht,
+    faellt der Kopf nicht weg, aber er sagt zuerst, dass hier kein Urteil
+    steht. Ein Kopf, der bei n = 8 genauso klingt wie bei n = 200, waere
+    genau der Fehler, gegen den die ganze Seite gebaut ist.
+
+    Rueckgabe: ``{"allowed": bool, "lead": str, "clauses": [str, ...]}``.
+    ``clauses`` ist leer, wenn die Bloecke fehlen; dann steht nur ``lead``.
+    """
+
+    tr = track if isinstance(track, dict) else {}
+    ed = edge if isinstance(edge, dict) else {}
+    at = attribution if isinstance(attribution, dict) else {}
+    sa = sample if isinstance(sample, dict) else {}
+
+    gate = tr.get("survivorship_gate") if isinstance(tr.get("survivorship_gate"), dict) else {}
+    corrected = tr.get("corrected") if isinstance(tr.get("corrected"), dict) else {}
+    per_dollar = ed.get("per_dollar") if isinstance(ed.get("per_dollar"), dict) else {}
+    conc = tr.get("concentration") if isinstance(tr.get("concentration"), dict) else {}
+    wash = tr.get("wash_flag") if isinstance(tr.get("wash_flag"), dict) else {}
+
+    allowed = bool(sa.get("verdict_allowed"))
+    quality = _text(sa.get("quality")) or "unknown"
+    n_events = sa.get("n_resolved")
+
+    if allowed:
+        lead = (f"Sample: {quality}, {_num(n_events, 0):.0f} resolved events. "
+                "The figures below carry their own intervals.")
+    elif quality == "unknown":
+        lead = ("Sample quality is not stated by this payload, so nothing here is read as a verdict.")
+    else:
+        lead = (f"Sample: {quality}, {_num(n_events, 0):.0f} resolved events. "
+                "That is below the threshold for a verdict, so read every figure below as a description "
+                "of what happened, not as a finding.")
+
+    clauses: list[str] = []
+
+    markets = gate.get("resolved_markets")
+    span = _num(gate.get("span_days"))
+    if markets is not None and span is not None:
+        zustand = "clears the sample gate" if gate.get("ok") else "does not clear the sample gate"
+        clauses.append(f"{_num(markets, 0):.0f} resolved markets over {span:.0f} days {zustand}.")
+
+    rate = _num(corrected.get("win_rate"))
+    ci = corrected.get("ci95")
+    if rate is not None and corrected.get("n"):
+        satz = (f"Corrected win rate {rate * 100:.0f}% on {_num(corrected.get('n'), 0):.0f} events, "
+                "netted per event")
+        if isinstance(ci, (list, tuple)) and len(ci) == 2 and ci[0] is not None:
+            satz += f", 95% CI {ci[0] * 100:.0f}% to {ci[1] * 100:.0f}%"
+        clauses.append(satz + ".")
+
+    e = _num(per_dollar.get("edge"))
+    if e is not None:
+        satz = f"Realised edge {e * 100:.1f} cents per dollar staked"
+        lo, hi = _num(per_dollar.get("ci_low")), _num(per_dollar.get("ci_high"))
+        if lo is not None and hi is not None:
+            satz += f", 95% CI {lo * 100:.1f} to {hi * 100:.1f}"
+            satz += ", excluding zero" if per_dollar.get("significant") else ", which includes zero"
+        clauses.append(satz + ".")
+
+    top = _num(at.get("top_event_share"))
+    if top is not None:
+        satz = f"The largest single event is {top * 100:.0f}% of gross profit"
+        if conc.get("one_hit_flag"):
+            satz += ", which trips the one-hit flag"
+        clauses.append(satz + ".")
+
+    if wash.get("flag"):
+        clauses.append("Flagged as churn: heavy volume against a negligible realised edge per dollar.")
+
+    return {"allowed": allowed, "lead": lead, "clauses": clauses}
+
+
 def _wallet_context(activity: pd.DataFrame | None, as_of: str) -> dict[str, Any]:
     if activity is None or activity.empty:
         return {"as_of": as_of, "n_trades": 0, "notional": 0.0, "groups": [], "insider_prone_share": None,
@@ -1625,6 +1828,19 @@ def wallet_detail(
     payload["pnl"] = _wallet_pnl(pnl_points, stamp, pnl_window, resolved, capped)
     payload["edge"] = _wallet_edge(resolved, realized, capped, classify, stamp)
     payload["open_positions"] = open_block
+    # Die Schranke braucht beide Seiten: die korrigierte Quote aus dem
+    # closed-positions-Feed und die Zahl der Positionen, die dieser Feed
+    # systematisch weglaesst. Deshalb steht sie hier und nicht in
+    # _wallet_track_record.
+    schranke = win_rate_with_unredeemed(
+        (payload["track_record"] or {}).get("corrected"), open_block.get("worthless_n"))
+    if schranke and payload["track_record"]:
+        payload["track_record"]["corrected_bound"] = schranke
+    kanten_schranke = edge_with_unredeemed(
+        (payload["edge"] or {}).get("per_dollar"),
+        open_block.get("worthless_cost"), open_block.get("worthless_n"))
+    if kanten_schranke and payload["edge"]:
+        payload["edge"]["per_dollar_bound"] = kanten_schranke
     payload["closed"] = _wallet_closed(resolved, capped, open_block["worthless_n"], stamp,
                                        _text(track.get("coverage_note")) if track else "")
     payload["activity"] = _wallet_activity(activity, activity_truncated, stamp, activity_error)
@@ -1633,6 +1849,11 @@ def wallet_detail(
         payload["risk_profile"]["heatmap"]["note"] += " — the window was truncated at the page cap"
     payload["categories"] = _wallet_categories(activity, resolved, classify, stamp)
     payload["context"] = _wallet_context(activity, stamp)
+    # Der Kopf zuletzt: er liest die Bloecke, die oben entstanden sind, und
+    # setzt aus ihnen die drei bis fuenf Saetze zusammen, die vor allen
+    # Kacheln stehen.
+    payload["headline"] = wallet_headline(
+        payload["track_record"], payload["edge"], payload.get("attribution"), payload.get("sample"))
     payload["limits"] = list(WALLET_LIMITS)
     return payload
 
@@ -1795,6 +2016,15 @@ def cross_rows(
             "pmVolUsd": pm_vol,
             "ksVolContracts": ks_vol,
             "sim": round(sim, 2),
+            # Ob die Polymarket-Seite dieses Paares auf dem allgemeinen
+            # Taker-Satz liegt, und der ist nicht eindeutig belegt (0.05 laut
+            # Venue-Doku, 0.03 laut mehreren Sekundaerquellen; siehe
+            # app/venue_fees.py). Die Gebuehr ist linear im Satz, also
+            # verschiebt sich jede Netto-Zahl dieses Paares um 40 Prozent der
+            # Gebuehr, wenn der niedrigere Satz stimmt -- und zwar nach oben,
+            # denn weniger Gebuehr heisst mehr Netto. Die Spalte zeigt damit
+            # das konservative Ende, und die Seite kann das sagen.
+            "feeDisputed": bool(vf.polymarket_rate_band(categories.get(pm_key))["disputed"]),
             "gross": _num(row.get("gross_edge_cents")),
             "band": _num(row.get("fee_band_cents")),
             "net": _num(row.get("net_edge_cents")),
@@ -2095,8 +2325,17 @@ def risk_payload(
     }
 
 
-#: Wie viele Signalzeilen der Feed hoechstens ausliefert.
+#: Wie viele Signalzeilen die Tabelle auf einmal zeigt. Die Seite blaettert in
+#: Schritten dieser Groesse durch das, was der Endpunkt geliefert hat.
 ALERT_ROW_LIMIT = 60
+
+#: Wie viele Signalzeilen der Endpunkt hoechstens ausliefert. Der Schnitt lag
+#: bei 60, also endete der Feed dort, wo die erste Seite endet, und der Rest
+#: eines Scans war ueber die Oberflaeche nicht erreichbar. Eine Zeile wiegt
+#: rund 150 Byte, 400 Zeilen also rund 60 KB -- billiger als ein zweiter
+#: Aufruf je Seite, und die Filter der Seite arbeiten damit ueber den ganzen
+#: gelieferten Satz statt ueber dessen erste 60 Zeilen.
+ALERT_ROW_CAP = 400
 
 
 def alert_rule_counts(signals: pd.DataFrame) -> dict[str, int]:
@@ -2283,13 +2522,13 @@ def alert_delivery_view(aggregates: Mapping[str, Any] | None,
     return basis
 
 
-def alert_rows(signals: pd.DataFrame) -> list[dict[str, Any]]:
+def alert_rows(signals: pd.DataFrame, limit: int = ALERT_ROW_CAP) -> list[dict[str, Any]]:
     """`sig.build_monitor_signals`-Frame in die Signal-Feed-Zeilen."""
 
     if signals is None or signals.empty:
         return []
     rows: list[dict[str, Any]] = []
-    for _, row in signals.head(ALERT_ROW_LIMIT).iterrows():
+    for _, row in signals.head(max(0, int(limit))).iterrows():
         time_label = _text(row.get("time"))
         if "T" in time_label:
             time_label = time_label.split("T")[1][:5]
@@ -2763,6 +3002,14 @@ def backtest_payload(result: Any) -> dict[str, Any]:
                 key: int(_num(value, 0.0) or 0)
                 for key, value in (stats.get("filter_reasons") or {}).items()
             },
+            # Bewertungskurve: wie viele der kopierten Positionen unterwegs
+            # zum Marktpreis bewertet sind (der Rest steht zum Einstand).
+            "mark_to_market": {
+                "positions_marked": int(_num((stats.get("mark_to_market") or {}).get("positions_marked"), 0.0) or 0),
+                "positions_total": int(_num((stats.get("mark_to_market") or {}).get("positions_total"), 0.0) or 0),
+                "capped": bool((stats.get("mark_to_market") or {}).get("capped", False)),
+                "interval": _text((stats.get("mark_to_market") or {}).get("interval")) or None,
+            },
             # Auto-Fit: was die Engine gemessen und ggf. angewendet hat —
             # Modus (Folge-Schwelle oder geschrumpfter Einsatz), Einsatz je
             # Copy, Schwelle, gefolgte Positionen und das rohe Tempo der
@@ -2879,11 +3126,38 @@ def trim_pipeline_payload(payload: Mapping[str, Any], max_entries: int = 40) -> 
     return out
 
 
+#: Was die Preisspalte der Resolved-Seite ist. Der oeffentliche
+#: Closed-Markets-Feed fuehrt fuer einen abgerechneten Markt nur noch den
+#: Abrechnungspreis; der letzte Preis davor steht in der Preishistorie des
+#: CLOB und wird hier nicht abgerufen.
+RESOLVED_PRICE_NOTE = (
+    "PRICE is the settlement price from the public closed-markets feed, not the last price "
+    "before settlement. That earlier price is not in this feed; reading it would mean fetching "
+    "the CLOB price history of each market at a fixed interval before close. Until that is done, no "
+    "deviation between crowd and outcome is computed here."
+)
+
+
 def resolved_rows(closed: pd.DataFrame, limit: int = 120) -> list[dict[str, Any]]:
     """`md.get_polymarket_closed_markets`-Frame in die Resolved-Zeilen.
 
-    Nur binaere Maerkte mit bekanntem Ausgang; ``err`` ist der letzte Preis
-    gegen die Antwort — das, was die Menge falsch hatte.
+    Nur binaere Maerkte mit bekanntem Ausgang.
+
+    ``price`` ist der Abrechnungspreis, nicht der letzte Preis davor. Die
+    Zeilen trugen frueher ein Feld ``err`` als "so weit lag die Menge daneben".
+    Das konnte nie etwas anderes als null sein: ``get_polymarket_closed_markets``
+    liest ``final_yes_price`` aus dem aktuellen Preis eines abgerechneten
+    Marktes (also 0 oder 1) und leitet ``resolved_outcome`` aus genau diesem
+    Preis ab. Die Abweichung wurde damit gegen sich selbst gerechnet. Ueber
+    fuenfzig echte Zeilen gemessen: fuenfzig Mal null, Preis 32 Mal 0 und 18
+    Mal 100.
+
+    Der Fehler ueberlebte, weil der Test eine Zeile baute, die es im Feed
+    nicht gibt (Preis 0.81 und Ausgang "Yes" nebeneinander).
+
+    Wer die echte Abweichung will, braucht die Preishistorie aus dem CLOB zu
+    einem festen Abstand vor Handelsschluss. Die steht in diesem Feed nicht,
+    also steht die Kennzahl nicht mehr auf der Seite.
     """
 
     if closed is None or closed.empty:
@@ -2908,8 +3182,8 @@ def resolved_rows(closed: pd.DataFrame, limit: int = 120) -> list[dict[str, Any]
             "title": _text(row.get("title")),
             "meta": (_text(row.get("platform")) or "Polymarket").upper() + " · " + (_text(row.get("category")) or "—").upper(),
             "yes": outcome == "Yes",
-            "last": last_cents,
-            "err": (100 - last_cents) if outcome == "Yes" else last_cents,
+            # Name sagt jetzt, was es ist: der Abrechnungspreis.
+            "settled_price": last_cents,
             "vol": money_label(volume),
             "when": when,
             "hours": round(hours, 1),

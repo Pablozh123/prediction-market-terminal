@@ -32,7 +32,7 @@
     "validated_24h": 2,
     "candidates_24h": 2,
     "paper_fired_24h": 2,
-    "open_paper_positions": 2,
+    "open_paper_positions": 3,
     "resolved_paper_trades": 1,
     "resolved_paper_pnl_usd": 10.2,
     "sample_note": "1 resolved paper trade(s) with a linked candidate. PnL is the sum over linked, resolved, unflagged trades only. Pre-registered 2026-09-04: 14-day measurement window from go-live; criterion is resolved, candidate-linked paper trades with positive net edge after fees."
@@ -1564,7 +1564,7 @@
   ],
   "paper_positions": [
     {
-      "trade_id": "pt-0003",
+      "trade_id": "pt-0004",
       "opportunity_id": "opp-0010",
       "strategy": "within_market_fast_arb",
       "title": "Will the Fed cut rates by 25 bps at the September 2026 meeting?",
@@ -1575,13 +1575,24 @@
       "pnl_usd": null
     },
     {
-      "trade_id": "pt-0002",
+      "trade_id": "pt-0003",
       "opportunity_id": "opp-0010",
       "strategy": "within_market_fast_arb",
       "title": "Will the Fed cut rates by 25 bps at the September 2026 meeting?",
       "opened_at": "2026-09-05T13:33:00.000Z",
       "capital_usd": 12.3,
       "expected_edge_bps": 146.79,
+      "status": "open",
+      "pnl_usd": null
+    },
+    {
+      "trade_id": "pt-0002",
+      "opportunity_id": "opp-0011",
+      "strategy": "within_market_fast_arb",
+      "title": "Jobless claims above 230k for the week of 29 August?",
+      "opened_at": "2026-09-02T14:00:00.001Z",
+      "capital_usd": 10.2,
+      "expected_edge_bps": 88.4,
       "status": "open",
       "pnl_usd": null
     },

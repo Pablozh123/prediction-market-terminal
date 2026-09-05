@@ -186,6 +186,43 @@ export const VENUES = ['Polymarket', 'Kalshi'];
 // Antwort. Ohne diese Zeile war die halbe Antwort von einer ganzen nicht zu
 // unterscheiden, und die Seite meldete LIVE auf beiden Venues, waehrend die
 // Haelfte der Prints fehlte.
+// Welche Routen die Live-Zeilen im Rumpf ueberhaupt lesen. Auf allen anderen
+// steht von markets und tape nur das Sichtbare der Huelle: der LIVE-Punkt mit
+// seinem Stand in der Kopfzeile und der Zaehler am Sidebar-Eintrag Live tape.
+// Ermittelt aus den Renderfunktionen, die T.markets, T.tape oder
+// T.tapeFiltered anfassen.
+export const LIVE_ROUTEN = ['overview', 'markets', 'flow', 'whale', 'track', 'portfolio'];
+
+// Kurzer Takt auf den Routen, die die Zeilen zeigen; langer Takt sonst.
+export const LIVE_TAKT_MS = 30000;
+export const LIVE_TAKT_RUHIG_MS = 300000;
+
+/** Ob der Live-Poll jetzt laufen soll.
+ *
+ *  Der Poll holt markets (~280 KB) und tape (~180 KB) und rendert danach die
+ *  ganze Seite neu, auf der Marktseite rund 114 ms. Er lief bisher auf jeder
+ *  Route im gleichen 30-Sekunden-Takt, auch auf Methodology, Post-mortems,
+ *  Field notes, jeder Studienseite, Backtester und Settings, wo keine einzige
+ *  dieser Zeilen im Rumpf steht.
+ *
+ *  Ganz abstellen waere falsch: die Kopfzeile fuehrt den LIVE-Punkt und der
+ *  Sidebar-Eintrag Live tape seinen Zaehler, beide auf jeder Route. Deshalb
+ *  laeuft der Poll dort weiter, nur seltener. Sein Stand steht ohnehin als
+ *  Zeitstempel daneben, ein aelterer Stand behauptet also nichts Falsches.
+ *
+ *  @param {string} route offene Route
+ *  @param {boolean} overlayOffen Detail- oder Suchoverlay offen (beide lesen
+ *    die Zeilen und koennen ueber jeder Route stehen)
+ *  @param {number} letzterMs Zeitstempel des letzten Polls, 0 wenn keiner lief
+ *  @param {number} jetztMs jetzt
+ */
+export function livePollFaellig(route, overlayOffen, letzterMs, jetztMs) {
+  const kurz = overlayOffen === true || LIVE_ROUTEN.indexOf(String(route || '')) >= 0;
+  if (kurz) return true;
+  if (!letzterMs) return true;
+  return (jetztMs - letzterMs) >= LIVE_TAKT_RUHIG_MS;
+}
+
 export function liveStatusLabel(live, venuesMissing) {
   if (live === 'error') return 'API OFFLINE · LAST KNOWN STATE';
   if (live === 'offline') return 'API NOT REACHABLE · RESEARCH FROM PUBLISHED FILES';

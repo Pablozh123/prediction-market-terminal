@@ -49,6 +49,11 @@ LINT_SOURCES = (
     # would leave the published wording unchecked.
     "web/index.html",
     "web/js/**/*.js",
+    # Die maschinenlesbare Beschreibung der Seite ist Text, den jemand liest
+    # (oder ein Modell), also gilt fuer sie dieselbe Wortliste wie fuer die
+    # Oberflaeche. Ungelintet waere sie die einzige Stelle, an der eine
+    # verbotene Formulierung durchginge.
+    "web/llms.txt",
 )
 
 # Where a caveat must come from the register rather than from prose: both

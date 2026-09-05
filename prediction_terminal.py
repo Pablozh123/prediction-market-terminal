@@ -11377,7 +11377,7 @@ BACKTEST_SIZING_CHOICES = {
     "Match trader %": btr.SIZING_PORTFOLIO,
     "Kelly ¼": btr.SIZING_KELLY,
 }
-BACKTEST_WINDOW_OPTIONS = {"7d": 7, "30d": 30, "90d": 90}
+BACKTEST_WINDOW_OPTIONS = {"7d": 7, "30d": 30, "90d": 90, "180d": 180, "1y": 365}
 BACKTEST_STRATEGY_OPTIONS = {"Copy": btr.STRATEGY_COPY, "Fade": btr.STRATEGY_FADE}
 
 
@@ -11821,7 +11821,7 @@ def page_backtester() -> None:
                     "<div class='empty-hero'>"
                     "<div class='empty-hero-title'>Pick a wallet, set your size, run the replay.</div>"
                     "<div class='empty-hero-sub'>Replays every recorded trade with fees and slippage priced in — "
-                    "equity curve vs flat-bet benchmark, win rate, drawdown and the full trade log, up to 90 days back.</div>"
+                    "equity curve vs flat-bet benchmark, win rate, drawdown and the full trade log, up to a year back.</div>"
                     "</div>",
                     unsafe_allow_html=True,
                 )

@@ -147,7 +147,9 @@ from app import ledger
 from app import pilot_result
 from app import scorecard as sc
 from app import signals as sig
+from app import study_datasets as sds
 from app import track_record as trec
+from app import venue_fees as vf
 from app.analysis_views import load_publish_payload
 from src import prediction_markets as md
 from src import trade_store as ts
@@ -1301,6 +1303,12 @@ def cross(
         "gate": gate,
         "as_of": md.now_utc_label(),
         "note": CROSS_GATE_NOTE.format(sim=min_similarity),
+        # Der allgemeine Polymarket-Taker-Satz ist nicht eindeutig belegt, und
+        # die NET-OF-FEES-Spalte ruht auf ihm. Der Satz steht als Konstante in
+        # app/venue_fees.py und wird hier gereicht, nicht nacherzaehlt.
+        "fee_note": vf.POLYMARKET_RATE_DISPUTE_NOTE,
+        "fee_rate_documented": vf.POLYMARKET_DISPUTED_RATE,
+        "fee_rate_low": vf.POLYMARKET_DISPUTED_RATE_LOW,
     }
 
 
@@ -1994,7 +2002,13 @@ def alerts(
         "rule_counts": gebaut["rule_counts"],
         "rules_not_evaluated": gebaut["rules_not_evaluated"],
         "holder_check": holder,
+        # Zwei verschiedene Zahlen, und die Seite braucht beide: page_size ist
+        # der Seitenschritt der Tabelle, delivered_cap der Schnitt, hinter dem
+        # der Endpunkt selbst nichts mehr schickt. shown_limit bleibt als
+        # Seitenschritt stehen, damit ein aelteres Frontend weiterlaeuft.
         "shown_limit": apv.ALERT_ROW_LIMIT,
+        "page_size": apv.ALERT_ROW_LIMIT,
+        "delivered_cap": apv.ALERT_ROW_CAP,
         "deliveries": apv.alert_delivery_view(_delivery_aggregates(), scanner_state),
         "as_of": md.now_utc_label(),
     }
@@ -2389,6 +2403,12 @@ def research(name: str) -> dict[str, Any]:
     payload = load_publish_payload(PUBLISH_DIR, filename + ".json")
     if payload is None:
         raise HTTPException(status_code=404, detail=f"no published data for '{name}'")
+    if filename == "microstructure":
+        # Die Datensaetze neben den Berichten werden beim Lesen nachgetragen,
+        # nicht nur beim Publizieren: sonst zeigte eine Nutzlast, die vor
+        # dieser Aenderung geschrieben wurde, die Links erst nach dem
+        # naechsten Publish-Lauf. Verlinkt wird nur, was im Repo liegt.
+        payload = sds.with_datasets(payload)
     if filename == "pipeline_forward":
         payload = apv.trim_pipeline_payload(payload)
     if filename == "pilot":
@@ -2421,7 +2441,14 @@ def resolved(limit: int = Query(250, ge=1, le=500)) -> dict[str, Any]:
         rows = cached(f"resolved_{limit}", _load, ttl=300.0)
     except Exception as exc:
         raise HTTPException(status_code=503, detail=f"closed markets unavailable: {_oeffentlich(exc)}")
-    return {"rows": rows, "total": len(rows), "as_of": md.now_utc_label()}
+    return {
+        "rows": rows,
+        "total": len(rows),
+        # Was der Feed hergibt und was nicht. Ohne diesen Satz sieht ein
+        # Abrechnungspreis aus wie ein letzter Preis vor der Abrechnung.
+        "price_note": apv.RESOLVED_PRICE_NOTE,
+        "as_of": md.now_utc_label(),
+    }
 
 
 @app.get("/api/track")
@@ -2473,6 +2500,29 @@ SIZING_MAP = {
 }
 
 
+def _trader_portfolio(wallet: str) -> dict[str, Any]:
+    # Portfolio-Groesse der Quell-Wallet fuer "Match trader %": offene
+    # Positionen zum Marktwert plus USDC-Kasse. Die Kasse kommt vom
+    # Polygon-RPC; ist er nicht erreichbar, steht das im Ergebnis, statt
+    # dass die Kasse still als null gilt.
+    from src import copy_trading as ct
+
+    positions = md.get_polymarket_positions(wallet, limit=250)
+    positions_value = float(pd.to_numeric(positions["value"], errors="coerce").fillna(0.0).sum()) if positions is not None and not positions.empty and "value" in positions else 0.0
+    cash: float | None
+    try:
+        cash = float(ct.fetch_polygon_usdc_balance(wallet))
+    except Exception:
+        cash = None
+    return {
+        "positions_value": positions_value,
+        "cash": cash,
+        "cash_read": cash is not None,
+        "total": positions_value + (cash or 0.0),
+        "open_positions": int(len(positions)) if positions is not None else 0,
+    }
+
+
 @app.post("/api/backtest", dependencies=[Depends(expensive_route_limit)])
 def backtest(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
     wallet = str(body.get("wallet", "")).strip()
@@ -2482,9 +2532,24 @@ def backtest(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
     sizing_mode, stake_field = SIZING_MAP.get(mode_key, SIZING_MAP["fixed"])
     stake_value = float(body.get(stake_field, 25.0))
     strategy = btr.STRATEGY_FADE if str(body.get("strategy", "copy")) == "fade" else btr.STRATEGY_COPY
+    # "Match trader %" setzt die Portfolio-Groesse der Wallet voraus; ohne
+    # sie waere jeder Einsatz null und jeder Kauf "out of cash".
+    portfolio: dict[str, Any] | None = None
+    if sizing_mode == btr.SIZING_PORTFOLIO:
+        try:
+            portfolio = cached(f"bt_portfolio_{wallet.lower()}", _trader_portfolio, wallet, ttl=BACKTEST_DATA_TTL)
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=f"trader portfolio could not be read: {exc}")
+        if float(portfolio.get("total", 0.0) or 0.0) <= 0.0:
+            raise HTTPException(
+                status_code=400,
+                detail="this trader's portfolio size could not be read (no open positions, cash unreadable) — pick Fixed $ or % of bankroll",
+            )
     config = btr.BacktestConfig(
         wallet=wallet,
-        days=int(body.get("window_days", 30)),
+        # Bis zu einem Jahr; der Zeilen-Deckel der Engine (30.000 Trades)
+        # schneidet aktive Wallets frueher ab und sagt das im Ergebnis.
+        days=max(1, min(365, int(body.get("window_days", 30)))),
         bankroll=float(body.get("bankroll", 1000.0)),
         sizing_mode=sizing_mode,
         stake_value=stake_value,
@@ -2504,6 +2569,7 @@ def backtest(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
         # Manuelle Folge-Schwelle: nur Quell-Trades ab diesem Notional
         # kopieren. Der Auto-Fit setzt bei Bedarf seine eigene.
         min_follow_notional=max(0.0, float(body.get("min_notional", 0.0))),
+        trader_portfolio_value=float(portfolio["total"]) if portfolio else 0.0,
     )
     key = "bt_" + "_".join(str(v) for v in dataclasses.astuple(config))
     # Die Daten des Fensters (Trades in Zeitscheiben, Aufloesungen) haengen
@@ -2517,10 +2583,14 @@ def backtest(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
 
     def _run() -> dict[str, Any]:
         daten = cached(daten_key, _daten, ttl=BACKTEST_DATA_TTL)
-        result = btr.run_backtest(config, data=daten)
+        # Preisverlaeufe fuer die Bewertungskurve; sie bleiben im
+        # WindowData-Cache, jeder weitere Lauf im Fenster liest sie dort.
+        result = btr.run_backtest(config, data=daten, fetch_price_history=md.get_polymarket_price_history_lifetime)
         payload = apv.backtest_payload(result)
         payload["data_loaded_at"] = daten.loaded_at.isoformat()[:16] + "Z"
         payload["data_rows"] = int(len(daten.trades)) if daten.trades is not None else 0
+        if portfolio:
+            payload["trader_portfolio"] = portfolio
         return payload
 
     try:

@@ -30,6 +30,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
+from app import study_datasets as sds
 from app import venue_fees as vf
 
 REPORT_DIR = Path("docs/research")
@@ -1374,6 +1375,12 @@ def build_payload(root: Path | str = ".", *, jetzt: datetime | None = None) -> d
         }
         if studie.bild:
             eintrag["bild"] = f"docs/research/{studie.bild}"
+        # Der Datensatz neben dem Bericht, sofern er wirklich da liegt. Ohne
+        # ihn steht auf der Karte "wie gemessen" und "womit gerechnet", aber
+        # nicht "womit nachrechnen".
+        daten_links = sds.dataset_links(studie.report, root)
+        if daten_links:
+            eintrag["daten"] = daten_links
         eintrag.update(teil)
         studien.append(eintrag)
 

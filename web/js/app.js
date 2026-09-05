@@ -1,11 +1,11 @@
 // Market Intel terminal — vanilla JS port of the design reference.
 // One controller class; each workspace renders as an HTML string from state.
 
-import { num, money, volume, esc, seriesPoints, tapeMatches, liveStatusLabel } from './util.js';
-import { STUDIEN } from './studies.js';
+import { num, money, volume, esc, seriesPoints, tapeMatches, liveStatusLabel, livePollFaellig, LIVE_TAKT_MS } from './util.js';
+import { STUDIEN, studienIndexAus as studienIndexIn } from './studies.js';
 import { caveatZeile, registerAktualisieren } from './claims.js';
 import { apiGet, apiGetRaw, apiPost } from './api.js';
-import { renderOverview, renderMarkets, renderFlow, renderCross, renderResolved } from './pages/core_pages.js';
+import { renderOverview, renderMarkets, renderFlow, renderCross, renderResolved, landingSubline } from './pages/core_pages.js';
 import { ARB_ANKER } from './pages/arb_scan_page.js';
 import { renderTraders, renderWhale, renderRisk, renderTrack } from './pages/trader_pages.js';
 import { renderBacktester, renderCopy, renderPortfolio } from './pages/trading_pages.js';
@@ -95,9 +95,11 @@ class Terminal {
       tapeQuery: '', tapePlatform: 'all', tapeSide: 'all', tapeOutcome: 'all',
       // Whale flow: Sortierung der Wallet-Zeilen — 'total' | 'biggest' | 'prints'.
       whaleSort: 'total',
-      resQuery: '', resAnswer: 'all', resWindow: 'all', resError: 'all', resSort: 'recent',
+      resQuery: '', resAnswer: 'all', resWindow: 'all', resSort: 'recent',
       setMarketSample: 250, setTradeSample: 250, setWhale: 2500, setBankroll: 1000, setFee: 20, setSlip: 15,
       alertTab: 'signals', alertQuery: '', alertPlatform: 'all', alertType: 'all', alertScope: 'all',
+      // Seitenzaehler der Signaltabelle. Jeder Filter setzt ihn zurueck.
+      alertPage: 1,
       thMove: 5, thSpread: 3, thWhale: 2500, thEnding: 72, thHolder: 40,
       riskFilter: 'all', riskOpen: {},
       detail: null,
@@ -172,6 +174,8 @@ class Terminal {
     this.traders = [];
     this.risks = [];
     this.tape = [];
+    // Wann der Live-Poll zuletzt lief; 0 heisst noch nie.
+    this._letzterPoll = 0;
     this.crossPairs = [];
     this.studies = STUDIEN;
     // Herkunft je Container: null heisst noch keine Antwort, sonst
@@ -199,6 +203,14 @@ class Terminal {
         // Drittes Segment = Karte auf der Seite (#research/microstructure/<id>)
         // oder der Reiter der Live runs (#research/live-runs/timing).
         this._pendingAnchor = segmente[2] && !this.tabAusAdresse(segmente) ? segmente.join('/') : null;
+      } else {
+        // Segment zeigt auf keine Studie: die Forschungsseite auf ihrem
+        // Standardreiter oeffnen und die Adresse darauf zurechtruecken, wie
+        // es die alte Scanner-Adresse oben schon tut. Eine Adresse, die eine
+        // Studie nennt, die nicht zu sehen ist, ist schlimmer als ein Reiter,
+        // den niemand verlangt hat.
+        this.state.page = 'research';
+        try { history.replaceState(null, '', '#research/' + this.studienSlug(this.state.researchTab)); } catch (e) { /* file:// */ }
       }
     }
     // Deep link #wallet/<address>: the page opens on that wallet and fetches
@@ -218,7 +230,7 @@ class Terminal {
     // when its tab is opened — null until then.
     // wallet: one entry per analysed address — { herkunft: 'loading' | 'live'
     // | 'fehler', data, fehler, status, retryAfter }.
-    this.liveData = { leaderboard: null, cross: null, arbScan: null, risk: null, riskLog: null, alerts: null, copy: null, portfolio: null, research: {}, backtest: null, walletDetail: {}, wallet: {}, riskBook: {}, walletSimilar: {}, walletEntity: {}, graph: null };
+    this.liveData = { leaderboard: null, cross: null, arbScan: null, arbResolutions: null, risk: null, riskLog: null, alerts: null, copy: null, portfolio: null, research: {}, backtest: null, walletDetail: {}, wallet: {}, riskBook: {}, walletSimilar: {}, walletEntity: {}, graph: null };
     // Venue-weite Suche (/api/search): die Palette filtert sonst nur die
     // geladenen Top-Volumen-Maerkte — alles ausserhalb davon fand sie nie.
     // q traegt die Anfrage, zu der die Treffer gehoeren; status ist
@@ -587,11 +599,7 @@ class Terminal {
   }
 
   studienIndexAus(slug) {
-    if (!slug) return -1;
-    for (let i = 0; i < this.studies.length; i += 1) {
-      if (this.studienSlug(i) === slug) return i;
-    }
-    return -1;
+    return studienIndexIn(this.studies, slug);
   }
 
   // #research/arb-scan (and #research/arb_scan, typed from the file name)
@@ -750,6 +758,9 @@ class Terminal {
 
   // ---- data layer ----
   async pollLive() {
+    // Der Zeitstempel entscheidet auf den ruhigen Routen, ob der naechste
+    // Weckruf ueberhaupt etwas holt.
+    this._letzterPoll = Date.now();
     try {
       const [mk, tp] = await Promise.all([
         // 500 statt 250: mit dem kleinen Fenster sah die Marktseite kaum
@@ -823,7 +834,25 @@ class Terminal {
         this.landing.herkunft[key] = { quelle: 'fehler', fehler: String(err && err.message ? err.message : err) };
       }
     }));
+    this.schmaleZusammenfassung();
     this.render();
+  }
+
+  // Die eine Zahlenzeile der Schmalseiten-Fassung (index.html,
+  // #narrow-facts). Unter 768px liegt die Huelle nicht im Layout, also
+  // rendert render() dort nichts Sichtbares; diese Zeile ist das Einzige,
+  // was ein Telefon an Zahlen zu sehen bekommt. Sie kommt aus derselben
+  // Nutzlast wie die Unterzeile der Startseite. Ohne Nutzlast bleibt sie
+  // leer, statt einen Platzhalter zu behaupten.
+  schmaleZusammenfassung() {
+    const ziel = document.getElementById('narrow-facts');
+    if (!ziel) return;
+    const micro = this.landing && this.landing.micro;
+    if (!micro || !Array.isArray(micro.studien) || !micro.studien.length) {
+      ziel.textContent = '';
+      return;
+    }
+    ziel.textContent = landingSubline(this.landing);
   }
 
   // Das Caveat-Register von /api/claims. Die Oberflaeche traegt eine
@@ -928,6 +957,10 @@ class Terminal {
       // scanner: executable edge"). It is one small request, asked for
       // first so it does not wait behind the pair scan below.
       const scanner = this.holen('arbScan', '/api/research/arb-scan');
+      // Our resolution pass over the same journal (arb_resolutions.json);
+      // it changes only when the script runs, so the 60 s refresh below
+      // leaves it alone.
+      const aufloesung = this.holen('arbResolutions', '/api/research/arb-resolutions');
       // While the request runs the page shows a loading line; the server
       // already applies the honesty gate (similarity >= 0.5, volume on both
       // venues), so nothing here lowers a threshold to make rows appear.
@@ -936,6 +969,7 @@ class Terminal {
       });
       this.herkunft.cross = this.herkunftAus('cross', this.crossPairs);
       await scanner;
+      await aufloesung;
     } else if (page === 'risk') {
       // Bewusst nicht mehr von der Startseite: der erste Aufbau paged einen Tag
       // Prints und schlaegt Marktkategorien nach, das blockierte die Overview.
@@ -1612,7 +1646,13 @@ class Terminal {
         // The third segment is a card anchor (#research/microstructure/<id>)
         // unless it names a Live-runs tab (#research/live-runs/timing).
         this._pendingAnchor = segmente[2] && !this.tabAusAdresse(segmente) ? segmente.join('/') : null;
-        this.setState({ page: 'research', researchTab: i >= 0 ? i : this.state.researchTab, detail: null });
+        const reiter = i >= 0 ? i : this.state.researchTab;
+        this.setState({ page: 'research', researchTab: reiter, detail: null });
+        // Nennt die Adresse eine Studie, die es nicht gibt, ruecke sie auf
+        // die zurecht, die wirklich zu sehen ist.
+        if (segmente[1] && i < 0) {
+          try { history.replaceState(null, '', '#research/' + this.studienSlug(reiter)); } catch (e) { /* file:// */ }
+        }
         this.fetchPageData('research');
       } else if (segmente[0] === 'wallet') {
         // #wallet/<addr> from back/forward or a pasted link: analyse that
@@ -1652,7 +1692,16 @@ class Terminal {
     // kostet aber rund 55 MB je Stunde und auf der Marktseite alle 30 s einen
     // Render von ~114 ms. Also: nur im sichtbaren Tab, und beim Zurueckkommen
     // einmal sofort nachziehen, damit der Stand nicht veraltet wirkt.
-    setInterval(() => { if (!document.hidden) this.pollLive(); }, 30000);
+    // Dazu: der Takt haengt an der offenen Route. Auf Methodology,
+    // Post-mortems, Field notes, jeder Studienseite, Backtester und Settings
+    // steht keine dieser Zeilen im Rumpf, dort reichen fuenf Minuten fuer den
+    // LIVE-Punkt der Kopfzeile und den Zaehler am Eintrag Live tape. Beide
+    // tragen ihren Stand, ein aelterer Stand behauptet also nichts Falsches.
+    setInterval(() => {
+      if (document.hidden) return;
+      if (!livePollFaellig(this.state.page, !!(this.state.detail || this.state.searchOpen), this._letzterPoll, Date.now())) return;
+      this.pollLive();
+    }, LIVE_TAKT_MS);
     document.addEventListener('visibilitychange', () => { if (!document.hidden) this.pollLive(); });
     // The copy desk re-reads its books every 30 s while it is open (the
     // daemon writes between renders); not while an action is in flight, and
@@ -1683,6 +1732,17 @@ class Terminal {
       ledgerVerwerfen();
       this.fetchPageData('research');
     }, 60000);
+    // "Show the terminal anyway": wer auf einem Telefon trotzdem die Huelle
+    // will, bekommt sie. Die Marke steht am Wurzelelement, das CSS haengt
+    // daran; nichts wird gespeichert, ein Neuladen ist wieder die lesbare
+    // Fassung.
+    const schalter = document.getElementById('narrow-override');
+    if (schalter) {
+      schalter.addEventListener('click', () => {
+        document.documentElement.setAttribute('data-narrow-override', '1');
+        this.render();
+      });
+    }
     this.ladeLanding();
     this.ladeRegister();
     this.fetchPageData(this.state.page);

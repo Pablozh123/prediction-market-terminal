@@ -57,6 +57,29 @@
 </div>
 <div id="search"></div>
 <div class="narrow-note"><b>Built for a desktop screen.</b> On a narrow device this page is shown zoomed out, not reflowed: the order-book and tape tables need at least 1280px. Open it on a wide screen to read it.</div>
+<!-- Below 768px the shell is taken out of the layout (css/terminal.css) and
+     this stands in its place, at the device's own width and therefore
+     readable. The one line of figures is filled from the published payload by
+     app.js; until it answers the line stays empty rather than carrying a
+     placeholder. -->
+<section class="narrow-fallback" aria-label="Summary for small screens">
+  <p class="kicker">Market Intel</p>
+  <h1>Prediction-market microstructure, measured</h1>
+  <p>Polymarket and Kalshi order books, recorded by this project&#39;s own collectors, then read with the costs left in. Every figure names its sample size and the day it was taken, and results that came out negative are published as they are.</p>
+  <p class="facts" id="narrow-facts"></p>
+  <ul>
+    <li>Frozen studies on order-book imbalance, order flow, market making, cross-venue gaps, reward pools and resolution rules.</li>
+    <li>A small-stake live run and a pre-registered pilot, both closed and reported.</li>
+    <li>Wallet track records counted per event and over settled positions only, with the sample gate stated.</li>
+  </ul>
+  <p class="note">The terminal itself needs a wide screen: the order-book and tape tables carry more columns than a phone can lay out. On this device it would be shown zoomed out rather than reflowed.</p>
+  <div class="links">
+    <button type="button" id="narrow-override">Show the terminal anyway</button>
+    <a href="https://github.com/Pablozh123/prediction-market-terminal">Source and reports</a>
+    <a href="./imprint.html">Imprint</a>
+    <a href="./privacy.html">Privacy</a>
+  </div>
+</section>
 <script type="module" src="./js/app.js"></script>
 </body>
 </html>

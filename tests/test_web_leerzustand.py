@@ -402,14 +402,53 @@ class WebLeerzustandTest(unittest.TestCase):
         quelltext = (WURZEL / "web" / "js" / "app.js").read_text(encoding="utf-8")
         self.assertIn("min_holder=", quelltext)
 
+    def test_methodik_erklaert_wie_eine_wallet_gezaehlt_wird(self) -> None:
+        # Die vier Korrekturen aus app/track_record.py sind der Grund, warum
+        # unsere Quote unter der eines Vanity-Leaderboards liegt. Sie standen
+        # auf keiner Seite. Der Text muss auf der Methodik-Seite ankommen,
+        # nicht nur im Modulkopf.
+        text = _sichtbarer_text(self.ausgabe["live"]["research_methodology"])
+        self.assertIn("HOW A WALLET RECORD IS COUNTED", text)
+        self.assertIn("one record per event", text)
+        self.assertIn("closed-positions endpoint", text)
+        self.assertIn("$25,000", text)
+        self.assertIn("0.5%", text)
+        self.assertIn("insufficient sample", text)
+        self.assertIn("Settled rows only", text)
+        # Ohne Beleg keine Behauptung ueber fremde Zahlen: der Satz sagt, dass
+        # unsere Quote tiefer liegt, nicht was ein anderes Werkzeug zeigt.
+        self.assertNotIn("Polymarket leaderboard shows", text)
+
     def test_abgeschnittene_signalliste_sagt_es(self) -> None:
         live = _sichtbarer_text(self.ausgabe["live"]["alerts"])
-        self.assertIn("showing the top 60 of 125 signals", live)
+        # Der Satz gilt der Lieferung, nicht der Seite: geliefert wurden drei
+        # Zeilen, gefunden hat der Scan 125.
+        self.assertIn("delivered the top 3 of 125 signals", live)
         # Eine Art, die der Schnitt komplett verschluckt, wird benannt —
         # sonst widerspricht ihre Regelkarte scheinbar der Tabelle.
         self.assertIn("none of ENDING SOON (120) made the cut", live)
         # Eine Art mit null Treffern gehoert nicht in diese Aufzaehlung.
         self.assertNotIn("FAST MOVER (0)", live)
+
+    def test_lange_signalliste_laesst_sich_blaettern(self) -> None:
+        # 150 gelieferte Zeilen, Seitengroesse 60. Die Seite sagt, wie viele
+        # davon zu sehen sind, und bietet den Rest an. Vorher endete die
+        # Lieferung selbst bei 60 und der Rest war unerreichbar.
+        seite1 = _sichtbarer_text(self.ausgabe["live"]["alerts_lang"])
+        self.assertIn("showing 60 of 150 signals matching these filters", seite1)
+        self.assertIn("show 60 more", seite1)
+        self.assertNotIn("collapse", seite1)
+
+        seite2 = _sichtbarer_text(self.ausgabe["live"]["alerts_lang_seite2"])
+        self.assertIn("showing 120 of 150 signals matching these filters", seite2)
+        # Der letzte Schritt nennt den echten Rest, nicht wieder die volle
+        # Seitengroesse.
+        self.assertIn("show 30 more", seite2)
+        self.assertIn("collapse", seite2)
+
+        # Eine Lieferung, die auf eine Seite passt, bekommt keinen Fuss.
+        kurz = _sichtbarer_text(self.ausgabe["live"]["alerts"])
+        self.assertNotIn("signals matching these filters", kurz)
 
     def test_regelschalter_blenden_aus_und_sagen_es(self) -> None:
         live = _sichtbarer_text(self.ausgabe["live"]["alerts"])
@@ -927,6 +966,37 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertIn("<title>Market Intel — prediction-market microstructure, measured</title>", index)
 
     # ---- Cross-venue Ehrlichkeits-Schranke ---------------------------------
+
+    def test_cross_venue_traegt_den_eigenen_befund(self) -> None:
+        # Die Seite zeigt einen Live-Scan mit Preisluecken. Ob so eine Luecke
+        # Geld ist, hat die eingefrorene Studie beantwortet, und zwar mit
+        # nein. Der Befund stand nur unter Research, also nicht dort, wo
+        # jemand auf eine Luecke sieht. Er kommt aus der Nutzlast, nicht aus
+        # dem Code: Frage, Verdikt, Basis und Stand der Datei.
+        for name in ("cross", "cross_beide_studien"):
+            text = _sichtbarer_text(self.ausgabe["live"][name])
+            with self.subTest(name=name):
+                self.assertIn("WHAT WE MEASURED ON PAIRS LIKE THESE", text)
+                self.assertIn("Are price gaps between the two venues arbitrage?", text)
+                self.assertIn("No, carry.", text)
+                # n und Fenster stehen an der Zahl.
+                self.assertIn("900 markets · 8 pairs · 2026-07-30", text)
+                # Der Stand der Datei, damit niemand den Befund fuer live haelt.
+                self.assertIn("Frozen study, not a live number · snapshot 2026-08-16 23:32 UTC", text)
+
+        # Liegt die zweite Studie in der Nutzlast, steht sie mit dabei.
+        beide = _sichtbarer_text(self.ausgabe["live"]["cross_beide_studien"])
+        self.assertIn("How long does such a gap stay open?", beide)
+        self.assertIn("Most stayed open at every single moment observed.", beide)
+        self.assertIn("5 pairs · 2026-07-31", beide)
+
+    def test_cross_venue_erfindet_ohne_nutzlast_keinen_befund(self) -> None:
+        # Ohne microstructure.json steht der Dateiname da und keine Zahl.
+        leer = _sichtbarer_text(self.ausgabe["leer"]["cross"])
+        self.assertIn("WHAT WE MEASURED ON PAIRS LIKE THESE", leer)
+        self.assertIn("microstructure.json", leer)
+        self.assertNotIn("No, carry", leer)
+        self.assertNotIn("8 pairs", leer)
 
     def test_cross_venue_schranke_und_ladezustand(self) -> None:
         # Laufende Anfrage: Ladezeile mit Quelle. Antwort ohne Treffer: der
@@ -2123,6 +2193,18 @@ class WebLeerzustandTest(unittest.TestCase):
         unentschieden = _sichtbarer_text(self.ausgabe["live"]["copy_sync_undecided"])
         self.assertIn("2 settlement(s) undecided: the resolved outcome was not read", unentschieden)
 
+    def test_cross_venue_sagt_dass_der_gebuehrensatz_strittig_ist(self) -> None:
+        # Die Spalte NET OF FEES ruht auf einem Satz, den die Venue-Doku mit
+        # fuenf Prozent angibt und mehrere Sekundaerquellen mit drei. Die
+        # Gebuehr ist linear im Satz, also verschiebt sich jede Netto-Zahl.
+        text = _sichtbarer_text(self.ausgabe["live"]["cross"])
+        self.assertIn("The general Polymarket taker rate is not settled", text)
+        # Der Hinweis traegt eine Groesse: wie viele der gezeigten Paare
+        # ueberhaupt betroffen sind.
+        self.assertIn("1 of 1 pairs shown price the Polymarket leg at that rate", text)
+        # Und die Richtung: der gezeigte Wert ist das konservative Ende.
+        self.assertIn("the conservative end", text)
+
     def test_copy_desk_filters_settings_and_rows(self) -> None:
         # Trader filter: w2 has no orders, and the table says so instead of
         # showing w1's row.
@@ -2173,6 +2255,17 @@ class WebLeerzustandTest(unittest.TestCase):
         # Inline rows.
         self.assertIn("NOTE — domain, cadence, why you follow", _sichtbarer_text(self.ausgabe["live"]["copy_edit_row"]))
 
+    def test_die_sample_schranke_sagt_wozu_sie_da_ist(self) -> None:
+        # Neben der Kachel stand nur die Schwelle. Ohne den Grund liest sich
+        # eine niedrigere Schwelle als laxere Pruefung, und die eines anderen
+        # Anbieters als die serioesere. Der Satz kommt aus dem Endpunkt, das
+        # Intervall darin ist gerechnet.
+        text = _sichtbarer_text(self.ausgabe["live"]["wallet_tab_record"])
+        self.assertIn("The gate is 10 resolved markets and 14 days of span", text)
+        self.assertIn("whether a number is shown at all", text)
+        self.assertIn("not whether it can be believed", text)
+        self.assertIn("95% interval of 40% to 89%", text)
+
     def test_risk_karte_zeigt_das_wallet_buch(self) -> None:
         # Before the answer: "reading", no side invented. With the answer: the
         # NO buys of a net-NO wallet ADD, the NO buys of a net-YES wallet are a
@@ -2205,6 +2298,24 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertIn("No cash events reported by /api/copy", _sichtbarer_text(self.ausgabe["live"]["copy_cash"]))
         self.assertIn("No open paper positions reported by /api/copy", _sichtbarer_text(self.ausgabe["live"]["copy_positions"]))
 
+    def test_die_portfolio_kopfzeile_schreibt_jeden_betrag_gleich(self) -> None:
+        # In derselben Zeile standen $1,000.00 und $1000.00. Zwei
+        # Schreibweisen fuer dieselbe Zahl, nebeneinander.
+        gross = _sichtbarer_text(self.ausgabe["live"]["portfolio_gross"])
+        self.assertIn("$12,345.60", gross)
+        self.assertIn("+$2,468.90", gross)
+        self.assertIn("$9,876.50", gross)
+        self.assertNotIn("$12345.60", gross)
+        self.assertNotIn("$9876.50", gross)
+
+    def test_die_portfolio_kopfzeile_erfindet_kein_nan(self) -> None:
+        # Drei der vier Kacheln pruefen auf ein fehlendes Feld und schreiben
+        # dann einen Strich. VALUE NOW rechnete ungeprueft und schrieb "$NaN".
+        ohne = _sichtbarer_text(self.ausgabe["live"]["portfolio_ohne_zahlen"])
+        self.assertNotIn("NaN", ohne)
+        kopf = ohne[ohne.index("VALUE NOW"):ohne.index("Positions")]
+        self.assertEqual(kopf.count("—"), 4)
+
     def test_monatstabelle_rechnet_gegen_den_aufgeloesten_einsatz(self) -> None:
         """Die Spalte hiess ROI und rechnete gegen ALLE Einsaetze des Monats.
 
@@ -2223,6 +2334,13 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertNotIn("+18.0%", text)
         self.assertIn("open stake does not dilute it", text)
         self.assertIn("measured against the one-time deposit", text)
+
+    def test_die_wallet_sagt_wenn_zwei_kacheln_dieselbe_zahl_zeigen(self) -> None:
+        # "PNL PER $ OF VOLUME" und die realisierte Rendite je Dollar sind
+        # algebraisch dieselbe Zahl. Zwei Kacheln mit derselben Zahl unter
+        # zwei Namen lesen sich wie zwei Belege; es ist einer.
+        text = _sichtbarer_text(self.ausgabe["live"]["wallet_tab_record"])
+        self.assertIn("the same figure as the realized edge below, without its interval", text)
 
     def test_backtester_trefferquote_zaehlt_nur_geschlossene_kopien(self) -> None:
         """Offene Kopien duerfen die Trefferquote nicht verduennen.
@@ -2245,6 +2363,41 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertIn("35W / 25L of 60 decided positions", text)
         self.assertIn("3 back at cost", text)
 
+    def test_die_wallet_zeigt_kalibrierung_und_gewinn_herkunft(self) -> None:
+        # /api/wallet liefert calibration und attribution seit jeher, die
+        # Seite zeigte beides nie. Eine Trefferquote laesst zwei Fragen offen:
+        # ob die bezahlten Preise stimmten, und ob ein einziger Treffer die
+        # Bilanz traegt. Genau die beantworten die zwei Karten.
+        text = _sichtbarer_text(self.ausgabe["live"]["wallet_tab_record"])
+        self.assertIn("CALIBRATION · ENTRY PRICE VS OUTCOME", text)
+        # n und Intervall an der Quote, nicht nur die Quote.
+        self.assertIn("95% CI [47%, 91%] · n 12 resolved", text)
+        self.assertIn("62.0¢", text)
+        # Die Brier-Zahl steht nie allein: erst der Vergleich ist lesbar.
+        self.assertIn("0.180 vs 0.188", text)
+        self.assertIn("lower is better", text)
+        # Jeder Bucket traegt sein eigenes n und sein eigenes Intervall.
+        # Beides steht im Diagramm, also im Markup, nicht im Fliesstext.
+        html = self.ausgabe["live"]["wallet_tab_record"]
+        self.assertIn("predicted 20% · realised 67% · n 3", html)
+        self.assertIn("predicted 90% · realised 80% · n 5", html)
+
+        self.assertIn("PROFIT ATTRIBUTION", text)
+        self.assertIn("$210.00", text)
+        self.assertIn("Harness event that carried the record", text)
+        self.assertIn("6 events that made money", text)
+        # Der Satz, der die Zahlen einordnet: Anteile am Bruttogewinn, keine
+        # Nettobilanz. Ohne ihn liest sich "45% Top event" wie ein Anteil am
+        # Ergebnis.
+        self.assertIn("Shares of gross profit, with losses not netted against them", text)
+
+    def test_ohne_diese_bloecke_nennt_die_wallet_die_quelle(self) -> None:
+        # Kein Platzhalter und keine Null, sondern der fehlende Endpunkt.
+        for name in ("wallet_empty_record",):
+            text = _sichtbarer_text(self.ausgabe["live"][name])
+            with self.subTest(name=name):
+                self.assertNotIn("$0.00 gross profit", text)
+
     def test_tape_und_whale_nennen_die_summierte_spanne(self) -> None:
         """Jede Summe ueber das Tape sagt, ueber welche Spanne sie geht.
 
@@ -2261,6 +2414,26 @@ class WebLeerzustandTest(unittest.TestCase):
         whale = _sichtbarer_text(self.ausgabe["live"]["whale"])
         self.assertIn("SUMMED OVER Window:", whale)
 
+    def test_resolved_verspricht_keine_messung_die_die_daten_nicht_hergeben(self) -> None:
+        # Die Seite versprach "the gap between the two is what the crowd got
+        # wrong" und zeigte dafuer eine Zahl, die strukturell null ist: der
+        # Feed liefert fuer einen abgerechneten Markt nur den
+        # Abrechnungspreis, und der Ausgang wird aus genau diesem Preis
+        # abgeleitet.
+        text = _sichtbarer_text(self.ausgabe["live"]["resolved"])
+        self.assertNotIn("CROWD OFF BY", text)
+        self.assertNotIn("BIGGEST SURPRISE", text)
+        self.assertNotIn("what the crowd got wrong", text)
+        self.assertNotIn("Biggest surprise", text)
+        # Die Spalte heisst, was sie ist, und der Hinweis nennt Quelle und
+        # das, was fehlt.
+        self.assertIn("SETTLED PRICE", text)
+        self.assertIn("not the last price before settlement", text)
+        self.assertIn("CLOB price history", text)
+        # Und die Kachel belegt es an den Zeilen selbst.
+        self.assertIn("PRICE NOT 0 OR 100", text)
+        self.assertIn("1 of 2", text)
+
     def test_resolved_und_whale_tragen_einen_as_of_stempel(self) -> None:
         """Beide Seiten zeigen abgeleitete Live-Daten und sagen, von wann.
 
@@ -2273,6 +2446,27 @@ class WebLeerzustandTest(unittest.TestCase):
         whale = _sichtbarer_text(self.ausgabe["live"]["whale"])
         self.assertIn("as of 2026-08-17 10:00 UTC", whale)
 
+    def test_das_laufband_schreibt_die_veraenderung_mit_einheit(self) -> None:
+        # Im Band stand "62¢ +3" — der Preis mit Einheit, die Veraenderung
+        # ohne, obwohl beides Cent sind und die Marktseite dieselbe Zahl
+        # "+87¢" nennt.
+        html = self.ausgabe["live"]["overview"]
+        self.assertIn("+3¢", _sichtbarer_text(html))
+        self.assertNotIn(">+3<", html)
+
+    def test_die_quellzahl_des_copy_desks_sagt_wessen_und_welcher_zeitraum(self) -> None:
+        # Sie stand als "first source +$648,516 same window" da. Das Fenster
+        # ist nicht dasselbe: die Zahl ist die Monatskurve des gefolgten
+        # Wallets, das Papierkonto laeuft seit dem Tag des Folgens.
+        text = _sichtbarer_text(self.ausgabe["live"]["copy_mit_quellkurve"])
+        self.assertIn("+$648,516 · its own official PnL, 1 month", text)
+        self.assertNotIn("same window", text)
+        # Und sie nennt das Wallet, nicht "first source".
+        self.assertNotIn("first source", text)
+        # Die Legende der Kurve nennt denselben Zeitraum.
+        perf = _sichtbarer_text(self.ausgabe["live"]["copy_perf"])
+        self.assertIn("(official PnL, 1 month)", perf)
+
     def test_markets_schnellfilter_heisst_was_er_tut(self) -> None:
         """"By volume" filterte nichts und sortierte nichts; der Zustand heisst "All"."""
 
@@ -2280,11 +2474,48 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertNotIn("By volume", text)
         self.assertIn("All Ending soon New", text)
 
+    def test_die_studienkarte_verlinkt_den_datensatz(self) -> None:
+        # Bericht und Modul sagen, wie gemessen und womit gerechnet wurde.
+        # Ohne die Zahlen selbst kann niemand nachrechnen.
+        text = _sichtbarer_text(self.ausgabe["live"]["research_microstructure"])
+        self.assertIn("FULL REPORT", text)
+        self.assertIn("SOURCE MODULE", text)
+        self.assertIn("DATA · CSV", text)
+        self.assertIn("DATA · JSON", text)
+        html = self.ausgabe["live"]["research_microstructure"]
+        self.assertIn("docs/research/orderflow_rest-2026-07.csv", html)
+
+    def test_ohne_datensatz_steht_keine_leere_beschriftung(self) -> None:
+        # Die leere Nutzlast traegt kein daten-Feld. Dann darf auch kein
+        # DATA-Knopf erscheinen, der ins Nichts fuehrt.
+        leer = _sichtbarer_text(self.ausgabe["leer"]["research_microstructure"])
+        self.assertNotIn("DATA ·", leer)
+
     def test_studienregister_verspricht_keine_diagramme(self) -> None:
         """study.chart hat keinen Verbraucher mehr; ein Titel ohne Kurve waere ein Versprechen."""
 
         quelle = (WURZEL / "web" / "js" / "studies.js").read_text(encoding="utf-8")
         self.assertNotIn("chart:", quelle)
+
+    def test_die_wallet_rechnet_die_fehlenden_verluste_vor(self) -> None:
+        # Der Zusatz "1 unredeemed loss not in it" liess den Leser selbst
+        # rechnen. Was die Quote wert ist, wenn die bekannten fehlenden
+        # Verluste im Nenner stehen, steht jetzt daneben und als eigene Zeile.
+        kopf = _sichtbarer_text(self.ausgabe["live"]["wallet"])
+        self.assertIn("1 unredeemed loss not in it · 67% with them", kopf)
+
+        record = _sichtbarer_text(self.ausgabe["live"]["wallet_tab_record"])
+        self.assertIn("Lower bound — the same, with the 1 unredeemed loss counted", record)
+        self.assertIn("8 / 12", record)
+        # Und die Schranke traegt ihr eigenes Intervall, nicht das der Quote.
+        self.assertIn("[39%, 86%]", record)
+
+        # Dieselbe Korrektur an der zweiten Kennzahl derselben Karte, und
+        # dort ausdruecklich ohne vorgetaeuschtes Intervall.
+        self.assertIn("Lower bound with the 1 unredeemed loss counted", record)
+        self.assertIn("$10.00 of stake, no return", record)
+        self.assertIn("32.8¢ per $", record)
+        self.assertIn("No interval: the omitted rows are not in the bootstrap sample", record)
 
     def test_leaderboard_zeigt_geschaetzte_score_teile_nicht_als_zahl(self) -> None:
         """Ein Bestandteil ohne Eingabe im Feed erscheint als "assumed", nicht als Wert.
@@ -2303,6 +2534,20 @@ class WebLeerzustandTest(unittest.TestCase):
         # Und die Seite sagt, worauf der Score ruht, samt Groesse der Menge.
         self.assertIn("65% of the composite weight", text)
         self.assertIn("n = 250 wallets ranked together", text)
+
+    def test_die_wallet_faengt_mit_dem_wichtigsten_satz_an(self) -> None:
+        # Die Seite rechnet alles aus und begrub die Antwort unter zwanzig
+        # Kacheln. Der Kopf steht jetzt vor allem anderen, und er sagt zuerst,
+        # ob die Stichprobe ueberhaupt ein Urteil traegt.
+        text = _sichtbarer_text(self.ausgabe["live"]["wallet"])
+        kopf = text.index("READ THIS FIRST")
+        self.assertLess(kopf, text.index("SETTLED PNL"))
+        self.assertIn("below the threshold for a verdict", text)
+        self.assertIn("not as a finding", text)
+        # Jede Zeile darunter traegt n oder Intervall.
+        self.assertIn("Corrected win rate 73% on 11 events", text)
+        self.assertIn("95% CI 43% to 91%", text)
+        self.assertIn("does not clear the sample gate", text)
 
     def test_studienstempel_ueberlebt_die_publish_uhr(self) -> None:
         """Der Stempel aus studies.js steht auf der Seite, nicht nur die Uhr.

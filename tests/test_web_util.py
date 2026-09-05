@@ -74,6 +74,30 @@ class WebUtilAbbildungTests(unittest.TestCase):
         self.assertEqual(print_["price"], "15.0¢")
         self.assertEqual(print_["size"], 30)
 
+    def test_eine_studienadresse_findet_ihre_studie_auch_mit_bindestrich(self) -> None:
+        # Der Eintrag in der Seitenleiste heisst "Post-mortems", die Studie
+        # selbst "Postmortems". Wer die Beschriftung abschreibt, tippt
+        # #research/post-mortems, und das zeigte auf keine Studie. Die Seite
+        # blieb dann still auf dem Reiter stehen, der vorher offen war: die
+        # Adresse sagte das eine, die Seite zeigte das andere.
+        a = self.ausgabe["studien_adressen"]
+        self.assertIn("postmortems", a["kanonisch"])
+        self.assertEqual(a["postmortems"], a["mit_bindestrich"])
+        self.assertEqual(a["postmortems"], a["mit_unterstrich_und_gross"])
+        self.assertGreaterEqual(a["postmortems"], 0)
+        # Umgekehrt genauso: die kanonische Adresse traegt den Bindestrich,
+        # die Schreibweise ohne muss trotzdem ankommen.
+        self.assertIn("field-notes", a["kanonisch"])
+        self.assertEqual(a["feldnotizen_mit_strich"], a["feldnotizen_ohne_strich"])
+
+    def test_ein_segment_ohne_studie_bleibt_ohne_studie(self) -> None:
+        # Grosszuegig heisst nicht wahllos: was auf nichts zeigt, findet auch
+        # nichts, und die Seite rueckt dann die Adresse zurecht.
+        a = self.ausgabe["studien_adressen"]
+        self.assertEqual(a["unbekannt"], -1)
+        self.assertEqual(a["leer"], -1)
+        self.assertEqual(a["nichts"], -1)
+
     def test_geldformat(self) -> None:
         self.assertEqual(self.ausgabe["geld"]["null"], "$0")
         self.assertEqual(self.ausgabe["geld"]["tausend"], "$1.5k")
@@ -94,3 +118,32 @@ class WebUtilAbbildungTests(unittest.TestCase):
         # Die anderen Zustaende bleiben, wie sie waren.
         self.assertEqual(zeile["fehler"], "API OFFLINE · LAST KNOWN STATE")
         self.assertEqual(zeile["wartet"], "WAITING FOR API")
+
+    def test_der_live_poll_haengt_an_der_offenen_route(self) -> None:
+        # Der Poll holt markets (~280 KB) und tape (~180 KB) und rendert
+        # danach die ganze Seite neu. Er lief auf jeder Route im selben
+        # 30-Sekunden-Takt, auch auf Seiten ohne eine einzige dieser Zeilen
+        # im Rumpf. Ganz abstellen geht nicht: die Kopfzeile fuehrt den
+        # LIVE-Punkt und der Sidebar-Eintrag Live tape seinen Zaehler, beide
+        # auf jeder Route. Also seltener statt gar nicht.
+        takt = self.ausgabe["poll_takt"]
+        self.assertEqual(
+            takt["routen"],
+            ["overview", "markets", "flow", "whale", "track", "portfolio"])
+        self.assertEqual(takt["ruhig_ms"], 300000)
+
+        # Laute Route: jeder Weckruf holt.
+        self.assertTrue(takt["laute_route_sofort"])
+        # Ruhige Route: erst nach fuenf Minuten wieder.
+        self.assertFalse(takt["ruhige_route_gleich_danach"])
+        self.assertFalse(takt["ruhige_route_nach_zwei_minuten"])
+        self.assertTrue(takt["ruhige_route_nach_fuenf_minuten"])
+        # Der allererste Lauf wartet nie: sonst stuende die Kopfzeile auf
+        # einer ruhigen Route fuenf Minuten lang auf "waiting".
+        self.assertTrue(takt["ruhige_route_ohne_vorlauf"])
+        # Ein offenes Overlay liest die Zeilen und kann ueber jeder Route
+        # stehen, also gilt dort der kurze Takt.
+        self.assertTrue(takt["ruhige_route_mit_overlay"])
+        # Eine Route, die es nicht gibt, faellt auf den ruhigen Takt zurueck
+        # und nicht auf den lauten.
+        self.assertFalse(takt["unbekannte_route"])
