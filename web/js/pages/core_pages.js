@@ -1095,7 +1095,7 @@ export function renderCross(T) {
     // The paper scanner's section stands under every state of the pair
     // scan: its file is a separate, small request (liveData.arbScan) and
     // does not wait for the slow scan or share its failure.
-    return '<div>' + seitenKopf('CROSS-VENUE', 'The same question, two prices', 'var(--info)') + body + renderArbScanAbschnitt(T.liveData.arbScan) + '</div>';
+    return '<div>' + seitenKopf('CROSS-VENUE', 'The same question, two prices', 'var(--info)') + body + renderArbScanAbschnitt(T.liveData.arbScan, undefined, T.liveData.arbResolutions) + '</div>';
   }
   // Local filters can only tighten what the server let through.
   let cRows = T.crossPairs.filter((c) => Math.abs(c.pm - c.ks) >= s.crossMinGap && c.sim >= s.crossSim && c.pmVolUsd >= s.crossPmVol && c.ksVolContracts >= s.crossKsVol);
@@ -1210,7 +1210,7 @@ export function renderCross(T) {
     + (cRows.length === 0 ? '<div style="padding:var(--sp-7); text-align:center; ' + M + '; font-size:var(--t-small); color:var(--ink-4)">No pair passes the local filters; loosen a stepper above.</div>' : '')
     // Paper scanner: executable edge — the scanner's file, laid out under
     // the pair comparison (arb_scan_page.js).
-    + renderArbScanAbschnitt(T.liveData.arbScan)
+    + renderArbScanAbschnitt(T.liveData.arbScan, undefined, T.liveData.arbResolutions)
     + '</div>';
 }
 

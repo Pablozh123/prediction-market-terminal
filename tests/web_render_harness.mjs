@@ -24,6 +24,11 @@ import { healthStand, verdiktSatz, teileChancen } from '../web/js/pages/arb_scan
 // once; every use below takes its own copy.
 const ARB_FIXTURE = JSON.parse(readFileSync(new URL('./fixtures/arb_scan_example.json', import.meta.url), 'utf8'));
 const arbNutzlast = () => Object.assign({ _quelle: 'live' }, JSON.parse(JSON.stringify(ARB_FIXTURE)));
+// Our resolution pass over the same journal (schema arb_resolutions/1),
+// joined onto the paper book by trade_id.
+const AUF_FIXTURE = JSON.parse(readFileSync(new URL('./fixtures/arb_resolutions_example.json', import.meta.url), 'utf8'));
+const aufNutzlast = () => Object.assign({ _quelle: 'live' }, JSON.parse(JSON.stringify(AUF_FIXTURE)));
+const aufMit = (p) => (T) => { const alt = T.liveData.arbResolutions; T.liveData.arbResolutions = p; return () => { T.liveData.arbResolutions = alt; }; };
 // Swap the scanner payload on the Cross-venue page for one variant.
 const arbMit = (p) => (T) => { const alt = T.liveData.arbScan; T.liveData.arbScan = p; return () => { T.liveData.arbScan = alt; }; };
 
@@ -78,7 +83,7 @@ function neuesT() {
     herkunft: { markets: null, tape: null, traders: null, risks: null, cross: null },
     // Landing payloads (Overview): null until loaded, like in app.js.
     landing: { micro: null, runs: null, notes: null, ledger: null, herkunft: { micro: null, runs: null, notes: null, ledger: null } },
-    liveData: { leaderboard: null, cross: null, arbScan: null, risk: null, riskLog: null, alerts: null, copy: null, portfolio: null, research: {}, backtest: null, walletDetail: {}, wallet: {}, riskBook: {}, walletSimilar: {}, walletEntity: {}, graph: null },
+    liveData: { leaderboard: null, cross: null, arbScan: null, arbResolutions: null, risk: null, riskLog: null, alerts: null, copy: null, portfolio: null, research: {}, backtest: null, walletDetail: {}, wallet: {}, riskBook: {}, walletSimilar: {}, walletEntity: {}, graph: null },
     num, money, esc,
     seriesPoints: (v, w, h) => seriesPoints(v, w, h),
     act: () => 'data-act="0"',
@@ -827,6 +832,7 @@ function mitDaten(T) {
   // macht daraus Links, der Rest bleibt Text.
   // The arbitrage scanner's section on Cross-venue carries the full fixture.
   T.liveData.arbScan = arbNutzlast();
+  T.liveData.arbResolutions = aufNutzlast();
   T.liveData.research['Postmortems'] = {
     _quelle: 'live', stand_utc: '2026-08-07T04:33:12+00:00', hinweis: 'Harness postmortem note.', kennzeichnung: 'curated/postmortem',
     eintraege: [{ datum: '2026-07-18', profil: 'harness_a', achse: 'Evaluation', titel: 'Harness incident',
@@ -1144,6 +1150,11 @@ function rendern(T) {
     })],
     ['cross_arb_nur_schema', 'cross', {}, null, arbMit({ _quelle: 'live', schema: 'arb_scan/1' })],
     ['cross_arb_frisch', 'cross', {}, null, arbMit((() => { const p = arbNutzlast(); p.health.last_cycle_at = new Date().toISOString(); return p; })())],
+    // The resolution pass: absent while loading, failed fetch, and a file
+    // without trades. The joined state is the live pass itself.
+    ['cross_arb_aufloesung_laedt', 'cross', {}, null, aufMit(null)],
+    ['cross_arb_aufloesung_fehler', 'cross', {}, null, aufMit({ _quelle: 'fehler', _fehler: 'HTTP 503' })],
+    ['cross_arb_aufloesung_leer', 'cross', {}, null, aufMit({ _quelle: 'live', schema: 'arb_resolutions/1', trades: [], summary: {} })],
     // Die PnL-Kurve des gefolgten Wallets ist geladen: die Zeile darunter
     // muss sagen, wessen Zahl das ist und ueber welchen Zeitraum.
     ['copy_mit_quellkurve', 'copy', {}, null, (T) => {
