@@ -8,7 +8,7 @@
 import { esc, money, num, signedMoney, stempel, leerBlock, gradeLabel } from '../util.js';
 import { caveat, caveatZeile } from '../claims.js';
 import { scoreBand } from '../risk_bands.js';
-import { diagramm, pnlZeitkurve, kurzGeld, fmtZahl } from '../charts.js';
+import { diagramm, pnlZeitkurve, kurzGeld, fmtZahl, kalibrierung } from '../charts.js';
 import { squarify, pnlIntensity } from '../treemap.js';
 import { MONO as M, KARTE, LABEL, NOTIZ, kpi } from '../ui.js';
 
@@ -798,6 +798,111 @@ function renderEdge(d) {
   return card('REALIZED EDGE', dia + summary, 'as of ' + esc(e.as_of || '') + (e.capped ? ' · CAPPED' : ''));
 }
 
+// Zwei Auswertungen, die der Endpunkt seit jeher mitliefert und die die
+// Seite nie gezeigt hat: die Kalibrierung der Einstiegspreise gegen den
+// Ausgang, und woher der Gewinn kam. Beide beantworten Fragen, die eine
+// Trefferquote offen laesst -- ob die Preise stimmten, und ob ein einziger
+// Treffer die ganze Bilanz traegt.
+
+function renderCalibration(d) {
+  const k = d.calibration || null;
+  const bins = k && Array.isArray(k.buckets) ? k.buckets.filter((b) => b && b.n) : [];
+  if (!k || !bins.length) {
+    return card('CALIBRATION · ENTRY PRICE VS OUTCOME',
+      '<div style="' + NOTIZ + '">No calibration: /api/wallet returned no price buckets for this address, which is what happens when no resolved position carries an entry price.</div>');
+  }
+  const punkte = bins.map((b) => ({
+    vorhergesagt: +b.avg_forecast,
+    realisiert: +b.hit_rate,
+    n: +b.n,
+    ci: (b.hit_low != null && b.hit_high != null) ? [+b.hit_low, +b.hit_high] : null
+  })).filter((p) => typeof p.vorhergesagt === 'number' && typeof p.realisiert === 'number');
+  const dia = kalibrierung({
+    titel: 'PAID PRICE VS HOW OFTEN IT CAME IN',
+    hinweis: 'n ' + num(k.n) + ' resolved · ' + bins.length + ' price buckets · dot size is n · orange where a bucket interval misses the diagonal',
+    punkte
+  });
+  // Eine nackte Brier-Zahl ist unlesbar. Erst der Vergleich mit der eigenen
+  // Grundquote sagt, ob die bezahlten Preise ueberhaupt Information trugen.
+  const besser = (typeof k.brier_entry === 'number' && typeof k.brier_baseline === 'number')
+    ? (k.brier_entry < k.brier_baseline)
+    : null;
+  const brierNote = besser === null
+    ? 'baseline not computable'
+    : besser
+      ? 'lower is better: the prices paid scored better than always quoting the base rate of this wallet'
+      : 'lower is better: always quoting the base rate of this wallet would have scored better';
+  const zeilen = [
+    ['HIT RATE', pct(k.hit_rate),
+      (k.hit_low != null ? '95% CI ' + ci([k.hit_low, k.hit_high]) + ' · ' : '') + 'n ' + num(k.n) + ' resolved'],
+    ['AVERAGE ENTRY', cents(k.avg_entry), 'the mean price paid across those positions'],
+    ['BRIER · ENTRY VS BASE RATE',
+      (typeof k.brier_entry === 'number' ? k.brier_entry.toFixed(3) : '—')
+      + ' vs ' + (typeof k.brier_baseline === 'number' ? k.brier_baseline.toFixed(3) : '—'),
+      brierNote]
+  ];
+  const raster = '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:var(--sp-4) var(--sp-5); margin-top:var(--sp-4)">'
+    + zeilen.map((z) => '<div><div style="' + LABEL + '">' + z[0] + '</div>'
+      + '<div style="' + M + '; font-size:var(--t-body); margin-top:var(--sp-2)">' + esc(z[1]) + '</div>'
+      + '<div style="' + NOTIZ + '; margin-top:var(--sp-1)">' + esc(z[2]) + '</div></div>').join('')
+    + '</div>';
+  const methode = '<div style="' + NOTIZ + '; margin-top:var(--sp-4)">'
+    + 'One observation per resolved position: the price paid on entry against whether that side came in. '
+    + 'Buckets are the price bands the payload carries, each with its own Wilson 95% interval; a bucket whose interval '
+    + 'misses the diagonal is drawn in orange. A wallet that bought mostly near certainty sits in the top bucket, where '
+    + 'being right is cheap, so the buckets say more than the pooled rate above them.</div>';
+  return card('CALIBRATION · ENTRY PRICE VS OUTCOME',
+    '<div style="display:flex; gap:var(--sp-5); flex-wrap:wrap; align-items:flex-start">'
+    + '<div style="flex:0 0 260px; max-width:100%">' + dia + '</div>'
+    + '<div style="flex:1; min-width:260px">' + raster + methode + '</div></div>',
+    'as of ' + esc(d.as_of || ''));
+}
+
+function renderAttribution(d) {
+  const a = d.attribution || null;
+  if (!a || typeof a.gross_profit !== 'number') {
+    return card('PROFIT ATTRIBUTION',
+      '<div style="' + NOTIZ + '">No attribution: /api/wallet returned no gross profit for this address.</div>');
+  }
+  // Drei Anteile, die zusammen den Bruttogewinn ergeben. Der Balken ist die
+  // Antwort auf die Frage, ob ein einziger Treffer die Bilanz traegt.
+  const teile = [
+    { label: 'Top event', anteil: +a.top_event_share || 0, farbe: 'var(--warn)' },
+    { label: 'Structural', anteil: +a.structural_share || 0, farbe: 'var(--info)' },
+    { label: 'Everything else', anteil: +a.remaining_share || 0, farbe: 'var(--pos)' }
+  ].filter((x) => x.anteil > 0);
+  const summe = teile.reduce((s, x) => s + x.anteil, 0) || 1;
+  const balken = teile.length
+    ? '<div style="display:flex; height:14px; border-radius:var(--r-control); overflow:hidden; margin-top:var(--sp-4); border:1px solid var(--line-2)">'
+      + teile.map((x) => '<div style="width:' + ((x.anteil / summe) * 100).toFixed(2) + '%; background:' + x.farbe + '" title="'
+        + esc(x.label + ' ' + pct(x.anteil)) + '"></div>').join('')
+      + '</div>'
+      + '<div style="display:flex; gap:var(--sp-5); flex-wrap:wrap; margin-top:var(--sp-3)">'
+      + teile.map((x) => '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); display:flex; align-items:center; gap:var(--sp-2)">'
+        + '<span style="width:8px; height:8px; border-radius:2px; background:' + x.farbe + '; display:inline-block"></span>'
+        + esc(x.label) + ' ' + pct(x.anteil) + '</div>').join('')
+      + '</div>'
+    : '<div style="' + NOTIZ + '; margin-top:var(--sp-4)">No positive share to split: the payload reports no event that made money.</div>';
+  const zeilen = [
+    ['GROSS PROFIT', absDollars(a.gross_profit), 'summed over the ' + num(a.positive_events) + ' events that made money'],
+    ['LARGEST EVENT', pct(a.top_event_share), 'of gross profit'],
+    ['STRUCTURAL', pct(a.structural_share),
+      num(a.structural_markets) + ' market' + (a.structural_markets === 1 ? '' : 's') + ' the payload marks as structural']
+  ];
+  const raster = '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:var(--sp-4) var(--sp-5); margin-top:var(--sp-5)">'
+    + zeilen.map((z) => '<div><div style="' + LABEL + '">' + z[0] + '</div>'
+      + '<div style="' + M + '; font-size:var(--t-body); margin-top:var(--sp-2)">' + esc(z[1]) + '</div>'
+      + '<div style="' + NOTIZ + '; margin-top:var(--sp-1)">' + esc(z[2]) + '</div></div>').join('')
+    + '</div>';
+  const titel = a.top_event_title
+    ? '<div style="' + NOTIZ + '; margin-top:var(--sp-4)">Largest single event: ' + esc(String(a.top_event_title)) + '</div>'
+    : '';
+  const methode = '<div style="' + NOTIZ + '; margin-top:var(--sp-3)">'
+    + 'Shares of gross profit, with losses not netted against them: this says where the winnings came from, not what the wallet made. '
+    + 'The three shares add to the whole. A record where one event carries most of it is one event, whatever the win rate says.</div>';
+  return card('PROFIT ATTRIBUTION', balken + raster + titel + methode, 'as of ' + esc(d.as_of || ''));
+}
+
 function renderOpenPositions(T, d) {
   const op = d.open_positions || null;
   const sortKey = T.state.walletPosSort || 'value';
@@ -1174,7 +1279,7 @@ export function renderWallet(T) {
       const tab = WALLET_TABS.some((t) => t[0] === s.walletTab) ? s.walletTab : 'overview';
       const tabs = '<div style="display:flex; gap:var(--sp-3); flex-wrap:wrap; margin-bottom:var(--sp-1)">' + WALLET_TABS.map((t) => (T.tab ? T.tab(t[1], tab === t[0], { walletTab: t[0] }) : '<div>' + esc(t[1]) + '</div>')).join('') + '</div>';
       let main = '';
-      if (tab === 'record') main = renderTrackRecord(d) + renderEdge(d);
+      if (tab === 'record') main = renderTrackRecord(d) + renderEdge(d) + renderCalibration(d) + renderAttribution(d);
       else if (tab === 'positions') main = renderOpenPositions(T, d) + renderClosed(d);
       else if (tab === 'trades') main = renderTrades(d);
       else if (tab === 'categories') main = renderCategoriesContext(d);

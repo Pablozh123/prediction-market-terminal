@@ -934,6 +934,23 @@ function walletNutzlast() {
       per_share: { n_positions: 12, n_events: 11, edge: 0.05, ci_low: -0.02, ci_high: 0.12, verdict: 'thin', headline: 'Too few resolved events (11 < 30) to tell edge from chance either way.', capped: false },
       by_category: [{ category: 'Politics', groups: 7, positions: 8, cost: 400.0, pnl: 160.0, edge: 0.4, ci_low: 0.1, ci_high: 0.6 }, { category: 'Sports', groups: 4, positions: 4, cost: 200.0, pnl: 50.0, edge: 0.25, ci_low: null, ci_high: null }]
     },
+    // Kalibrierung und Gewinn-Herkunft: beide liefert /api/wallet, beide
+    // zeigt die Record-Karte. Ein Bucket liegt bewusst neben der Diagonalen
+    // (0.20 bezahlt, 0.67 eingetreten), damit die Seite ihn markieren muss.
+    calibration: {
+      n: 12, hit_rate: 0.75, hit_low: 0.4681, hit_high: 0.9112,
+      avg_entry: 0.62, edge_per_share: 0.13, brier_entry: 0.18, brier_baseline: 0.1875,
+      buckets: [
+        { bucket: '0-20%', n: 3, avg_forecast: 0.2, hit_rate: 0.6667, edge: 0.4667, hit_low: 0.2077, hit_high: 0.9385, events: 3 },
+        { bucket: '60-80%', n: 4, avg_forecast: 0.7, hit_rate: 0.75, edge: 0.05, hit_low: 0.3006, hit_high: 0.9544, events: 4 },
+        { bucket: '80-100%', n: 5, avg_forecast: 0.9, hit_rate: 0.8, edge: -0.1, hit_low: 0.3757, hit_high: 0.9642, events: 4 }
+      ]
+    },
+    attribution: {
+      gross_profit: 210.0, structural_share: 0.1, top_event_share: 0.45,
+      remaining_share: 0.45, top_event_title: 'Harness event that carried the record',
+      structural_markets: 1, positive_events: 6
+    },
     open_positions: {
       // Eine offene Position (+15 Buchgewinn, 40 Kostenbasis) und eine
       // wertlose (aufgeloester Verlust -10, 10 Kostenbasis). Der Verlust
