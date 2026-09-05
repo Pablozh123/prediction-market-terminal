@@ -8,7 +8,7 @@
 import { esc, money, num, signedMoney, stempel, leerBlock, gradeLabel } from '../util.js';
 import { caveat, caveatZeile } from '../claims.js';
 import { scoreBand } from '../risk_bands.js';
-import { diagramm, pnlZeitkurve, kurzGeld, fmtZahl } from '../charts.js';
+import { diagramm, pnlZeitkurve, kurzGeld, fmtZahl, kalibrierung } from '../charts.js';
 import { squarify, pnlIntensity } from '../treemap.js';
 import { MONO as M, KARTE, LABEL, NOTIZ, kpi } from '../ui.js';
 
@@ -179,6 +179,34 @@ function initials(name, addr) {
 }
 
 // Identity strip: avatar, name, address, first/last activity, then the
+// Der Kopf, bevor irgendeine Kachel kommt. Die Seite rechnet alles aus und
+// begrub die Antwort bisher unter zwanzig Zahlen; wer sie las, musste selbst
+// zusammensetzen, was der Datensatz hergibt. Die Saetze baut der Endpunkt
+// (api_views.wallet_headline) aus Feldern, die ohnehin schon berechnet sind,
+// damit hier keine zweite Rechnung entsteht.
+//
+// Die erste Zeile ist der wichtigste Teil: sie sagt, ob die Stichprobe
+// ueberhaupt ein Urteil traegt. Ein Kopf, der bei acht Ereignissen genauso
+// klingt wie bei zweihundert, waere genau das, wogegen diese Seite gebaut ist.
+function renderHeadline(d) {
+  const h = d.headline || null;
+  if (!h || !h.lead) return '';
+  const erlaubt = h.allowed === true;
+  const saetze = Array.isArray(h.clauses) ? h.clauses : [];
+  const rahmen = erlaubt ? 'rgba(var(--ink),.14)' : 'rgba(var(--warn-rgb),.35)';
+  return '<div style="' + KARTE + '; border-color:' + rahmen + '; padding:var(--sp-5); margin-top:var(--sp-5)">'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:'
+    + (erlaubt ? 'var(--ink-3)' : 'var(--warn)') + '">READ THIS FIRST</div>'
+    + '<div style="font-size:var(--t-body); font-weight:600; margin-top:var(--sp-3); line-height:var(--lh-prose)">'
+    + esc(h.lead) + '</div>'
+    + (saetze.length
+      ? '<ul style="margin:var(--sp-4) 0 0; padding-left:1.1rem; font-size:var(--t-body); color:var(--ink-2); line-height:var(--lh-prose)">'
+        + saetze.map((s) => '<li>' + esc(s) + '</li>').join('')
+        + '</ul>'
+      : '')
+    + '</div>';
+}
+
 // actions — the copy desk (follow this wallet with paper money), the
 // backtester, and the two external profiles.
 function renderIdentity(T, d) {
@@ -282,8 +310,13 @@ function renderKpis(d) {
   // Verluste, die Quote ist damit nach oben verzerrt. Die Kachel nannte das
   // nicht; die Zahl stand allein neben ihrem CI.
   const nichtEingeloest = d.open_positions ? (Number(d.open_positions.worthless_n) || 0) : 0;
+  // Die Zahl der fehlenden Verluste allein liess den Leser rechnen. Was 25
+  // von 27 wert sind, wenn achtzehn Verluste nicht im Nenner stehen, steht
+  // jetzt daneben: der Endpunkt rechnet die untere Schranke aus.
+  const schranke = tr && tr.corrected_bound ? tr.corrected_bound : null;
   const wertlosNote = nichtEingeloest
     ? ' · ' + num(nichtEingeloest) + ' unredeemed loss' + (nichtEingeloest === 1 ? '' : 'es') + ' not in it'
+      + (schranke && schranke.win_rate != null ? ' · ' + pct(schranke.win_rate) + ' with them' : '')
     : '';
   const tiles = [
     kpiTile('SETTLED PNL', tr ? dollars(tr.settled_pnl) : '—', tr ? 'n ' + num(tr.per_market ? tr.per_market.n : 0) + ' resolved markets' + capNote : 'no track record', tr ? (tr.settled_pnl < 0 ? 'down' : 'up') : 'neutral'),
@@ -601,7 +634,15 @@ function renderTrackRecord(d) {
     '<div>WIN RATE</div><div style="text-align:right">RATE</div><div style="text-align:right">WINS / N</div><div style="text-align:right">95% WILSON CI</div>',
     rateRow('Naive — per position leg (what a leaderboard implies)', tr.naive, false)
     + rateRow('Per market — legs of one conditionId netted', tr.per_market, false)
-    + rateRow('Corrected — per event, NegRisk legs netted', tr.corrected, true),
+    + rateRow('Corrected — per event, NegRisk legs netted', tr.corrected, true)
+    // Die vierte Zeile ist die ehrlichste: dieselben Treffer, aber die
+    // Verluste, die der closed-positions-Feed systematisch weglaesst, wieder
+    // im Nenner. Sie steht nur da, wenn es solche Verluste gibt.
+    + (tr.corrected_bound
+      ? rateRow('Lower bound — the same, with the ' + num(tr.corrected_bound.unredeemed)
+        + ' unredeemed loss' + (tr.corrected_bound.unredeemed === 1 ? '' : 'es') + ' counted',
+      tr.corrected_bound, false)
+      : ''),
     '', 560);
   const gate = tr.survivorship_gate || {};
   const conc = tr.concentration || {};
@@ -609,7 +650,14 @@ function renderTrackRecord(d) {
   const facts = [
     ['SETTLED PNL', dollars(tr.settled_pnl), 'sum of realised PnL over ' + num(gate.resolved_markets || 0) + ' resolved markets · $' + num(Math.round(tr.volume || 0)) + ' bought'],
     ['NEGRISK LEGS NETTED', num(tr.legs_netted || 0), tr.leg_inflation != null ? 'naive / corrected = ' + tr.leg_inflation.toFixed(2) : ''],
-    ['PNL PER $ OF VOLUME', tr.pnl_per_volume != null ? (tr.pnl_per_volume * 100).toFixed(1) + '¢' : '—', 'settled PnL / bought'],
+    // Dieselbe Zahl wie die realisierte Rendite je Dollar, und zwar nicht
+    // ungefaehr: settled PnL / bought ist algebraisch payout / cost - 1, weil
+    // payout = cost + pnl und "bought" derselbe Einsatz ist, ueber den die
+    // Rendite rechnet (app/track_record.py::market_records nimmt stake_usd,
+    // api_views._wallet_edge ebenso). Zwei Kacheln mit derselben Zahl unter
+    // zwei Namen lesen sich wie zwei Belege; es ist einer.
+    ['PNL PER $ OF VOLUME', tr.pnl_per_volume != null ? (tr.pnl_per_volume * 100).toFixed(1) + '¢' : '—',
+      'settled PnL / bought — the same figure as the realized edge below, without its interval'],
     ['WASH / FARMER FLAG', wash.flag ? 'FLAGGED' : 'not flagged', 'rule: ' + (wash.rule || '')],
     ['SURVIVORSHIP GATE', gate.ok ? 'passed' : 'not passed', num(gate.resolved_markets || 0) + ' markets over ' + (gate.span_days != null ? gate.span_days.toFixed(0) : '—') + ' d · needs ≥ ' + gate.min_markets + ' and ≥ ' + gate.min_span_days + ' d'],
     ['PROFIT CONCENTRATION', conc.top3_share != null ? pct(conc.top3_share) + ' in top 3' : '—', conc.top_market_share != null ? 'best market ' + pct(conc.top_market_share) + (conc.one_hit_flag ? ' · one-hit flag' : '') : ''],
@@ -630,8 +678,15 @@ function renderTrackRecord(d) {
   const flags = Array.isArray(tr.flags) && tr.flags.length
     ? '<div style="display:flex; gap:var(--sp-3); flex-wrap:wrap; margin-top:var(--sp-4)">' + tr.flags.map((f) => '<span style="' + M + '; font-size:var(--t-micro); color:var(--warn); border:1px solid rgba(var(--warn-rgb),.35); border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3)">' + esc(f) + '</span>').join('') + '</div>'
     : '<div style="' + NOTIZ + '; margin-top:var(--sp-4)">No flags: sample gate passed, no wash pattern, no one-hit concentration.</div>';
+  // Warum die Schwelle so liegt. Neben der Kachel stand nur, was sie ist;
+  // ohne den Grund liest sich eine niedrigere Zahl als laxere Pruefung. Der
+  // Satz und das Intervall darin kommen aus dem Endpunkt, gerechnet mit
+  // derselben Wilson-Funktion wie jede andere Spanne dieser Seite.
+  const gateNote = gate.note
+    ? '<div style="' + NOTIZ + '; margin-top:var(--sp-4)">' + esc(gate.note) + '</div>'
+    : '';
   const cov = '<div style="' + NOTIZ + '; margin-top:var(--sp-4)">' + esc(tr.coverage_note || '') + (tr.capped ? ' Both tails hit the ~50-row cap: the middle of the record is unreachable, and win rate, edge and PnL describe the extremes only.' : '') + '</div>';
-  return card('TRACK RECORD · NAIVE VS CORRECTED', rates + factsHtml + top3 + parts + flags + cov, 'as of ' + esc(tr.as_of || '') + ' · ' + esc(tr.source || '') + (tr.capped ? ' · CAPPED' : ''));
+  return card('TRACK RECORD · NAIVE VS CORRECTED', rates + factsHtml + top3 + parts + flags + gateNote + cov, 'as of ' + esc(tr.as_of || '') + ' · ' + esc(tr.source || '') + (tr.capped ? ' · CAPPED' : ''));
 }
 
 function renderPnl(d) {
@@ -742,8 +797,124 @@ function renderEdge(d) {
     + (ps ? '<div><div style="' + LABEL + '">EDGE PER SHARE · ENTRY VS SETTLEMENT</div><div style="' + M + '; font-size:var(--t-body); margin-top:var(--sp-2); color:' + verdictColor + '">' + pp(ps.edge) + ' · ' + esc(String(ps.verdict || '').toUpperCase()) + '</div><div style="' + NOTIZ + '; margin-top:var(--sp-1)">' + (ps.ci_low != null ? '95% CI [' + pp(ps.ci_low) + ', ' + pp(ps.ci_high) + '] · ' : '') + 'n ' + ps.n_events + ' events / ' + ps.n_positions + ' positions</div></div>' : '')
     + '</div>'
     + (ps && ps.headline ? '<div style="' + NOTIZ + '; margin-top:var(--sp-4)">' + esc(ps.headline) + '</div>' : '')
+    // Dieselbe Luecke wie bei der Trefferquote: die Rendite rechnet ueber den
+    // closed-positions-Feed, und der laesst die nie eingeloesten Verluste
+    // weg. Ihr Einsatz ist bekannt, ihr Ruecklauf ist null.
+    + (e.per_dollar_bound
+      ? '<div style="' + NOTIZ + '; margin-top:var(--sp-4)">Lower bound with the '
+        + num(e.per_dollar_bound.unredeemed) + ' unredeemed loss'
+        + (e.per_dollar_bound.unredeemed === 1 ? '' : 'es') + ' counted ('
+        + absDollars(e.per_dollar_bound.unredeemed_cost_usd) + ' of stake, no return): '
+        + (e.per_dollar_bound.edge * 100).toFixed(1) + '¢ per $. '
+        + esc(e.per_dollar_bound.ci_note || '') + '</div>'
+      : '')
     + '<div style="' + NOTIZ + '; margin-top:var(--sp-3)">' + esc(pd.method || '') + (e.capped ? ' Capped tails: the sample holds the biggest wins and losses only, so the edge is biased either way.' : '') + '</div>';
   return card('REALIZED EDGE', dia + summary, 'as of ' + esc(e.as_of || '') + (e.capped ? ' · CAPPED' : ''));
+}
+
+// Zwei Auswertungen, die der Endpunkt seit jeher mitliefert und die die
+// Seite nie gezeigt hat: die Kalibrierung der Einstiegspreise gegen den
+// Ausgang, und woher der Gewinn kam. Beide beantworten Fragen, die eine
+// Trefferquote offen laesst -- ob die Preise stimmten, und ob ein einziger
+// Treffer die ganze Bilanz traegt.
+
+function renderCalibration(d) {
+  const k = d.calibration || null;
+  const bins = k && Array.isArray(k.buckets) ? k.buckets.filter((b) => b && b.n) : [];
+  if (!k || !bins.length) {
+    return card('CALIBRATION · ENTRY PRICE VS OUTCOME',
+      '<div style="' + NOTIZ + '">No calibration: /api/wallet returned no price buckets for this address, which is what happens when no resolved position carries an entry price.</div>');
+  }
+  const punkte = bins.map((b) => ({
+    vorhergesagt: +b.avg_forecast,
+    realisiert: +b.hit_rate,
+    n: +b.n,
+    ci: (b.hit_low != null && b.hit_high != null) ? [+b.hit_low, +b.hit_high] : null
+  })).filter((p) => typeof p.vorhergesagt === 'number' && typeof p.realisiert === 'number');
+  const dia = kalibrierung({
+    titel: 'PAID PRICE VS HOW OFTEN IT CAME IN',
+    hinweis: 'n ' + num(k.n) + ' resolved · ' + bins.length + ' price buckets · dot size is n · orange where a bucket interval misses the diagonal',
+    punkte
+  });
+  // Eine nackte Brier-Zahl ist unlesbar. Erst der Vergleich mit der eigenen
+  // Grundquote sagt, ob die bezahlten Preise ueberhaupt Information trugen.
+  const besser = (typeof k.brier_entry === 'number' && typeof k.brier_baseline === 'number')
+    ? (k.brier_entry < k.brier_baseline)
+    : null;
+  const brierNote = besser === null
+    ? 'baseline not computable'
+    : besser
+      ? 'lower is better: the prices paid scored better than always quoting the base rate of this wallet'
+      : 'lower is better: always quoting the base rate of this wallet would have scored better';
+  const zeilen = [
+    ['HIT RATE', pct(k.hit_rate),
+      (k.hit_low != null ? '95% CI ' + ci([k.hit_low, k.hit_high]) + ' · ' : '') + 'n ' + num(k.n) + ' resolved'],
+    ['AVERAGE ENTRY', cents(k.avg_entry), 'the mean price paid across those positions'],
+    ['BRIER · ENTRY VS BASE RATE',
+      (typeof k.brier_entry === 'number' ? k.brier_entry.toFixed(3) : '—')
+      + ' vs ' + (typeof k.brier_baseline === 'number' ? k.brier_baseline.toFixed(3) : '—'),
+      brierNote]
+  ];
+  const raster = '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:var(--sp-4) var(--sp-5); margin-top:var(--sp-4)">'
+    + zeilen.map((z) => '<div><div style="' + LABEL + '">' + z[0] + '</div>'
+      + '<div style="' + M + '; font-size:var(--t-body); margin-top:var(--sp-2)">' + esc(z[1]) + '</div>'
+      + '<div style="' + NOTIZ + '; margin-top:var(--sp-1)">' + esc(z[2]) + '</div></div>').join('')
+    + '</div>';
+  const methode = '<div style="' + NOTIZ + '; margin-top:var(--sp-4)">'
+    + 'One observation per resolved position: the price paid on entry against whether that side came in. '
+    + 'Buckets are the price bands the payload carries, each with its own Wilson 95% interval; a bucket whose interval '
+    + 'misses the diagonal is drawn in orange. A wallet that bought mostly near certainty sits in the top bucket, where '
+    + 'being right is cheap, so the buckets say more than the pooled rate above them.</div>';
+  return card('CALIBRATION · ENTRY PRICE VS OUTCOME',
+    '<div style="display:flex; gap:var(--sp-5); flex-wrap:wrap; align-items:flex-start">'
+    + '<div style="flex:0 0 260px; max-width:100%">' + dia + '</div>'
+    + '<div style="flex:1; min-width:260px">' + raster + methode + '</div></div>',
+    'as of ' + esc(d.as_of || ''));
+}
+
+function renderAttribution(d) {
+  const a = d.attribution || null;
+  if (!a || typeof a.gross_profit !== 'number') {
+    return card('PROFIT ATTRIBUTION',
+      '<div style="' + NOTIZ + '">No attribution: /api/wallet returned no gross profit for this address.</div>');
+  }
+  // Drei Anteile, die zusammen den Bruttogewinn ergeben. Der Balken ist die
+  // Antwort auf die Frage, ob ein einziger Treffer die Bilanz traegt.
+  const teile = [
+    { label: 'Top event', anteil: +a.top_event_share || 0, farbe: 'var(--warn)' },
+    { label: 'Structural', anteil: +a.structural_share || 0, farbe: 'var(--info)' },
+    { label: 'Everything else', anteil: +a.remaining_share || 0, farbe: 'var(--pos)' }
+  ].filter((x) => x.anteil > 0);
+  const summe = teile.reduce((s, x) => s + x.anteil, 0) || 1;
+  const balken = teile.length
+    ? '<div style="display:flex; height:14px; border-radius:var(--r-control); overflow:hidden; margin-top:var(--sp-4); border:1px solid var(--line-2)">'
+      + teile.map((x) => '<div style="width:' + ((x.anteil / summe) * 100).toFixed(2) + '%; background:' + x.farbe + '" title="'
+        + esc(x.label + ' ' + pct(x.anteil)) + '"></div>').join('')
+      + '</div>'
+      + '<div style="display:flex; gap:var(--sp-5); flex-wrap:wrap; margin-top:var(--sp-3)">'
+      + teile.map((x) => '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); display:flex; align-items:center; gap:var(--sp-2)">'
+        + '<span style="width:8px; height:8px; border-radius:2px; background:' + x.farbe + '; display:inline-block"></span>'
+        + esc(x.label) + ' ' + pct(x.anteil) + '</div>').join('')
+      + '</div>'
+    : '<div style="' + NOTIZ + '; margin-top:var(--sp-4)">No positive share to split: the payload reports no event that made money.</div>';
+  const zeilen = [
+    ['GROSS PROFIT', absDollars(a.gross_profit), 'summed over the ' + num(a.positive_events) + ' events that made money'],
+    ['LARGEST EVENT', pct(a.top_event_share), 'of gross profit'],
+    ['STRUCTURAL', pct(a.structural_share),
+      num(a.structural_markets) + ' market' + (a.structural_markets === 1 ? '' : 's') + ' the payload marks as structural']
+  ];
+  const raster = '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:var(--sp-4) var(--sp-5); margin-top:var(--sp-5)">'
+    + zeilen.map((z) => '<div><div style="' + LABEL + '">' + z[0] + '</div>'
+      + '<div style="' + M + '; font-size:var(--t-body); margin-top:var(--sp-2)">' + esc(z[1]) + '</div>'
+      + '<div style="' + NOTIZ + '; margin-top:var(--sp-1)">' + esc(z[2]) + '</div></div>').join('')
+    + '</div>';
+  const titel = a.top_event_title
+    ? '<div style="' + NOTIZ + '; margin-top:var(--sp-4)">Largest single event: ' + esc(String(a.top_event_title)) + '</div>'
+    : '';
+  const methode = '<div style="' + NOTIZ + '; margin-top:var(--sp-3)">'
+    + 'Shares of gross profit, with losses not netted against them: this says where the winnings came from, not what the wallet made. '
+    + 'The three shares add to the whole. A record where one event carries most of it is one event, whatever the win rate says.</div>';
+  return card('PROFIT ATTRIBUTION', balken + raster + titel + methode, 'as of ' + esc(d.as_of || ''));
 }
 
 function renderOpenPositions(T, d) {
@@ -1122,7 +1293,7 @@ export function renderWallet(T) {
       const tab = WALLET_TABS.some((t) => t[0] === s.walletTab) ? s.walletTab : 'overview';
       const tabs = '<div style="display:flex; gap:var(--sp-3); flex-wrap:wrap; margin-bottom:var(--sp-1)">' + WALLET_TABS.map((t) => (T.tab ? T.tab(t[1], tab === t[0], { walletTab: t[0] }) : '<div>' + esc(t[1]) + '</div>')).join('') + '</div>';
       let main = '';
-      if (tab === 'record') main = renderTrackRecord(d) + renderEdge(d);
+      if (tab === 'record') main = renderTrackRecord(d) + renderEdge(d) + renderCalibration(d) + renderAttribution(d);
       else if (tab === 'positions') main = renderOpenPositions(T, d) + renderClosed(d);
       else if (tab === 'trades') main = renderTrades(d);
       else if (tab === 'categories') main = renderCategoriesContext(d);
@@ -1135,6 +1306,7 @@ export function renderWallet(T) {
       // payload, so the aside repeats what the tabs prove.
       body = '<div style="padding:var(--sp-5) var(--sp-6) var(--sp-7)">'
         + renderIdentity(T, d)
+        + renderHeadline(d)
         + renderKpis(d)
         + '<div style="display:flex; gap:var(--sp-5); align-items:flex-start; flex-wrap:wrap; margin-top:var(--sp-5)">'
         + '<div style="flex:0 0 224px; min-width:200px; max-width:100%">' + renderAside(d) + '</div>'

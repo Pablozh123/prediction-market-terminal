@@ -2,3 +2,7 @@ User-agent: *
 Allow: /
 
 Sitemap: https://marketintel.dev/sitemap.xml
+
+# Plain-text description of this site for language models and agents,
+# same content the pages carry, without the numbers.
+# https://marketintel.dev/llms.txt

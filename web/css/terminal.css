@@ -422,7 +422,37 @@ input { font-family: inherit; }
    Below that a phone gets a sideways-scrolling page, which reads as a broken
    site unless it says otherwise — so it says so. */
 .narrow-note { display: none; }
-@media (max-width: 1279px) {
+.narrow-fallback { display: none; }
+
+/* Below 768px the note above could not help: the shell lays out at 1316px, the
+   phone zooms the whole page to about 0.29, and at that scale the note's own
+   text renders at roughly 3 device pixels. A warning nobody can read is not a
+   warning. So on a phone the shell is taken out of the layout entirely, which
+   removes what forces the zoom, and a readable page stands in its place. The
+   terminal is still reachable from there for anyone who wants it anyway. */
+@media (max-width: 767px) {
+  .shell, .narrow-note { display: none; }
+  .narrow-fallback {
+    display: block; box-sizing: border-box; max-width: 34rem;
+    margin: 0 auto; padding: var(--sp-6) var(--sp-5) var(--sp-7);
+  }
+}
+:root[data-narrow-override="1"] .shell { display: flex; }
+:root[data-narrow-override="1"] .narrow-fallback { display: none; }
+.narrow-fallback h1 { font-size: 1.4rem; line-height:var(--lh-tight); margin: var(--sp-4) 0 0; font-weight: 600; }
+.narrow-fallback .kicker { font-family: var(--font-mono); font-size: var(--t-micro); letter-spacing:var(--ls-caps-strong); text-transform: uppercase; color: var(--ink-3); margin: 0; }
+.narrow-fallback p { line-height:var(--lh-prose); color: var(--ink-2); }
+.narrow-fallback .facts { font-family: var(--font-mono); font-size: var(--t-small); color: var(--ink-3); }
+.narrow-fallback ul { padding-left: 1.1rem; color: var(--ink-2); line-height:var(--lh-prose); }
+.narrow-fallback .links { display: flex; flex-wrap: wrap; gap: var(--sp-4); margin-top: var(--sp-6); }
+.narrow-fallback .links a, .narrow-fallback button {
+  font-family: var(--font-mono); font-size: var(--t-small); color: var(--ink-2);
+  background: none; border: 1px solid var(--line-1); border-radius: var(--r-control);
+  padding: var(--sp-3) var(--sp-4); text-decoration: none; cursor: pointer;
+}
+.narrow-fallback .note { font-family: var(--font-mono); font-size: var(--t-micro); color: var(--ink-4); line-height:var(--lh-prose); }
+
+@media (min-width: 768px) and (max-width: 1279px) {
   .narrow-note {
     /* Top, not bottom: a phone lays the shell out at 1316px and zooms out,
        and a band fixed to the bottom of that layout sat 2.8k px below the

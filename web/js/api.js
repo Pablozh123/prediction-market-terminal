@@ -53,6 +53,10 @@ export const STATISCH = {
   '/api/research/reddit-sentiment': 'reddit_sentiment.json',
   '/api/research/pre-registrations': 'preregistrations.json',
   '/api/research/literature': 'literature.json',
+  // Our own resolution pass over the scanner's journal (schema
+  // arb_resolutions/1, scripts/resolve_arb_paper.py): joined onto the
+  // paper book by trade_id.
+  '/api/research/arb-resolutions': 'arb_resolutions.json',
 };
 
 // Kein Endpunkt darf die Seite unbegrenzt haengen lassen. /api/risk baut beim

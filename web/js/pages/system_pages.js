@@ -431,22 +431,34 @@ export function renderAlerts(T) {
   // benennt, und sonst nichts.
   const sichtbar = (a) => abgeschaltet.indexOf(a.rule) < 0;
   const ausgeblendet = feedAll.length - feedAll.filter(sichtbar).length;
-  const feed = feedAll.filter((a) =>
+  const passend = feedAll.filter((a) =>
     sichtbar(a)
     && (s.alertPlatform === 'all' || a.venue === s.alertPlatform)
     && (s.alertType === 'all' || a.rule === s.alertType)
     && (s.alertScope === 'all' || a.watched)
     && (!s.alertQuery.trim() || a.market.toLowerCase().indexOf(s.alertQuery.trim().toLowerCase()) >= 0));
 
+  // Geblaettert wird ueber das, was der Endpunkt geliefert hat. Vorher endete
+  // die Lieferung selbst bei 60 Zeilen: die Tabelle war damit nicht nur kurz,
+  // der Rest des Scans war ueber die Oberflaeche gar nicht erreichbar, und
+  // jeder Filter suchte nur in den ersten 60 Zeilen.
+  const seitenschritt = (live && (live.page_size || live.shown_limit)) || 60;
+  const gezeigt = Math.min(passend.length, seitenschritt * Math.max(1, s.alertPage || 1));
+  const feed = passend.slice(0, gezeigt);
+  const restSeite = passend.length - gezeigt;
+
   let body = '';
   if (s.alertTab === 'signals') {
     body = '<div>'
       + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); padding:var(--sp-5) var(--sp-6) 0">showing signals over ' + s.thMove + '¢ moves, prints above $' + num(s.thWhale) + ', spreads under ' + s.thSpread + '¢, resolving within ' + s.thEnding + ' h' + (live && live.as_of ? ' · snapshot ' + esc(live.as_of) : '') + '</div>'
       // Der Schnitt gehoert danebengeschrieben. Eine Tabelle, die 60 von 300
-      // Zeilen zeigt und das verschweigt, liest sich wie der ganze Scan.
-      + (zaehlung && live.shown_limit && gesamtTreffer > live.shown_limit
+      // Zeilen zeigt und das verschweigt, liest sich wie der ganze Scan. Der
+      // Satz gilt jetzt der Lieferung, nicht der Seite: was geliefert wurde,
+      // ist ueber "show more" vollstaendig erreichbar, was der Endpunkt gar
+      // nicht erst geschickt hat, bleibt unerreichbar und muss dastehen.
+      + (zaehlung && feedAll.length && gesamtTreffer > feedAll.length
         ? '<div style="' + M + '; font-size:var(--t-micro); color:var(--warn); padding:var(--sp-3) var(--sp-6) 0">'
-          + 'showing the top ' + live.shown_limit + ' of ' + num(gesamtTreffer) + ' signals in this scan, ranked by severity'
+          + 'delivered the top ' + num(feedAll.length) + ' of ' + num(gesamtTreffer) + ' signals in this scan, ranked by severity'
           // Welche Art der Schnitt komplett verschluckt. Ohne den Zusatz
           // widerspricht die Regelkarte scheinbar der Tabelle: sie meldet
           // hundert Treffer fuer eine Art, von der keine Zeile zu sehen ist.
@@ -471,12 +483,27 @@ export function renderAlerts(T) {
         + '<div style="' + M + '; font-size:var(--t-small); text-align:right">' + esc(a.value) + '</div>'
         + '<div style="' + M + '; font-size:var(--t-small); text-align:right; color:var(--ink-3)">' + esc(a.venue) + '</div></div>'
       ).join('')
+      // Der Fuss sagt, wie viel von der Lieferung gerade auf dem Schirm ist,
+      // und blaettert weiter. Ohne ihn endete die Liste ohne Hinweis darauf,
+      // dass unter der letzten Zeile noch etwas liegt.
+      + (passend.length > seitenschritt
+        ? '<div style="display:flex; align-items:center; justify-content:space-between; gap:var(--sp-4); padding:var(--sp-4) var(--sp-5); border-top:1px solid var(--line-2)">'
+          + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3)">'
+          + 'showing ' + num(feed.length) + ' of ' + num(passend.length) + ' signals matching these filters</div>'
+          + '<div style="display:flex; gap:var(--sp-3)">'
+          + (restSeite > 0
+            ? T.opt('show ' + num(Math.min(restSeite, seitenschritt)) + ' more', false,
+              { alertPage: Math.max(1, s.alertPage || 1) + 1 })
+            : '')
+          + (s.alertPage > 1 ? T.opt('collapse', false, { alertPage: 1 }) : '')
+          + '</div></div>'
+        : '')
       + '</div></div>';
   } else if (s.alertTab === 'rules') {
     body = '<div style="padding:var(--sp-5) var(--sp-6); display:grid; grid-template-columns:repeat(3,1fr); gap:var(--sp-5)">'
       + rules.map((a) => {
         const on = !!s.alertsOn[a.key];
-        return '<div ' + T.act(() => T.setState({ alertsOn: Object.assign({}, s.alertsOn, { [a.key]: !on }) })) + ' style="border-radius:var(--r-panel); padding:var(--sp-5); cursor:pointer; background:var(--panel); border:1px solid ' + (on ? 'rgba(var(--accent-rgb),.35)' : 'rgba(var(--ink),.09)') + '">'
+        return '<div ' + T.act(() => T.setState({ alertsOn: Object.assign({}, s.alertsOn, { [a.key]: !on }), alertPage: 1 })) + ' style="border-radius:var(--r-panel); padding:var(--sp-5); cursor:pointer; background:var(--panel); border:1px solid ' + (on ? 'rgba(var(--accent-rgb),.35)' : 'rgba(var(--ink),.09)') + '">'
           + '<div style="display:flex; align-items:center; justify-content:space-between; gap:var(--sp-4)">'
           + '<div style="font-size:var(--t-lead); font-weight:600">' + a.name + '</div>'
           + '<div style="width:38px; height:21px; flex:none; border-radius:var(--r-panel); padding:var(--sp-1); display:flex; background:' + (on ? 'var(--accent)' : 'rgba(var(--ink),.14)') + '; justify-content:' + (on ? 'flex-end' : 'flex-start') + '">'
@@ -545,10 +572,10 @@ export function renderAlerts(T) {
     // diesen Schaltern — die entscheiden, was diese Seite zeigt.
     + '<div style="font-size:var(--t-body); color:var(--ink-4); margin-top:var(--sp-3); max-width:700px">The thresholds below are sent to the scan. The switches decide which of its signal types this page shows; Telegram delivery is configured on the scanner, not here.</div></div>'
     + '<div style="padding:var(--sp-5) var(--sp-6) 0; display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:var(--sp-5)">'
-    + '<div><div style="' + LABEL_BLOCK + '">SEARCH</div><input value="' + esc(s.alertQuery) + '" ' + T.inp((e) => T.setState({ alertQuery: e.target.value }), 'alertQuery') + ' placeholder="market, wallet, category…" style="width:100%; box-sizing:border-box; background:var(--panel); border:1px solid var(--line-edge); border-radius:var(--r-control); padding:var(--sp-3) var(--sp-4); ' + M + '; font-size:var(--t-small); color:var(--text)" /></div>'
-    + filterGroup('PLATFORM', [['all','All'],['Polymarket','Polymarket'],['Kalshi','Kalshi']].map((o) => T.opt(o[1], s.alertPlatform === o[0], { alertPlatform: o[0] })).join(''))
-    + filterGroup('SIGNAL TYPE', [['all','All'],['WHALE PRINT','Whale prints'],['FAST MOVER','Fast movers'],['VOLUME ANOMALY','Volume']].map((o) => T.opt(o[1], s.alertType === o[0], { alertType: o[0] })).join(''))
-    + filterGroup('SCOPE', [['all','Everything'],['watched','Watched only']].map((o) => T.opt(o[1], s.alertScope === o[0], { alertScope: o[0] })).join(''))
+    + '<div><div style="' + LABEL_BLOCK + '">SEARCH</div><input value="' + esc(s.alertQuery) + '" ' + T.inp((e) => T.setState({ alertQuery: e.target.value, alertPage: 1 }), 'alertQuery') + ' placeholder="market, wallet, category…" style="width:100%; box-sizing:border-box; background:var(--panel); border:1px solid var(--line-edge); border-radius:var(--r-control); padding:var(--sp-3) var(--sp-4); ' + M + '; font-size:var(--t-small); color:var(--text)" /></div>'
+    + filterGroup('PLATFORM', [['all','All'],['Polymarket','Polymarket'],['Kalshi','Kalshi']].map((o) => T.opt(o[1], s.alertPlatform === o[0], { alertPlatform: o[0], alertPage: 1 })).join(''))
+    + filterGroup('SIGNAL TYPE', [['all','All'],['WHALE PRINT','Whale prints'],['FAST MOVER','Fast movers'],['VOLUME ANOMALY','Volume']].map((o) => T.opt(o[1], s.alertType === o[0], { alertType: o[0], alertPage: 1 })).join(''))
+    + filterGroup('SCOPE', [['all','Everything'],['watched','Watched only']].map((o) => T.opt(o[1], s.alertScope === o[0], { alertScope: o[0], alertPage: 1 })).join(''))
     + '</div>'
     // Diese vier Schwellen gehen an den Endpunkt und loesen einen neuen Scan
     // aus. Frueher aenderten sie nur den Text darueber.
@@ -3213,7 +3240,8 @@ const KERNSATZ = {
   'CROSS-VENUE MATCHING AND FEE CURVES': 'Pairs are matched by what the question asks, not by wording — two apparent edges were mismatches.',
   'WALLET RECONCILIATION VS LOG': 'The page shows the wallet figures; the log reconstruction stays in runs.json as raw data.',
   'PRE-REGISTRATION POLICY': 'Rules fixed and time-stamped before the outcome period, and failures published too.',
-  'AGENT LAYER GUARDRAILS': 'Read-only tools, capped rows, a skeptic that can only lower priority, mock backend by default.'
+  'AGENT LAYER GUARDRAILS': 'Read-only tools, capped rows, a skeptic that can only lower priority, mock backend by default.',
+  'HOW A WALLET RECORD IS COUNTED': 'One record per event, settled rows only, and a sample gate that says "not enough" instead of guessing.'
 };
 
 // public/data/meta.json, the run stamp the same daily run publishes next to
@@ -3288,6 +3316,18 @@ function renderMethodology(T, payload, study) {
       'Two fill models bracket the truth. The touch model assumes a fill whenever the price reaches the quote; the tape model assumes a fill only when a real print happened there. Each fill is marked out against the mid a short time later; the difference between what the quote earned and where the price went is the adverse selection. The decomposition is an identity, not an estimate: spread capture plus markout plus late drift reconstructs the terminal mark-to-mid exactly, asserted to nine decimal places in the tests. When the two models sit on opposite sides of zero, the sign would be chosen by the fill assumption rather than by the data, and the verdict is "not identified".'),
     abschnitt('BLOCK BOOTSTRAP',
       'Daily totals are resampled in blocks so the interval respects that days are not independent of themselves. Below three days of data the block bootstrap cannot run at all, which is why the earlier two-day market-making study reported the fill-model disagreement as a caveat rather than an interval; with five days it runs and places the two fill models on opposite sides of zero with neither interval touching it.'),
+    // Die vier Korrekturen aus app/track_record.py. Sie sind der Grund, warum
+    // unsere Quote unter der eines Vanity-Leaderboards liegt, und genau das
+    // stand auf keiner Seite. Die vier Zahlen unten sind die Konstanten des
+    // Moduls; tests/test_web_methodik.py haelt sie daran fest, damit der Text
+    // nicht vom Code wegdriftet.
+    abschnitt('HOW A WALLET RECORD IS COUNTED',
+      'A leaderboard win rate is not a track record, and four things separate the two. '
+      + 'First, leg inflation: a multi-outcome (NegRisk) event spans several markets, and counting each outcome token as its own position roughly doubles the apparent win rate. We net to one record per resolved market and, across a NegRisk event, one record per event, so a single correct call counts once. '
+      + 'Second, the auto-redeem sign flip: a winning position is redeemed to USDC and disappears from the open-positions endpoint, so a tool that sums what it can still see reports a loss on a real profit. We read the closed-positions endpoint, which keeps the resolved rows, and sum the realised figure there. '
+      + 'Third, churn: volume farmed against oneself buys rank without buying skill. A wallet above ' + mono('$25,000') + ' of volume whose realised edge per dollar stays under ' + mono('0.5%') + ' is flagged as farming rather than trading. '
+      + 'Fourth, survivorship: the top of any leaderboard is partly the lucky tail. Below ' + mono('10') + ' resolved markets or ' + mono('14') + ' days of span a record reads "insufficient sample" and carries no verdict at all, and above the gate the score is risk-adjusted and profit concentration is stated, not raw PnL. '
+      + 'Settled rows only, throughout: an open position is not a result. This is why our win rates sit below the ones a naive leaderboard prints for the same wallet.'),
     abschnitt('CROSS-VENUE MATCHING AND FEE CURVES',
       'Markets on the two venues are matched by what the question actually asks, not by wording overlap; two apparent 79 and 64 cent edges were mismatched pairs and stay in the report as the lesson. For each surviving pair both books are priced, each venue\'s own fee curve is subtracted, size is capped by the real depth, and the remainder is annualised over the days until settlement. Both rulebooks are then put side by side, because a resolution clause one side carries and the other does not is precisely where a hedge stops hedging.'),
     abschnitt('WALLET RECONCILIATION VS LOG',

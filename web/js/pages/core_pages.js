@@ -6,9 +6,9 @@
 import { asOfLine, esc, money, num, volume, contracts, herkunftSatz, leerBlock, leerZeile, seitenKopf, catChipsPresent, signedMoney, stempel, EINZAHLUNGEN_USD, offeneNichtDrin, tapeFenster, fensterSatz, categorySourceLabel, ledgerBotPositionen } from '../util.js';
 import { caveatZeile } from '../claims.js';
 import { spiegelZeit, kurzGeld, histogramm } from '../charts.js';
-import { studieAnker } from './microstructure_page.js';
+import { studieAnker, basisZeile } from './microstructure_page.js';
 import { renderArbScanAbschnitt } from './arb_scan_page.js';
-import { MONO as M, LABEL_BLOCK, LABEL, kpi } from '../ui.js';
+import { MONO as M, LABEL_BLOCK, LABEL, NOTIZ, kpi } from '../ui.js';
 
 const REPO_URL = 'https://github.com/Pablozh123/prediction-market-terminal';
 const ONE_PAGER_URL = REPO_URL + '/blob/main/docs/research/ONE_PAGER.md';
@@ -253,6 +253,9 @@ function tapeLivePanel(T) {
 // Eine Preiszelle blitzt einmal auf, wenn der Poll sie bewegt hat. Ohne
 // lebende Maerkte gibt es kein Band. Fuer Screenreader ist es verborgen —
 // die Maerkte stehen als richtige Tabelle einen Klick entfernt.
+// Die Veraenderung traegt ihr Cent-Zeichen wie der Preis daneben: sie stand
+// als nackte "+35" neben "70¢", und auf der Marktseite heisst dieselbe Zahl
+// "+87¢". Zwei Schreibweisen fuer dieselbe Groesse auf derselben Seite.
 function wireStrip(T) {
   const maerkte = T.markets.slice().sort((a, b) => volOrd(b) - volOrd(a)).slice(0, 10);
   if (!maerkte.length) return '';
@@ -263,7 +266,7 @@ function wireStrip(T) {
     return '<span style="display:inline-flex; align-items:baseline; gap:var(--sp-3); padding:0 var(--sp-6); border-right:1px solid var(--line-2)">'
       + '<span style="color:var(--ink-3)">' + esc(m.title) + '</span>'
       + '<span' + blitz + ' style="font-weight:600; border-radius:3px; padding:0 var(--sp-2)">' + num(m.yes) + '¢</span>'
-      + (m.chg ? '<span style="color:' + (m.chg > 0 ? 'var(--pos)' : 'var(--neg)') + '">' + (m.chg > 0 ? '+' : '−') + Math.abs(m.chg) + '</span>' : '')
+      + (m.chg ? '<span style="color:' + (m.chg > 0 ? 'var(--pos)' : 'var(--neg)') + '">' + (m.chg > 0 ? '+' : '−') + Math.abs(m.chg) + '¢</span>' : '')
       + '</span>';
   }).join('');
   T._wireVorher = new Map(maerkte.map((m) => [m.id, m.yes]));
@@ -1047,6 +1050,49 @@ function crossSuppressedBlock(sup) {
     + '</div>';
 }
 
+// Was diese Seite zeigt, ist ein Live-Scan: zwei Preise fuer dieselbe Frage.
+// Ob so eine Luecke Geld ist, hat die eingefrorene Studie bereits beantwortet,
+// und sie hat nein gesagt. Der Befund stand bisher nur unter Research, also
+// genau dort nicht, wo jemand auf eine Luecke sieht und sie fuer Arbitrage
+// haelt. Gelesen wird er aus der veroeffentlichten Nutzlast, nicht hier
+// nacherzaehlt: so altert jede Zahl mit der Datei und nicht mit dem Code.
+const CROSS_STUDIEN = ['cross-venue', 'gap-lifetime'];
+
+export function crossStudien(landing) {
+  const p = landing && landing.micro && typeof landing.micro === 'object' && landing.micro._quelle !== 'fehler'
+    ? landing.micro
+    : null;
+  const liste = p && Array.isArray(p.studien) ? p.studien : [];
+  const studien = CROSS_STUDIEN
+    .map((id) => liste.filter((st) => st && String(st.id) === id)[0])
+    .filter(Boolean);
+  return { payload: p, studien };
+}
+
+function crossMeasuredBlock(T) {
+  const { payload, studien } = crossStudien(T.landing);
+  const kopf = '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">WHAT WE MEASURED ON PAIRS LIKE THESE</div>';
+  const huelle = (inhalt) => '<div style="background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel); padding:var(--sp-5); margin-top:var(--sp-5); max-width:760px">' + kopf + inhalt + '</div>';
+  // Fehlt die Nutzlast, steht hier der Dateiname und keine Zahl. Ein Befund
+  // aus dem Gedaechtnis waere hier das Gegenteil dessen, was der Kasten sagt.
+  if (!studien.length) {
+    return huelle('<div style="font-size:var(--t-body); color:var(--ink-4); margin-top:var(--sp-3); line-height:var(--lh-prose)">'
+      + 'The frozen read on these gaps is not loaded: <span style="' + M + '">microstructure.json</span> is missing or carries no cross-venue study. Nothing is claimed here until it does.</div>');
+  }
+  const stand = stempel(payload && payload.stand_utc);
+  return huelle(
+    studien.map((st) => '<div style="border-top:1px solid var(--line-3); margin-top:var(--sp-4); padding-top:var(--sp-4)">'
+      + '<div style="font-size:var(--t-body); color:var(--ink-3); line-height:var(--lh-prose)">' + esc(String(st.frage || '')) + '</div>'
+      + '<div style="font-size:var(--t-body); font-weight:600; margin-top:var(--sp-2); line-height:var(--lh-prose)">' + esc(String(st.verdikt || '')) + '</div>'
+      + '<div style="margin-top:var(--sp-3)">' + basisZeile(st.basis) + '</div>'
+      + '</div>').join('')
+    + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-4); margin-top:var(--sp-4); line-height:var(--lh-prose)">'
+    + 'Frozen study, not a live number' + (stand ? ' · snapshot ' + esc(stand) : '') + '. '
+    + 'The table below is today&#39;s scan; the two lines above are what a full pass over such gaps found.</div>'
+    + '<div style="margin-top:var(--sp-3)"><a href="#research/microstructure/cross-venue" style="' + M + '; font-size:var(--t-micro)">Read how that was measured →</a></div>'
+  );
+}
+
 function crossGateBlock(T) {
   const microIdx = T.studies.findIndex((st) => st.tab === 'Microstructure');
   // Auch mit leerem Gate hat die Antwort meist etwas zu zeigen: die
@@ -1092,7 +1138,9 @@ export function renderCross(T) {
     // The paper scanner's section stands under every state of the pair
     // scan: its file is a separate, small request (liveData.arbScan) and
     // does not wait for the slow scan or share its failure.
-    return '<div>' + seitenKopf('CROSS-VENUE', 'The same question, two prices', 'var(--info)') + body + renderArbScanAbschnitt(T.liveData.arbScan) + '</div>';
+    return '<div>' + seitenKopf('CROSS-VENUE', 'The same question, two prices', 'var(--info)')
+      + '<div style="padding:0 var(--sp-6)">' + crossMeasuredBlock(T) + '</div>'
+      + body + renderArbScanAbschnitt(T.liveData.arbScan, undefined, T.liveData.arbResolutions) + '</div>';
   }
   // Local filters can only tighten what the server let through.
   let cRows = T.crossPairs.filter((c) => Math.abs(c.pm - c.ks) >= s.crossMinGap && c.sim >= s.crossSim && c.pmVolUsd >= s.crossPmVol && c.ksVolContracts >= s.crossKsVol);
@@ -1146,7 +1194,19 @@ export function renderCross(T) {
     + '<div ' + T.act(() => T.setState({ crossQuery: '', crossSim: 0.5, crossMaxPairs: 50, crossMinGap: 0, crossLower: 'any', crossPmVol: 0, crossKsVol: 0, crossMinPrice: 0, crossMaxPrice: 100 })) + ' class="hv-edge-strong" style="font-size:var(--t-small); color:var(--ink-3); border:1px solid var(--line-1); border-radius:var(--r-control); padding:var(--sp-3) var(--sp-4); cursor:pointer">Reset filters</div>'
     + '</div></div>'
     + '<div style="font-size:var(--t-body); color:var(--ink-4); margin-top:var(--sp-4); max-width:760px">Matched by title similarity, not by ticker. ' + esc(gateNote) + '. GAP is the distance between the two mid prices, and nobody trades a mid. NET OF FEES prices the basket that would capture it (buy the yes side at the ask, buy the other side at the other venue&#39;s ask) and subtracts both venues&#39; taker fee curves. The top ' + num(cl.depth_rows || 12) + ' rows by net are re-quoted against both order books, so their number holds for the size shown beneath it; the rest price the touch at the fee clip of 100 and say so. Settlement rules and resolution sources still differ, and two matched titles can still be two different questions (studies 08 and 11).</div>'
+    // Die NET-OF-FEES-Spalte ruht auf einem Satz, der nicht eindeutig belegt
+    // ist. Weniger Gebuehr hiesse mehr Netto, die Spalte zeigt also das
+    // konservative Ende -- und wie viele der gezeigten Paare ueberhaupt
+    // betroffen sind, steht daneben, damit der Hinweis eine Groesse hat.
+    + (cl.fee_note && cRows.some((c) => c.feeDisputed)
+      ? '<div style="' + NOTIZ + '; margin-top:var(--sp-4); max-width:760px">' + esc(cl.fee_note)
+        + ' ' + num(cRows.filter((c) => c.feeDisputed).length) + ' of ' + num(cRows.length)
+        + ' pairs shown price the Polymarket leg at that rate. NET OF FEES uses the documented '
+        + (cl.fee_rate_documented != null ? (cl.fee_rate_documented * 100).toFixed(0) + ' percent' : 'rate')
+        + ', so it is the conservative end: at the lower rate the same pairs keep more.</div>'
+      : '')
     + crossSuppressedBlock(cl.suppressed)
+    + crossMeasuredBlock(T)
 
     + '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:var(--sp-5); padding:var(--sp-5); display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:var(--sp-5)">'
     + stepGroup('MIN SIMILARITY (GATE 0.50)', s.crossSim.toFixed(2), () => T.setState({ crossSim: Math.max(0.5, +(s.crossSim - 0.02).toFixed(2)) }), () => T.setState({ crossSim: Math.min(0.9, +(s.crossSim + 0.02).toFixed(2)) }))
@@ -1207,7 +1267,7 @@ export function renderCross(T) {
     + (cRows.length === 0 ? '<div style="padding:var(--sp-7); text-align:center; ' + M + '; font-size:var(--t-small); color:var(--ink-4)">No pair passes the local filters; loosen a stepper above.</div>' : '')
     // Paper scanner: executable edge — the scanner's file, laid out under
     // the pair comparison (arb_scan_page.js).
-    + renderArbScanAbschnitt(T.liveData.arbScan)
+    + renderArbScanAbschnitt(T.liveData.arbScan, undefined, T.liveData.arbResolutions)
     + '</div>';
 }
 
@@ -1218,6 +1278,14 @@ export function renderResolved(T) {
   // Ohne Antwort keine Zeilen. Hier lagen sechs erfundene Maerkte samt
   // Ausgang, und die Kennzahl darueber hiess "how far the crowd was off" —
   // eine Fehlermessung an Zahlen, die niemand gemessen hat.
+  //
+  // Die erfundenen Zeilen sind laengst weg, die Kennzahl blieb, und mit
+  // echten Daten war sie strukturell null: der Feed liefert fuer einen
+  // abgerechneten Markt nur noch den Abrechnungspreis, und der Ausgang wird
+  // aus genau diesem Preis abgeleitet. Ueber fuenfzig echte Zeilen: fuenfzig
+  // Mal null. Jetzt steht der Abrechnungspreis als das da, was er ist, und
+  // eine Kachel zeigt, wie viele Zeilen ueberhaupt nicht bei 0 oder 100
+  // liegen — der Nachweis am Bildschirm statt einer Behauptung im Text.
   const resAll = live && live.rows ? live.rows : [];
   if (!resAll.length) {
     return '<div>' + seitenKopf('RESOLVED', 'How the last questions ended', 'var(--accent)')
@@ -1228,19 +1296,22 @@ export function renderResolved(T) {
   let resRows = resAll.filter((r) => {
     if (s.resAnswer !== 'all' && (s.resAnswer === 'yes') !== r.yes) return false;
     if (s.resWindow !== 'all' && r.hours > Number(s.resWindow)) return false;
-    if (s.resError !== 'all' && r.err < Number(s.resError)) return false;
     if (s.resQuery.trim() && r.title.toLowerCase().indexOf(s.resQuery.trim().toLowerCase()) < 0) return false;
     return true;
   });
   const volValue = (v) => parseFloat(String(v).replace(/[$,]/g, '')) * (String(v).indexOf('m') >= 0 ? 1e6 : String(v).indexOf('k') >= 0 ? 1e3 : 1) || 0;
-  resRows = resRows.sort((a, b) => (s.resSort === 'error' ? b.err - a.err : s.resSort === 'volume' ? volValue(b.vol) - volValue(a.vol) : a.hours - b.hours));
-  const avgErr = resRows.length ? Math.round(resRows.reduce((a, r) => a + r.err, 0) / resRows.length) : 0;
-  const worst = resRows.reduce((a, r) => (r.err > (a ? a.err : -1) ? r : a), null);
+  resRows = resRows.sort((a, b) => (s.resSort === 'volume' ? volValue(b.vol) - volValue(a.vol) : a.hours - b.hours));
+  // Wie viele der gezeigten Zeilen nicht bei 0 oder 100 abgerechnet haben.
+  // Ist das null, steckt in diesen Daten ueberhaupt keine Abweichung
+  // zwischen Menge und Ausgang, und die Kachel zeigt das, statt dass
+  // die Seite es behauptet.
+  const zwischen = resRows.filter((r) => r.settled_price > 0 && r.settled_price < 100).length;
+  const frisch = resRows.filter((r) => r.hours <= 24).length;
   const kpis = [
     { label: 'MARKETS SHOWN', value: String(resRows.length) },
-    { label: 'CROWD OFF BY, ON AVERAGE', value: avgErr + '¢' },
-    { label: 'BIGGEST SURPRISE', value: worst ? worst.err + '¢' : '—', amber: true },
-    { label: 'ENDED YES', value: resRows.filter((r) => r.yes).length + ' of ' + resRows.length }
+    { label: 'ENDED YES', value: resRows.filter((r) => r.yes).length + ' of ' + resRows.length },
+    { label: 'SETTLED IN THE LAST 24 H', value: frisch + ' of ' + resRows.length },
+    { label: 'PRICE NOT 0 OR 100', value: zwischen + ' of ' + resRows.length, amber: zwischen === 0 }
   ];
 
   return '<div>'
@@ -1250,13 +1321,13 @@ export function renderResolved(T) {
     + '<h1 style="font-size:var(--t-head); line-height:var(--lh-tight); margin:var(--sp-3) 0 0; font-weight:600; letter-spacing:var(--ls-flat)">How the last questions ended</h1></div>'
     + '<input value="' + esc(s.resQuery) + '" ' + T.inpEntprellt('resQuery') + ' placeholder="Search resolved markets…" style="background:var(--panel); border:1px solid var(--line-edge); border-radius:var(--r-control); padding:var(--sp-3) var(--sp-4); ' + M + '; font-size:var(--t-small); color:var(--text); width:250px" />'
     + '</div>'
-    + '<div style="font-size:var(--t-body); color:var(--ink-4); margin-top:var(--sp-4); max-width:700px">The last price before settlement next to the answer. The gap between the two is what the crowd got wrong.</div>'
+    + '<div style="font-size:var(--t-body); color:var(--ink-4); margin-top:var(--sp-4); max-width:700px">How each question ended, newest first, with the price it settled at.</div>'
+    + '<div style="' + NOTIZ + '; margin-top:var(--sp-3); max-width:700px">' + esc(live.price_note || '') + '</div>'
     + (live.as_of ? '<div style="margin-top:var(--sp-3)">' + asOfLine(live.as_of) + '</div>' : '')
-    + '<div style="display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:var(--sp-5); margin-top:var(--sp-5)">'
+    + '<div style="display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:var(--sp-5); margin-top:var(--sp-5)">'
     + filterGroup('ANSWER', [['all','All'],['yes','Ended Yes'],['no','Ended No']].map((o) => T.opt(o[1], s.resAnswer === o[0], { resAnswer: o[0] })).join(''))
     + filterGroup('SETTLED WITHIN', [['all','All'],['24','24 hours'],['168','7 days']].map((o) => T.opt(o[1], s.resWindow === o[0], { resWindow: o[0] })).join(''))
-    + filterGroup('CROWD WAS OFF BY', [['all','Any'],['25','25¢ or more'],['50','50¢ or more']].map((o) => T.opt(o[1], s.resError === o[0], { resError: o[0] })).join(''))
-    + filterGroup('SORT BY', [['recent','Most recent'],['error','Biggest surprise'],['volume','Volume']].map((o) => T.opt(o[1], s.resSort === o[0], { resSort: o[0] })).join(''))
+    + filterGroup('SORT BY', [['recent','Most recent'],['volume','Volume']].map((o) => T.opt(o[1], s.resSort === o[0], { resSort: o[0] })).join(''))
     + '</div></div>'
 
     + '<div style="display:grid; grid-template-columns:repeat(4,1fr); border-bottom:1px solid var(--line-2)">'
@@ -1267,17 +1338,15 @@ export function renderResolved(T) {
     + '</div>'
 
     + '<div role="table" aria-label="Resolved markets">'
-    + '<div role="row" style="display:grid; grid-template-columns:1fr 110px 118px 128px 110px 120px; padding:var(--sp-4) var(--sp-6); border-bottom:1px solid var(--line-2); background:var(--panel); position:sticky; top:0; z-index:3; ' + LABEL + '">'
-    + '<div role="columnheader">MARKET</div><div role="columnheader" style="text-align:right">ANSWER</div><div role="columnheader" style="text-align:right">LAST PRICE</div><div role="columnheader" style="text-align:right">CROWD OFF BY</div><div role="columnheader" style="text-align:right">VOLUME</div><div role="columnheader" style="text-align:right">SETTLED</div></div>'
+    + '<div role="row" style="display:grid; grid-template-columns:1fr 110px 128px 110px 120px; padding:var(--sp-4) var(--sp-6); border-bottom:1px solid var(--line-2); background:var(--panel); position:sticky; top:0; z-index:3; ' + LABEL + '">'
+    + '<div role="columnheader">MARKET</div><div role="columnheader" style="text-align:right">ANSWER</div><div role="columnheader" style="text-align:right">SETTLED PRICE</div><div role="columnheader" style="text-align:right">VOLUME</div><div role="columnheader" style="text-align:right">SETTLED</div></div>'
     + resRows.map((r) => {
       const answerStyle = M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps); border-radius:var(--r-control); padding:var(--sp-2) var(--sp-4); ' + (r.yes ? 'color:var(--on-accent); background:var(--accent)' : 'color:var(--neg-soft); border:1px solid rgba(var(--neg-rgb),.35)');
-      const errStyle = M + '; font-size:var(--t-body); text-align:right; color:' + (r.err >= 50 ? 'var(--neg)' : r.err >= 25 ? 'var(--warn)' : 'var(--ink-3)');
-      return '<div role="row" style="display:grid; grid-template-columns:1fr 110px 118px 128px 110px 120px; align-items:center; padding:var(--sp-4) var(--sp-6); border-bottom:1px solid var(--line-3)">'
+      return '<div role="row" style="display:grid; grid-template-columns:1fr 110px 128px 110px 120px; align-items:center; padding:var(--sp-4) var(--sp-6); border-bottom:1px solid var(--line-3)">'
         + '<div role="cell" style="padding-right:var(--sp-6)"><div style="font-size:var(--t-body); line-height:var(--lh-tight)">' + esc(r.title) + '</div>'
         + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:var(--sp-2)">' + esc(r.meta) + '</div></div>'
         + '<div role="cell" style="display:flex; justify-content:flex-end"><div style="' + answerStyle + '">' + (r.yes ? 'YES' : 'NO') + '</div></div>'
-        + '<div role="cell" style="' + M + '; font-size:var(--t-body); text-align:right">' + r.last + '¢</div>'
-        + '<div role="cell" style="' + errStyle + '">' + r.err + '¢</div>'
+        + '<div role="cell" style="' + M + '; font-size:var(--t-body); text-align:right">' + r.settled_price + '¢</div>'
         + '<div role="cell" style="' + M + '; font-size:var(--t-small); text-align:right; color:var(--ink-3)">' + esc(r.vol) + '</div>'
         + '<div role="cell" style="' + M + '; font-size:var(--t-small); text-align:right; color:var(--ink-3)">' + esc(r.when) + '</div></div>';
     }).join('')
