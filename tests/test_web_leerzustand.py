@@ -2306,6 +2306,26 @@ class WebLeerzustandTest(unittest.TestCase):
         quelle = (WURZEL / "web" / "js" / "studies.js").read_text(encoding="utf-8")
         self.assertNotIn("chart:", quelle)
 
+    def test_die_wallet_rechnet_die_fehlenden_verluste_vor(self) -> None:
+        # Der Zusatz "1 unredeemed loss not in it" liess den Leser selbst
+        # rechnen. Was die Quote wert ist, wenn die bekannten fehlenden
+        # Verluste im Nenner stehen, steht jetzt daneben und als eigene Zeile.
+        kopf = _sichtbarer_text(self.ausgabe["live"]["wallet"])
+        self.assertIn("1 unredeemed loss not in it · 67% with them", kopf)
+
+        record = _sichtbarer_text(self.ausgabe["live"]["wallet_tab_record"])
+        self.assertIn("Lower bound — the same, with the 1 unredeemed loss counted", record)
+        self.assertIn("8 / 12", record)
+        # Und die Schranke traegt ihr eigenes Intervall, nicht das der Quote.
+        self.assertIn("[39%, 86%]", record)
+
+        # Dieselbe Korrektur an der zweiten Kennzahl derselben Karte, und
+        # dort ausdruecklich ohne vorgetaeuschtes Intervall.
+        self.assertIn("Lower bound with the 1 unredeemed loss counted", record)
+        self.assertIn("$10.00 of stake, no return", record)
+        self.assertIn("32.8¢ per $", record)
+        self.assertIn("No interval: the omitted rows are not in the bootstrap sample", record)
+
     def test_leaderboard_zeigt_geschaetzte_score_teile_nicht_als_zahl(self) -> None:
         """Ein Bestandteil ohne Eingabe im Feed erscheint als "assumed", nicht als Wert.
 
