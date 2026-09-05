@@ -2,7 +2,7 @@
 // One controller class; each workspace renders as an HTML string from state.
 
 import { num, money, volume, esc, seriesPoints, tapeMatches, liveStatusLabel } from './util.js';
-import { STUDIEN } from './studies.js';
+import { STUDIEN, studienIndexAus as studienIndexIn } from './studies.js';
 import { caveatZeile, registerAktualisieren } from './claims.js';
 import { apiGet, apiGetRaw, apiPost } from './api.js';
 import { renderOverview, renderMarkets, renderFlow, renderCross, renderResolved } from './pages/core_pages.js';
@@ -199,6 +199,14 @@ class Terminal {
         // Drittes Segment = Karte auf der Seite (#research/microstructure/<id>)
         // oder der Reiter der Live runs (#research/live-runs/timing).
         this._pendingAnchor = segmente[2] && !this.tabAusAdresse(segmente) ? segmente.join('/') : null;
+      } else {
+        // Segment zeigt auf keine Studie: die Forschungsseite auf ihrem
+        // Standardreiter oeffnen und die Adresse darauf zurechtruecken, wie
+        // es die alte Scanner-Adresse oben schon tut. Eine Adresse, die eine
+        // Studie nennt, die nicht zu sehen ist, ist schlimmer als ein Reiter,
+        // den niemand verlangt hat.
+        this.state.page = 'research';
+        try { history.replaceState(null, '', '#research/' + this.studienSlug(this.state.researchTab)); } catch (e) { /* file:// */ }
       }
     }
     // Deep link #wallet/<address>: the page opens on that wallet and fetches
@@ -587,11 +595,7 @@ class Terminal {
   }
 
   studienIndexAus(slug) {
-    if (!slug) return -1;
-    for (let i = 0; i < this.studies.length; i += 1) {
-      if (this.studienSlug(i) === slug) return i;
-    }
-    return -1;
+    return studienIndexIn(this.studies, slug);
   }
 
   // #research/arb-scan (and #research/arb_scan, typed from the file name)
@@ -1612,7 +1616,13 @@ class Terminal {
         // The third segment is a card anchor (#research/microstructure/<id>)
         // unless it names a Live-runs tab (#research/live-runs/timing).
         this._pendingAnchor = segmente[2] && !this.tabAusAdresse(segmente) ? segmente.join('/') : null;
-        this.setState({ page: 'research', researchTab: i >= 0 ? i : this.state.researchTab, detail: null });
+        const reiter = i >= 0 ? i : this.state.researchTab;
+        this.setState({ page: 'research', researchTab: reiter, detail: null });
+        // Nennt die Adresse eine Studie, die es nicht gibt, ruecke sie auf
+        // die zurecht, die wirklich zu sehen ist.
+        if (segmente[1] && i < 0) {
+          try { history.replaceState(null, '', '#research/' + this.studienSlug(reiter)); } catch (e) { /* file:// */ }
+        }
         this.fetchPageData('research');
       } else if (segmente[0] === 'wallet') {
         // #wallet/<addr> from back/forward or a pasted link: analyse that
