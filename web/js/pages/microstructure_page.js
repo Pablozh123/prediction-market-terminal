@@ -112,7 +112,9 @@ function detailBlock(details, id) {
     + '</div>';
 }
 
-function basisZeile(basis) {
+// Auch von der Cross-Venue-Seite genutzt: dort steht dieselbe Basiszeile
+// unter den beiden Studien, die zu ihrer Frage gehoeren.
+export function basisZeile(basis) {
   if (!basis) return '';
   const teile = [];
   const b = basis;

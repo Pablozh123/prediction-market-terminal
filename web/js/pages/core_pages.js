@@ -6,7 +6,7 @@
 import { asOfLine, esc, money, num, volume, contracts, herkunftSatz, leerBlock, leerZeile, seitenKopf, catChipsPresent, signedMoney, stempel, EINZAHLUNGEN_USD, offeneNichtDrin, tapeFenster, fensterSatz, categorySourceLabel, ledgerBotPositionen } from '../util.js';
 import { caveatZeile } from '../claims.js';
 import { spiegelZeit, kurzGeld, histogramm } from '../charts.js';
-import { studieAnker } from './microstructure_page.js';
+import { studieAnker, basisZeile } from './microstructure_page.js';
 import { renderArbScanAbschnitt } from './arb_scan_page.js';
 import { MONO as M, LABEL_BLOCK, LABEL, NOTIZ, kpi } from '../ui.js';
 
@@ -1050,6 +1050,49 @@ function crossSuppressedBlock(sup) {
     + '</div>';
 }
 
+// Was diese Seite zeigt, ist ein Live-Scan: zwei Preise fuer dieselbe Frage.
+// Ob so eine Luecke Geld ist, hat die eingefrorene Studie bereits beantwortet,
+// und sie hat nein gesagt. Der Befund stand bisher nur unter Research, also
+// genau dort nicht, wo jemand auf eine Luecke sieht und sie fuer Arbitrage
+// haelt. Gelesen wird er aus der veroeffentlichten Nutzlast, nicht hier
+// nacherzaehlt: so altert jede Zahl mit der Datei und nicht mit dem Code.
+const CROSS_STUDIEN = ['cross-venue', 'gap-lifetime'];
+
+export function crossStudien(landing) {
+  const p = landing && landing.micro && typeof landing.micro === 'object' && landing.micro._quelle !== 'fehler'
+    ? landing.micro
+    : null;
+  const liste = p && Array.isArray(p.studien) ? p.studien : [];
+  const studien = CROSS_STUDIEN
+    .map((id) => liste.filter((st) => st && String(st.id) === id)[0])
+    .filter(Boolean);
+  return { payload: p, studien };
+}
+
+function crossMeasuredBlock(T) {
+  const { payload, studien } = crossStudien(T.landing);
+  const kopf = '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">WHAT WE MEASURED ON PAIRS LIKE THESE</div>';
+  const huelle = (inhalt) => '<div style="background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-panel); padding:var(--sp-5); margin-top:var(--sp-5); max-width:760px">' + kopf + inhalt + '</div>';
+  // Fehlt die Nutzlast, steht hier der Dateiname und keine Zahl. Ein Befund
+  // aus dem Gedaechtnis waere hier das Gegenteil dessen, was der Kasten sagt.
+  if (!studien.length) {
+    return huelle('<div style="font-size:var(--t-body); color:var(--ink-4); margin-top:var(--sp-3); line-height:var(--lh-prose)">'
+      + 'The frozen read on these gaps is not loaded: <span style="' + M + '">microstructure.json</span> is missing or carries no cross-venue study. Nothing is claimed here until it does.</div>');
+  }
+  const stand = stempel(payload && payload.stand_utc);
+  return huelle(
+    studien.map((st) => '<div style="border-top:1px solid var(--line-3); margin-top:var(--sp-4); padding-top:var(--sp-4)">'
+      + '<div style="font-size:var(--t-body); color:var(--ink-3); line-height:var(--lh-prose)">' + esc(String(st.frage || '')) + '</div>'
+      + '<div style="font-size:var(--t-body); font-weight:600; margin-top:var(--sp-2); line-height:var(--lh-prose)">' + esc(String(st.verdikt || '')) + '</div>'
+      + '<div style="margin-top:var(--sp-3)">' + basisZeile(st.basis) + '</div>'
+      + '</div>').join('')
+    + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-4); margin-top:var(--sp-4); line-height:var(--lh-prose)">'
+    + 'Frozen study, not a live number' + (stand ? ' · snapshot ' + esc(stand) : '') + '. '
+    + 'The table below is today&#39;s scan; the two lines above are what a full pass over such gaps found.</div>'
+    + '<div style="margin-top:var(--sp-3)"><a href="#research/microstructure/cross-venue" style="' + M + '; font-size:var(--t-micro)">Read how that was measured →</a></div>'
+  );
+}
+
 function crossGateBlock(T) {
   const microIdx = T.studies.findIndex((st) => st.tab === 'Microstructure');
   // Auch mit leerem Gate hat die Antwort meist etwas zu zeigen: die
@@ -1095,7 +1138,9 @@ export function renderCross(T) {
     // The paper scanner's section stands under every state of the pair
     // scan: its file is a separate, small request (liveData.arbScan) and
     // does not wait for the slow scan or share its failure.
-    return '<div>' + seitenKopf('CROSS-VENUE', 'The same question, two prices', 'var(--info)') + body + renderArbScanAbschnitt(T.liveData.arbScan, undefined, T.liveData.arbResolutions) + '</div>';
+    return '<div>' + seitenKopf('CROSS-VENUE', 'The same question, two prices', 'var(--info)')
+      + '<div style="padding:0 var(--sp-6)">' + crossMeasuredBlock(T) + '</div>'
+      + body + renderArbScanAbschnitt(T.liveData.arbScan, undefined, T.liveData.arbResolutions) + '</div>';
   }
   // Local filters can only tighten what the server let through.
   let cRows = T.crossPairs.filter((c) => Math.abs(c.pm - c.ks) >= s.crossMinGap && c.sim >= s.crossSim && c.pmVolUsd >= s.crossPmVol && c.ksVolContracts >= s.crossKsVol);
@@ -1150,6 +1195,7 @@ export function renderCross(T) {
     + '</div></div>'
     + '<div style="font-size:var(--t-body); color:var(--ink-4); margin-top:var(--sp-4); max-width:760px">Matched by title similarity, not by ticker. ' + esc(gateNote) + '. GAP is the distance between the two mid prices, and nobody trades a mid. NET OF FEES prices the basket that would capture it (buy the yes side at the ask, buy the other side at the other venue&#39;s ask) and subtracts both venues&#39; taker fee curves. The top ' + num(cl.depth_rows || 12) + ' rows by net are re-quoted against both order books, so their number holds for the size shown beneath it; the rest price the touch at the fee clip of 100 and say so. Settlement rules and resolution sources still differ, and two matched titles can still be two different questions (studies 08 and 11).</div>'
     + crossSuppressedBlock(cl.suppressed)
+    + crossMeasuredBlock(T)
 
     + '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:var(--sp-5); padding:var(--sp-5); display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:var(--sp-5)">'
     + stepGroup('MIN SIMILARITY (GATE 0.50)', s.crossSim.toFixed(2), () => T.setState({ crossSim: Math.max(0.5, +(s.crossSim - 0.02).toFixed(2)) }), () => T.setState({ crossSim: Math.min(0.9, +(s.crossSim + 0.02).toFixed(2)) }))
