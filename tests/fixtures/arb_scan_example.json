@@ -16,7 +16,7 @@
     "alive": true
   },
   "config": {
-    "hurdle_pct": 10,
+    "hurdle_pct": 5,
     "target_size_usd": 20,
     "min_executable_depth_usd": 5,
     "clean_basket_min_edge_bps": 100,
