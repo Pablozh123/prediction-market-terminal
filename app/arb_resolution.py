@@ -50,6 +50,11 @@ from typing import Any, Callable
 GAMMA = "https://gamma-api.polymarket.com"
 USER_AGENT = "marketintel-arb-resolution/1.0"
 CLOB = "https://clob.polymarket.com"
+#: Seit E5 (2026-09-05) feuert der Scanner Cross-Venue-Paare paper und
+#: journaliert das Kalshi-Bein unter diesem Slug-Praefix. Gamma kennt es
+#: nicht; der Scanner rechnet es selbst gegen das Kalshi-Marktergebnis ab.
+KALSHI_PAPER_SLUG_PREFIX = "kalshi:"
+KALSHI_LEG_REASON = "kalshi_leg_not_resolved_here"
 #: Toleranz fuer den Abgleich Einstiegspreis gegen den CLOB-Tagespreis, in
 #: Preis-Einheiten (0..1). Ein Tagespunkt liegt bis zu zwoelf Stunden neben
 #: dem Fill, und in der Zeit bewegt sich ein Preis um ein paar Cent.
@@ -555,16 +560,25 @@ def resolve_all(trades: list[dict[str, Any]], fetch: FetchJson = fetch_json,
     zeilen = []
     for t in trades:
         slug = str(t.get("slug") or t.get("title") or "")
-        if slug not in cache:
+        kalshi_bein = slug.startswith(KALSHI_PAPER_SLUG_PREFIX)
+        if kalshi_bein:
+            # Kein Gamma-Markt und kein CLOB-Token: der Scanner rechnet das
+            # Bein selbst ab, hier bleibt es mit Grund unbekannt.
+            cache.setdefault(slug, None)
+        elif slug not in cache:
             cache[slug] = lookup_market(slug, str(t.get("token_id") or ""), fetch)
         token = str(t.get("token_id") or "")
         tag = None
-        if token and with_clob:
+        if token and with_clob and not kalshi_bein:
             schluessel = "clob:" + token
             if schluessel not in cache:
                 cache[schluessel] = _clob_history(token, fetch)
             tag = clob_price_near(token, _fill_zeit(t), fetch, history=cache[schluessel])
-        zeilen.append(resolve_trade(t, cache[slug], now, day=tag))
+        zeile = resolve_trade(t, cache[slug], now, day=tag)
+        if kalshi_bein:
+            zeile["pnl_reason"] = KALSHI_LEG_REASON
+            zeile["pnl_corrected_reason"] = KALSHI_LEG_REASON
+        zeilen.append(zeile)
     koerbe = baskets(zeilen)
     return {
         "schema": "arb_resolutions/1",
@@ -578,7 +592,8 @@ def resolve_all(trades: list[dict[str, Any]], fetch: FetchJson = fetch_json,
             "entry the CLOB day price supports: where the journal's entry only matches as 1 minus entry, the "
             "journal stored the other side's price and the corrected entry is 1 minus the recorded one. A leg whose "
             "entry matches neither side, has no day price, or was filled after the market's closedTime gets no "
-            "corrected PnL, only the reason."
+            "corrected PnL, only the reason. A Kalshi leg (slug kalshi:<ticker>, paper-fired by the scanner since "
+            "2026-09-05) is settled by the scanner against Kalshi's own result and stays unknown here."
         ),
         "trades": zeilen,
         "baskets": koerbe,

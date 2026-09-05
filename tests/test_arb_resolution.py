@@ -279,6 +279,30 @@ class KorrigierteRechnung(unittest.TestCase):
         self.assertEqual(s["without_corrected_pnl_reasons"], {"filled_after_close": 1})
 
 
+class KalshiBein(unittest.TestCase):
+    def test_kalshi_bein_fragt_weder_gamma_noch_clob_und_bleibt_mit_grund_unbekannt(self):
+        t = _trade("kalshi:KXTEST", 0.42, side="YES")
+        t["token_id"] = "KXTEST:YES"
+        t["strategy"] = "cross_venue_yes_no_arb"
+        aufrufe = []
+
+        def fetch(url):
+            aufrufe.append(url)
+            return [_markt("a", '["0", "1"]')] if "slug=a" in url else []
+
+        out = ar.resolve_all([t, _trade("a", 0.5)], fetch=fetch, cache={}, now=JETZT, with_clob=False)
+        kalshi, poly = out["trades"]
+        self.assertEqual(kalshi["status"], "unknown")
+        self.assertEqual(poly["status"], "resolved")
+        self.assertEqual(kalshi["pnl_reason"], ar.KALSHI_LEG_REASON)
+        self.assertEqual(kalshi["pnl_corrected_reason"], ar.KALSHI_LEG_REASON)
+        self.assertIsNone(kalshi["pnl_usd"])
+        # The Polymarket leg still goes to Gamma; nothing was asked for the Kalshi leg.
+        self.assertEqual(poly["slug"], "a")
+        self.assertTrue(all("kalshi" not in url.lower() and "KXTEST" not in url for url in aufrufe))
+        self.assertEqual(out["summary"]["unknown"], 1)
+
+
 class GanzerLauf(unittest.TestCase):
     def test_resolve_all_fragt_gamma_und_clob_je_einmal(self):
         urls = []
