@@ -1194,6 +1194,25 @@ function rendern(T) {
       } });
       return () => { T.liveData.copy = alt; };
     }],
+    // Betraege ueber tausend: alle vier Kacheln der Kopfzeile muessen
+    // dieselbe Schreibweise benutzen.
+    ['portfolio_gross', 'portfolio', {}, null, (T) => {
+      const alt = T.liveData.copy;
+      if (!alt || !alt.kpis) return () => {};
+      T.liveData.copy = Object.assign({}, alt, {
+        kpis: Object.assign({}, alt.kpis, { equity: 12345.6, cash: 9876.5, unrealized: 2468.9 })
+      });
+      return () => { T.liveData.copy = alt; };
+    }],
+    // Und wenn die Felder fehlen, steht ueberall ein Strich statt NaN.
+    ['portfolio_ohne_zahlen', 'portfolio', {}, null, (T) => {
+      const alt = T.liveData.copy;
+      if (!alt || !alt.kpis) return () => {};
+      const knapp = Object.assign({}, alt.kpis);
+      delete knapp.equity; delete knapp.cash; delete knapp.unrealized; delete knapp.open_positions;
+      T.liveData.copy = Object.assign({}, alt, { kpis: knapp });
+      return () => { T.liveData.copy = alt; };
+    }],
     ['portfolio_exposure', 'portfolio', { portTab: 'exposure' }],
     // Live tape / Whale flow narrowed by a category chip: the harness tape
     // carries one Macro print (with wallet) and one Crypto print (Kalshi, no
