@@ -1,234 +1,1600 @@
 {
-  "schema": "arb_scan/1",
-  "generated_at": "2026-09-03T05:40:12+00:00",
+  "schema": "arb_scan/2",
+  "generated_at": "2026-09-05T14:00:00.000Z",
   "generator": {
     "repo": "prediction-alpha-bot",
-    "git_sha": "3f9c2a1d7b6e4c5f8a9b0c1d2e3f4a5b6c7d8e9f",
+    "git_sha": "fixture",
     "mode": "paper"
   },
-  "disclaimer": "Paper scanner. Every figure is a quote comparison at scan time; no order was placed, no capital moved, and the resolution rules of the paired markets were not read by a human unless rule_match says reviewed.",
+  "disclaimer": "Paper-only research. Not trading advice.",
   "health": {
-    "last_cycle_at": "2026-09-03T05:39:58+00:00",
-    "cycles_24h": 2870,
-    "errors_24h": 3,
+    "last_cycle_at": "2026-09-05T14:00:00.000Z",
+    "cycles_24h": 6,
+    "errors_24h": 1,
     "scan_interval_ms": 30000,
+    "configured_interval_ms": 10000,
     "alive": true
   },
+  "config": {
+    "hurdle_pct": 10,
+    "target_size_usd": 20,
+    "min_executable_depth_usd": 5,
+    "clean_basket_min_edge_bps": 100,
+    "cross_venue_min_net_cents": 0.5,
+    "short_max_hours": 72,
+    "medium_max_days": 14,
+    "execution_role_mode": "taker",
+    "fee_model_version": "2026-07-30"
+  },
   "summary": {
-    "raw_candidates_24h": 412,
-    "validated_24h": 9,
-    "paper_fired_24h": 4,
-    "open_paper_positions": 3,
-    "resolved_paper_trades": 6,
-    "resolved_paper_pnl_usd": 3.42,
-    "sample_note": "6 resolved paper trades: far too few for any read on the edge; the sign of the total is noise at this size."
+    "raw_candidates_24h": 54,
+    "near_miss_24h": 612,
+    "validated_24h": 2,
+    "candidates_24h": 2,
+    "paper_fired_24h": 2,
+    "open_paper_positions": 2,
+    "resolved_paper_trades": 1,
+    "resolved_paper_pnl_usd": 10.2,
+    "sample_note": "1 resolved paper trade(s) with a linked candidate. PnL is the sum over linked, resolved, unflagged trades only. Pre-registered 2026-09-04: 14-day measurement window from go-live; criterion is resolved, candidate-linked paper trades with positive net edge after fees."
   },
   "strategies": [
     {
-      "id": "cross_venue_parity",
-      "label": "Cross-venue parity",
-      "raw_24h": 301,
-      "validated_24h": 6,
-      "paper_24h": 3,
-      "top_rejection": "net_edge_below_fees"
-    },
-    {
-      "id": "intra_market_complement",
-      "label": "YES + NO under one dollar",
-      "raw_24h": 88,
-      "validated_24h": 2,
-      "paper_24h": 1,
-      "top_rejection": "depth_below_min"
-    },
-    {
-      "id": "multi_outcome_sum",
-      "label": "Multi-outcome sum over one dollar",
-      "raw_24h": 23,
-      "validated_24h": 1,
+      "id": "neg_risk_bracket_arb",
+      "label": "NEG_RISK bracket sum-arb (Polymarket)",
+      "class": "neg_risk_no_basket",
+      "raw_24h": 5,
+      "near_miss_24h": 0,
+      "validated_24h": 0,
+      "candidates_24h": 1,
       "paper_24h": 0,
-      "top_rejection": "rule_mismatch_suspected"
+      "top_rejection": "below_annualized_hurdle"
+    },
+    {
+      "id": "within_market_fast_arb",
+      "label": "Within-market YES+NO (Polymarket)",
+      "class": "same_market_complement",
+      "raw_24h": 41,
+      "near_miss_24h": 612,
+      "validated_24h": 1,
+      "candidates_24h": 0,
+      "paper_24h": 2,
+      "top_rejection": "non_positive_executable_edge"
+    },
+    {
+      "id": "clear_win_watch",
+      "label": "Clear-win watch (diagnostic only)",
+      "class": "clear_win_convergence",
+      "raw_24h": 1,
+      "near_miss_24h": 0,
+      "validated_24h": 0,
+      "candidates_24h": 0,
+      "paper_24h": 0,
+      "top_rejection": "near_resolution_watch"
+    },
+    {
+      "id": "cross_venue_yes_no_arb",
+      "label": "Cross-venue YES/NO (Kalshi x Polymarket)",
+      "class": "cross_venue_complement",
+      "raw_24h": 7,
+      "near_miss_24h": 0,
+      "validated_24h": 1,
+      "candidates_24h": 1,
+      "paper_24h": 0,
+      "top_rejection": "question_type_mismatch"
     }
   ],
   "rejections_24h": [
-    { "reason": "net_edge_below_fees", "count": 244 },
-    { "reason": "depth_below_min", "count": 96 },
-    { "reason": "stale_quote", "count": 41 },
-    { "reason": "rule_mismatch_suspected", "count": 14 },
-    { "reason": "days_to_resolution_too_long", "count": 8 }
+    {
+      "reason": "multi_winner_or_qualifier_basket",
+      "label": "legs can pay out more than once",
+      "gate": 1,
+      "count": 1
+    },
+    {
+      "reason": "question_type_mismatch",
+      "label": "titles ask different questions",
+      "gate": 1,
+      "count": 1
+    },
+    {
+      "reason": "rule_review_not_equivalent",
+      "label": "a person found the two rulebooks not equivalent",
+      "gate": 1,
+      "count": 1
+    },
+    {
+      "reason": "non_positive_executable_edge",
+      "label": "edge gone at executable prices",
+      "gate": 3,
+      "count": 1
+    },
+    {
+      "reason": "below_annualized_hurdle",
+      "label": "annualised net return below the hurdle rate",
+      "gate": 4,
+      "count": 1
+    },
+    {
+      "reason": "near_resolution_watch",
+      "label": "watch candidate, not an executable edge",
+      "gate": 5,
+      "count": 1
+    }
   ],
+  "vocabulary": {
+    "classes": [
+      {
+        "id": "same_market_complement",
+        "label": "YES plus NO in one market",
+        "basket": "YES and NO of the same contract on one venue",
+        "payout": "exactly 1.00 per basket share",
+        "structural_when": "always: one contract, one rulebook",
+        "main_risk": "the book is gone within seconds; the fee curve",
+        "scanned": true
+      },
+      {
+        "id": "neg_risk_no_basket",
+        "label": "NO on every leg of a NEG_RISK event",
+        "basket": "NO on all N legs of one mutually exclusive event",
+        "payout": "N minus the number of winners",
+        "structural_when": "the venue flags the event NEG_RISK, exactly one leg can win, and the legs are exhaustive or carry an Other leg",
+        "main_risk": "multi-winner or nested-date legs, a missing Other leg, a UMA dispute",
+        "scanned": true
+      },
+      {
+        "id": "cross_venue_complement",
+        "label": "YES on one venue, NO on the other",
+        "basket": "YES on venue A and NO on venue B for the same question",
+        "payout": "1.00 only when both rulebooks resolve identically, else 0 or 2",
+        "structural_when": "the automated screen passed and a person found both rulebooks equivalent",
+        "main_risk": "rulebooks, two resolution dates, two collateral pools without netting, legging",
+        "scanned": true
+      },
+      {
+        "id": "cross_venue_price_spread",
+        "label": "same side, two prices",
+        "basket": "none: the same outcome quoted on two venues",
+        "payout": "none",
+        "structural_when": null,
+        "main_risk": "not a chance at all; information about where the outcome is cheaper",
+        "scanned": true
+      },
+      {
+        "id": "neg_risk_long_tail_no_carry",
+        "label": "NO on long-tail legs, held to resolution",
+        "basket": "NO on legs priced at NO 0.97 or better inside a NEG_RISK event",
+        "payout": "1.00 per leg unless that leg wins",
+        "structural_when": null,
+        "main_risk": "a long-tail leg wins",
+        "scanned": false
+      },
+      {
+        "id": "clear_win_convergence",
+        "label": "settled outcome not yet priced",
+        "basket": "YES or NO on a market whose outcome is already known",
+        "payout": "1.00 when the reference fact and the oracle agree",
+        "structural_when": null,
+        "main_risk": "the oracle resolves against the reference fact",
+        "scanned": true
+      }
+    ],
+    "strategies": [
+      {
+        "id": "neg_risk_bracket_arb",
+        "label": "NEG_RISK bracket sum-arb (Polymarket)",
+        "class": "neg_risk_no_basket"
+      },
+      {
+        "id": "within_market_fast_arb",
+        "label": "Within-market YES+NO (Polymarket)",
+        "class": "same_market_complement"
+      },
+      {
+        "id": "within_market_yes_no_arb",
+        "label": "Within-market YES+NO, slow lane (Polymarket)",
+        "class": "same_market_complement"
+      },
+      {
+        "id": "clear_win_watch",
+        "label": "Clear-win watch (diagnostic only)",
+        "class": "clear_win_convergence"
+      },
+      {
+        "id": "cross_venue_yes_no_arb",
+        "label": "Cross-venue YES/NO (Kalshi x Polymarket)",
+        "class": "cross_venue_complement"
+      }
+    ],
+    "capital_lock": [
+      {
+        "id": "short",
+        "label": "ARB: resolves within 72 h"
+      },
+      {
+        "id": "medium",
+        "label": "CARRY, short: 72 h to 14 days"
+      },
+      {
+        "id": "long",
+        "label": "CARRY, long: over 14 days"
+      },
+      {
+        "id": "unknown",
+        "label": "UNDATED: no resolution time known"
+      }
+    ],
+    "rule_screen": [
+      {
+        "id": "structural",
+        "label": "one contract: equivalence by construction"
+      },
+      {
+        "id": "passed",
+        "label": "nothing noticed by the automated screen; not verified"
+      },
+      {
+        "id": "inverted",
+        "label": "the two titles ask the same question in opposite directions"
+      },
+      {
+        "id": "different_question",
+        "label": "the two titles ask different questions"
+      },
+      {
+        "id": "compound_market",
+        "label": "one side bundles several outcomes"
+      },
+      {
+        "id": "resolution_time_mismatch",
+        "label": "resolution times differ by more than the tolerance"
+      },
+      {
+        "id": "resolution_terms_mismatch",
+        "label": "resolution terms differ"
+      }
+    ],
+    "rule_review": [
+      {
+        "id": "none",
+        "label": "no person has read both rulebooks"
+      },
+      {
+        "id": "pending",
+        "label": "a draft review exists and has not been confirmed"
+      },
+      {
+        "id": "equivalent",
+        "label": "a person read both rulebooks and found them equivalent"
+      },
+      {
+        "id": "not_equivalent",
+        "label": "a person read both rulebooks and found them different"
+      }
+    ],
+    "gates": [
+      {
+        "gate": 1,
+        "label": "identity and structure"
+      },
+      {
+        "gate": 2,
+        "label": "executability"
+      },
+      {
+        "gate": 3,
+        "label": "economics"
+      },
+      {
+        "gate": 4,
+        "label": "horizon"
+      },
+      {
+        "gate": 5,
+        "label": "flow control"
+      }
+    ],
+    "rejection_reasons": [
+      {
+        "id": "invalid_token_ids",
+        "label": "token ids missing or malformed",
+        "gate": 1
+      },
+      {
+        "id": "nested_temporal_basket",
+        "label": "legs are nested by date, not exclusive",
+        "gate": 1
+      },
+      {
+        "id": "multi_winner_or_qualifier_basket",
+        "label": "legs can pay out more than once",
+        "gate": 1
+      },
+      {
+        "id": "unknown_payoff_structure",
+        "label": "payoff structure not classifiable",
+        "gate": 1
+      },
+      {
+        "id": "not_neg_risk_event",
+        "label": "venue does not flag the event as mutually exclusive",
+        "gate": 1
+      },
+      {
+        "id": "compound_kalshi_market",
+        "label": "Kalshi market bundles several outcomes",
+        "gate": 1
+      },
+      {
+        "id": "question_type_mismatch",
+        "label": "titles ask different questions",
+        "gate": 1
+      },
+      {
+        "id": "question_inverted",
+        "label": "titles ask the same question in opposite directions",
+        "gate": 1
+      },
+      {
+        "id": "resolution_time_mismatch",
+        "label": "resolution times differ",
+        "gate": 1
+      },
+      {
+        "id": "resolution_terms_mismatch",
+        "label": "resolution terms differ",
+        "gate": 1
+      },
+      {
+        "id": "rule_review_not_equivalent",
+        "label": "a person found the two rulebooks not equivalent",
+        "gate": 1
+      },
+      {
+        "id": "pair_config_invalid",
+        "label": "pair configuration invalid",
+        "gate": 1
+      },
+      {
+        "id": "partial_basket_invalid",
+        "label": "one leg has no fillable asks",
+        "gate": 2
+      },
+      {
+        "id": "orderbook_error",
+        "label": "orderbook fetch failed",
+        "gate": 2
+      },
+      {
+        "id": "missing_fill_price",
+        "label": "no average fill price after the walk",
+        "gate": 2
+      },
+      {
+        "id": "insufficient_depth_for_target_size",
+        "label": "book too thin for the target size",
+        "gate": 2
+      },
+      {
+        "id": "insufficient_leg_depth",
+        "label": "clean-basket leg depth floor not met",
+        "gate": 2
+      },
+      {
+        "id": "wide_leg_spread",
+        "label": "leg spread wider than allowed",
+        "gate": 2
+      },
+      {
+        "id": "missing_basket_sizing",
+        "label": "basket could not be sized against depth",
+        "gate": 2
+      },
+      {
+        "id": "non_positive_executable_edge",
+        "label": "edge gone at executable prices",
+        "gate": 3
+      },
+      {
+        "id": "non_positive_net_edge_after_fees",
+        "label": "edge gone after venue fees",
+        "gate": 3
+      },
+      {
+        "id": "below_min_net_edge",
+        "label": "net edge below the configured floor",
+        "gate": 3
+      },
+      {
+        "id": "insufficient_clean_edge",
+        "label": "clean-basket edge floor not met",
+        "gate": 3
+      },
+      {
+        "id": "insufficient_clean_roi",
+        "label": "clean-basket ROI floor not met",
+        "gate": 3
+      },
+      {
+        "id": "insufficient_clean_capacity",
+        "label": "clean-basket capacity floor not met",
+        "gate": 3
+      },
+      {
+        "id": "unknown_duration_for_short_arb",
+        "label": "resolution time unknown",
+        "gate": 4
+      },
+      {
+        "id": "duration_too_long_for_short_arb",
+        "label": "capital lock longer than the short-arb window",
+        "gate": 4
+      },
+      {
+        "id": "below_annualized_hurdle",
+        "label": "annualised net return below the hurdle rate",
+        "gate": 4
+      },
+      {
+        "id": "duplicate_within_cooldown",
+        "label": "same basket fired within the cooldown",
+        "gate": 5
+      },
+      {
+        "id": "near_resolution_watch",
+        "label": "watch candidate, not an executable edge",
+        "gate": 5
+      },
+      {
+        "id": "scanner_error",
+        "label": "scanner failed",
+        "gate": null
+      },
+      {
+        "id": "other",
+        "label": "other",
+        "gate": null
+      }
+    ]
+  },
   "opportunities": [
     {
-      "id": "opp-20260903-0007",
-      "strategy": "cross_venue_parity",
-      "venues": ["Polymarket", "Kalshi"],
-      "title": "Fed cuts rates at the September 2026 meeting?",
-      "market_ref": "pm:0x8d1f…c3a2 / ks:KXFEDDECISION-26SEP-C25",
-      "legs": [
-        { "venue": "Polymarket", "side": "BUY YES", "price": 0.615, "size_usd": 180.0, "role": "long", "fee_usd": 0.0 },
-        { "venue": "Kalshi", "side": "BUY NO", "price": 0.36, "size_usd": 180.0, "role": "hedge", "fee_usd": 2.52 }
+      "id": "opp-0005",
+      "strategy": "cross_venue_yes_no_arb",
+      "class": "cross_venue_complement",
+      "venues": [
+        "kalshi",
+        "polymarket"
       ],
-      "gross_edge_bps": 250,
-      "executable_net_edge_bps": 96,
-      "depth_usd": 180.0,
-      "capital_usd": 360.0,
-      "days_to_resolution": 12.3,
-      "annualized_pct": 28.5,
-      "status": "paper_fired",
+      "title": "Will Trump recognize Somaliland before 2027?",
+      "market_ref": "will-trump-recognize-somaliland-before-2027",
+      "legs": [
+        {
+          "venue": "kalshi",
+          "side": "YES",
+          "price": 0.36,
+          "size_usd": 36,
+          "role": "taker",
+          "fee_usd": 0.9
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.569,
+          "size_usd": 56.9,
+          "role": "taker",
+          "fee_usd": 0.52
+        }
+      ],
+      "gross_edge_bps": 764.26,
+      "executable_net_edge_bps": 611.4,
+      "net_profit_usd": 5.68,
+      "depth_usd": 92.9,
+      "capital_usd": 92.9,
+      "days_to_resolution": 117.4,
+      "annualized_pct": 19,
+      "hurdle_met": true,
+      "capital_lock_class": "long",
+      "resolution_at_by_venue": {
+        "kalshi": "2026-12-31T23:36:00.000Z",
+        "polymarket": "2026-12-31T14:00:00.000Z"
+      },
+      "status": "validated",
       "rejection_reason": null,
+      "gate_failed": null,
       "rule_match": "reviewed",
-      "first_seen_at": "2026-09-03T05:12:31+00:00",
-      "last_seen_at": "2026-09-03T05:39:58+00:00",
-      "open_seconds": 1647
+      "rule_screen": "passed",
+      "rule_review": "equivalent",
+      "first_seen_at": "2026-09-05T13:57:50.000Z",
+      "last_seen_at": "2026-09-05T13:57:50.000Z",
+      "open_seconds": 0
     },
     {
-      "id": "opp-20260903-0011",
-      "strategy": "intra_market_complement",
-      "venues": ["Polymarket"],
-      "title": "Will the Curtis E6 episode air before 15 September?",
-      "market_ref": "pm:0x41b0…9e77",
-      "legs": [
-        { "venue": "Polymarket", "side": "BUY YES", "price": 0.48, "size_usd": 60.0, "role": "long", "fee_usd": 0.0 },
-        { "venue": "Polymarket", "side": "BUY NO", "price": 0.505, "size_usd": 60.0, "role": "long", "fee_usd": 0.0 }
+      "id": "opp-0010",
+      "strategy": "within_market_fast_arb",
+      "class": "same_market_complement",
+      "venues": [
+        "polymarket"
       ],
-      "gross_edge_bps": 150,
-      "executable_net_edge_bps": 71,
-      "depth_usd": 60.0,
-      "capital_usd": 118.2,
-      "days_to_resolution": 10.8,
-      "annualized_pct": 24.0,
+      "title": "Will the Fed cut rates by 25 bps at the September 2026 meeting?",
+      "market_ref": "fed-decision-september-2026-cut-25bps",
+      "legs": [
+        {
+          "venue": "polymarket",
+          "side": "YES",
+          "price": 0.615,
+          "size_usd": 12.3,
+          "role": "taker",
+          "fee_usd": 0.047
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.366,
+          "size_usd": 7.32,
+          "role": "taker",
+          "fee_usd": 0.045
+        }
+      ],
+      "gross_edge_bps": 193.68,
+      "executable_net_edge_bps": 146.79,
+      "net_profit_usd": 0.288,
+      "depth_usd": 380,
+      "capital_usd": 19.62,
+      "days_to_resolution": 1.0833,
+      "annualized_pct": 535.79,
+      "hurdle_met": true,
+      "capital_lock_class": "short",
+      "resolution_at_by_venue": {
+        "kalshi": null,
+        "polymarket": "2026-09-06T16:00:00.000Z"
+      },
       "status": "validated",
       "rejection_reason": null,
-      "rule_match": "unverified",
-      "first_seen_at": "2026-09-03T05:38:02+00:00",
-      "last_seen_at": "2026-09-03T05:39:58+00:00",
-      "open_seconds": 116
+      "gate_failed": null,
+      "rule_match": "reviewed",
+      "rule_screen": "structural",
+      "rule_review": null,
+      "first_seen_at": "2026-09-05T13:33:00.000Z",
+      "last_seen_at": "2026-09-05T13:33:00.000Z",
+      "open_seconds": 0
     },
     {
-      "id": "opp-20260903-0003",
-      "strategy": "cross_venue_parity",
-      "venues": ["Polymarket", "Kalshi"],
-      "title": "Bitcoin above $70,000 on 30 September 2026?",
-      "market_ref": "pm:0x2c77…41aa / ks:KXBTCMAX-26SEP30-T70000",
-      "legs": [
-        { "venue": "Kalshi", "side": "BUY YES", "price": 0.41, "size_usd": 45.0, "role": "long", "fee_usd": 0.71 },
-        { "venue": "Polymarket", "side": "BUY NO", "price": 0.575, "size_usd": 45.0, "role": "hedge", "fee_usd": 0.0 }
+      "id": "opp-0002",
+      "strategy": "cross_venue_yes_no_arb",
+      "class": "cross_venue_complement",
+      "venues": [
+        "polymarket",
+        "kalshi"
       ],
-      "gross_edge_bps": 150,
-      "executable_net_edge_bps": 12,
-      "depth_usd": 45.0,
-      "capital_usd": 90.0,
-      "days_to_resolution": 26.4,
-      "annualized_pct": 1.7,
-      "status": "validated",
+      "title": "Will Marine Le Pen win the 2027 French presidential election?",
+      "market_ref": "will-marine-le-pen-win-the-2027-french-presidential-election",
+      "legs": [
+        {
+          "venue": "polymarket",
+          "side": "YES",
+          "price": 0.33,
+          "size_usd": 33,
+          "role": "taker",
+          "fee_usd": 0.88
+        },
+        {
+          "venue": "kalshi",
+          "side": "NO",
+          "price": 0.63,
+          "size_usd": 63,
+          "role": "taker",
+          "fee_usd": 1.8
+        }
+      ],
+      "gross_edge_bps": 416.67,
+      "executable_net_edge_bps": 137.5,
+      "net_profit_usd": 1.32,
+      "depth_usd": 96,
+      "capital_usd": 96,
+      "days_to_resolution": 237,
+      "annualized_pct": 12.1,
+      "hurdle_met": true,
+      "capital_lock_class": "long",
+      "resolution_at_by_venue": {
+        "kalshi": "2028-05-29T14:00:00.000Z",
+        "polymarket": "2027-04-30T14:00:00.000Z"
+      },
+      "status": "candidate",
       "rejection_reason": null,
+      "gate_failed": null,
       "rule_match": "unverified",
-      "first_seen_at": "2026-09-02T21:04:10+00:00",
-      "last_seen_at": "2026-09-03T05:39:58+00:00",
-      "open_seconds": 30948
+      "rule_screen": "passed",
+      "rule_review": "none",
+      "first_seen_at": "2026-09-05T13:57:50.000Z",
+      "last_seen_at": "2026-09-05T13:57:50.000Z",
+      "open_seconds": 0
     },
     {
-      "id": "opp-20260903-0009",
-      "strategy": "multi_outcome_sum",
-      "venues": ["Polymarket"],
-      "title": "Who wins the 2026 Bundesliga? (all outcomes)",
-      "market_ref": "pm:event 942101",
-      "legs": [
-        { "venue": "Polymarket", "side": "BUY NO", "price": 0.93, "size_usd": 25.0, "role": "long", "fee_usd": 0.0 },
-        { "venue": "Polymarket", "side": "BUY NO", "price": 0.71, "size_usd": 25.0, "role": "long", "fee_usd": 0.0 },
-        { "venue": "Polymarket", "side": "BUY NO", "price": 0.42, "size_usd": 25.0, "role": "long", "fee_usd": 0.0 }
+      "id": "opp-0006",
+      "strategy": "neg_risk_bracket_arb",
+      "class": "neg_risk_no_basket",
+      "venues": [
+        "polymarket"
       ],
-      "gross_edge_bps": 410,
-      "executable_net_edge_bps": 205,
-      "depth_usd": 25.0,
-      "capital_usd": 51.5,
-      "days_to_resolution": 264.0,
-      "annualized_pct": 2.8,
+      "title": "OpenSea FDV one day after launch",
+      "market_ref": "opensea-fdv-above-one-day-after-launch",
+      "legs": [
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.81,
+          "size_usd": 4.1351,
+          "role": "taker",
+          "fee_usd": 0.012
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.86,
+          "size_usd": 4.3903,
+          "role": "taker",
+          "fee_usd": 0.012
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.945,
+          "size_usd": 4.8242,
+          "role": "taker",
+          "fee_usd": 0.012
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.959,
+          "size_usd": 4.8957,
+          "role": "taker",
+          "fee_usd": 0.012
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.94,
+          "size_usd": 4.7987,
+          "role": "taker",
+          "fee_usd": 0.012
+        }
+      ],
+      "gross_edge_bps": 330.6,
+      "executable_net_edge_bps": 299.1,
+      "net_profit_usd": 0.591,
+      "depth_usd": 4763.67,
+      "capital_usd": 19.77,
+      "days_to_resolution": 41,
+      "annualized_pct": 26.63,
+      "hurdle_met": true,
+      "capital_lock_class": "long",
+      "resolution_at_by_venue": {
+        "kalshi": null,
+        "polymarket": "2026-10-16T14:00:00.000Z"
+      },
+      "status": "candidate",
+      "rejection_reason": null,
+      "gate_failed": null,
+      "rule_match": "unverified",
+      "rule_screen": "passed",
+      "rule_review": null,
+      "first_seen_at": "2026-09-05T13:59:10.000Z",
+      "last_seen_at": "2026-09-05T13:59:10.000Z",
+      "open_seconds": 0
+    },
+    {
+      "id": "opp-0007",
+      "strategy": "neg_risk_bracket_arb",
+      "class": "neg_risk_no_basket",
+      "venues": [
+        "polymarket"
+      ],
+      "title": "2028 Republican presidential nominee",
+      "market_ref": "2028-republican-presidential-nominee",
+      "legs": [],
+      "gross_edge_bps": 71.2,
+      "executable_net_edge_bps": 42.8,
+      "net_profit_usd": 0.085,
+      "depth_usd": 12400,
+      "capital_usd": 19.9,
+      "days_to_resolution": 690,
+      "annualized_pct": 0.23,
+      "hurdle_met": false,
+      "capital_lock_class": "long",
+      "resolution_at_by_venue": {
+        "kalshi": null,
+        "polymarket": "2028-07-26T14:00:00.000Z"
+      },
       "status": "rejected",
-      "rejection_reason": "rule_mismatch_suspected",
-      "rule_match": "mismatch",
-      "first_seen_at": "2026-09-03T04:50:00+00:00",
-      "last_seen_at": "2026-09-03T05:39:58+00:00",
-      "open_seconds": 2998
+      "rejection_reason": "below_annualized_hurdle",
+      "gate_failed": 4,
+      "rule_match": "unverified",
+      "rule_screen": "passed",
+      "rule_review": null,
+      "first_seen_at": "2026-09-05T13:59:16.000Z",
+      "last_seen_at": "2026-09-05T13:59:16.000Z",
+      "open_seconds": 0
     },
     {
-      "id": "opp-20260903-0014",
-      "strategy": "cross_venue_parity",
-      "venues": ["Polymarket", "Kalshi"],
-      "title": "US CPI for August 2026 above 3.0% year over year?",
-      "market_ref": "pm:0x77e1…0b3c / ks:KXCPIYOY-26AUG-T3.0",
-      "legs": [
-        { "venue": "Polymarket", "side": "BUY YES", "price": 0.52, "size_usd": 12.0, "role": "long", "fee_usd": 0.0 },
-        { "venue": "Kalshi", "side": "BUY NO", "price": 0.47, "size_usd": 12.0, "role": "hedge", "fee_usd": 0.19 }
+      "id": "opp-0009",
+      "strategy": "within_market_fast_arb",
+      "class": "same_market_complement",
+      "venues": [
+        "polymarket"
       ],
-      "gross_edge_bps": 100,
-      "executable_net_edge_bps": -58,
-      "depth_usd": 12.0,
-      "capital_usd": 24.0,
-      "days_to_resolution": 6.0,
+      "title": "Macron out as President of France by December 31, 2026?",
+      "market_ref": "macron-out-by-december-31-2026",
+      "legs": [
+        {
+          "venue": "polymarket",
+          "side": "YES",
+          "price": 0.12,
+          "size_usd": 2.4,
+          "role": "taker",
+          "fee_usd": 0.011
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.885,
+          "size_usd": 17.7,
+          "role": "taker",
+          "fee_usd": 0.02
+        }
+      ],
+      "gross_edge_bps": -46.18,
+      "executable_net_edge_bps": -91.2,
+      "net_profit_usd": -0.182,
+      "depth_usd": 37194.87,
+      "capital_usd": 20,
+      "days_to_resolution": 117.64,
+      "annualized_pct": -2.83,
+      "hurdle_met": false,
+      "capital_lock_class": "long",
+      "resolution_at_by_venue": {
+        "kalshi": null,
+        "polymarket": "2026-12-31T14:00:00.000Z"
+      },
+      "status": "rejected",
+      "rejection_reason": "non_positive_executable_edge",
+      "gate_failed": 3,
+      "rule_match": "reviewed",
+      "rule_screen": "structural",
+      "rule_review": null,
+      "first_seen_at": "2026-09-05T13:59:20.000Z",
+      "last_seen_at": "2026-09-05T13:59:20.000Z",
+      "open_seconds": 0
+    },
+    {
+      "id": "opp-0001",
+      "strategy": "clear_win_watch",
+      "class": "clear_win_convergence",
+      "venues": [
+        "polymarket"
+      ],
+      "title": "nfl-week-1-chiefs-vs-chargers",
+      "market_ref": "nfl-week-1-chiefs-vs-chargers",
+      "legs": [],
+      "gross_edge_bps": 0,
+      "executable_net_edge_bps": 0,
+      "net_profit_usd": null,
+      "depth_usd": 0,
+      "capital_usd": 0,
+      "days_to_resolution": null,
       "annualized_pct": null,
+      "hurdle_met": null,
+      "capital_lock_class": "short",
+      "resolution_at_by_venue": {
+        "kalshi": null,
+        "polymarket": "2026-09-05T17:00:00.000Z"
+      },
       "status": "rejected",
-      "rejection_reason": "net_edge_below_fees",
+      "rejection_reason": "near_resolution_watch",
+      "gate_failed": 5,
       "rule_match": "unverified",
-      "first_seen_at": "2026-09-03T05:39:28+00:00",
-      "last_seen_at": "2026-09-03T05:39:58+00:00",
-      "open_seconds": 30
+      "rule_screen": null,
+      "rule_review": null,
+      "first_seen_at": "2026-09-05T13:59:25.000Z",
+      "last_seen_at": "2026-09-05T13:59:25.000Z",
+      "open_seconds": 0
+    },
+    {
+      "id": "opp-0008",
+      "strategy": "neg_risk_bracket_arb",
+      "class": "neg_risk_no_basket",
+      "venues": [
+        "polymarket"
+      ],
+      "title": "Which candidates will advance to Brazil's presidential runoff?",
+      "market_ref": "which-candidates-will-advance-to-brazils-presidential-runoff",
+      "legs": [],
+      "gross_edge_bps": null,
+      "executable_net_edge_bps": null,
+      "net_profit_usd": null,
+      "depth_usd": 0,
+      "capital_usd": 0,
+      "days_to_resolution": null,
+      "annualized_pct": null,
+      "hurdle_met": null,
+      "capital_lock_class": "long",
+      "resolution_at_by_venue": {
+        "kalshi": null,
+        "polymarket": "2026-10-03T14:00:00.000Z"
+      },
+      "status": "rejected",
+      "rejection_reason": "multi_winner_or_qualifier_basket",
+      "gate_failed": 1,
+      "rule_match": "unverified",
+      "rule_screen": null,
+      "rule_review": null,
+      "first_seen_at": "2026-09-05T13:59:15.000Z",
+      "last_seen_at": "2026-09-05T13:59:15.000Z",
+      "open_seconds": 0
+    },
+    {
+      "id": "opp-0003",
+      "strategy": "cross_venue_yes_no_arb",
+      "class": "cross_venue_complement",
+      "venues": [
+        "kalshi",
+        "polymarket"
+      ],
+      "title": "Will Abdul El-Sayed win the 2026 Michigan Democratic Senate primary?",
+      "market_ref": "will-abdul-el-sayed-win-the-2026-michigan-democratic-senate-primary",
+      "legs": [],
+      "gross_edge_bps": null,
+      "executable_net_edge_bps": null,
+      "net_profit_usd": null,
+      "depth_usd": 0,
+      "capital_usd": 0,
+      "days_to_resolution": null,
+      "annualized_pct": null,
+      "hurdle_met": null,
+      "capital_lock_class": "unknown",
+      "resolution_at_by_venue": {
+        "kalshi": null,
+        "polymarket": null
+      },
+      "status": "rejected",
+      "rejection_reason": "question_type_mismatch",
+      "gate_failed": 1,
+      "rule_match": "mismatch",
+      "rule_screen": "different_question",
+      "rule_review": "none",
+      "first_seen_at": "2026-09-05T13:57:50.000Z",
+      "last_seen_at": "2026-09-05T13:57:50.000Z",
+      "open_seconds": 0
+    },
+    {
+      "id": "opp-0004",
+      "strategy": "cross_venue_yes_no_arb",
+      "class": "cross_venue_complement",
+      "venues": [
+        "kalshi",
+        "polymarket"
+      ],
+      "title": "Will Marco Rubio win the 2028 US Presidential Election?",
+      "market_ref": "will-marco-rubio-win-the-2028-us-presidential-election",
+      "legs": [],
+      "gross_edge_bps": null,
+      "executable_net_edge_bps": null,
+      "net_profit_usd": null,
+      "depth_usd": 0,
+      "capital_usd": 0,
+      "days_to_resolution": null,
+      "annualized_pct": null,
+      "hurdle_met": null,
+      "capital_lock_class": "long",
+      "resolution_at_by_venue": {
+        "kalshi": "2029-11-06T14:00:00.000Z",
+        "polymarket": "2028-11-06T14:00:00.000Z"
+      },
+      "status": "rejected",
+      "rejection_reason": "rule_review_not_equivalent",
+      "gate_failed": 1,
+      "rule_match": "mismatch",
+      "rule_screen": "passed",
+      "rule_review": "not_equivalent",
+      "first_seen_at": "2026-09-05T13:57:50.000Z",
+      "last_seen_at": "2026-09-05T13:57:50.000Z",
+      "open_seconds": 0
+    }
+  ],
+  "chances": [
+    {
+      "id": "opp-0005",
+      "strategy": "cross_venue_yes_no_arb",
+      "class": "cross_venue_complement",
+      "venues": [
+        "kalshi",
+        "polymarket"
+      ],
+      "title": "Will Trump recognize Somaliland before 2027?",
+      "market_ref": "will-trump-recognize-somaliland-before-2027",
+      "legs": [
+        {
+          "venue": "kalshi",
+          "side": "YES",
+          "price": 0.36,
+          "size_usd": 36,
+          "role": "taker",
+          "fee_usd": 0.9
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.569,
+          "size_usd": 56.9,
+          "role": "taker",
+          "fee_usd": 0.52
+        }
+      ],
+      "gross_edge_bps": 764.26,
+      "executable_net_edge_bps": 611.4,
+      "net_profit_usd": 5.68,
+      "depth_usd": 92.9,
+      "capital_usd": 92.9,
+      "days_to_resolution": 117.4,
+      "annualized_pct": 19,
+      "hurdle_met": true,
+      "capital_lock_class": "long",
+      "resolution_at_by_venue": {
+        "kalshi": "2026-12-31T23:36:00.000Z",
+        "polymarket": "2026-12-31T14:00:00.000Z"
+      },
+      "status": "validated",
+      "rejection_reason": null,
+      "gate_failed": null,
+      "rule_match": "reviewed",
+      "rule_screen": "passed",
+      "rule_review": "equivalent",
+      "first_seen_at": "2026-09-05T13:57:50.000Z",
+      "last_seen_at": "2026-09-05T13:57:50.000Z",
+      "open_seconds": 0
+    },
+    {
+      "id": "opp-0010",
+      "strategy": "within_market_fast_arb",
+      "class": "same_market_complement",
+      "venues": [
+        "polymarket"
+      ],
+      "title": "Will the Fed cut rates by 25 bps at the September 2026 meeting?",
+      "market_ref": "fed-decision-september-2026-cut-25bps",
+      "legs": [
+        {
+          "venue": "polymarket",
+          "side": "YES",
+          "price": 0.615,
+          "size_usd": 12.3,
+          "role": "taker",
+          "fee_usd": 0.047
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.366,
+          "size_usd": 7.32,
+          "role": "taker",
+          "fee_usd": 0.045
+        }
+      ],
+      "gross_edge_bps": 193.68,
+      "executable_net_edge_bps": 146.79,
+      "net_profit_usd": 0.288,
+      "depth_usd": 380,
+      "capital_usd": 19.62,
+      "days_to_resolution": 1.0833,
+      "annualized_pct": 535.79,
+      "hurdle_met": true,
+      "capital_lock_class": "short",
+      "resolution_at_by_venue": {
+        "kalshi": null,
+        "polymarket": "2026-09-06T16:00:00.000Z"
+      },
+      "status": "validated",
+      "rejection_reason": null,
+      "gate_failed": null,
+      "rule_match": "reviewed",
+      "rule_screen": "structural",
+      "rule_review": null,
+      "first_seen_at": "2026-09-05T13:33:00.000Z",
+      "last_seen_at": "2026-09-05T13:33:00.000Z",
+      "open_seconds": 0
+    }
+  ],
+  "carry_candidates": [
+    {
+      "id": "opp-0002",
+      "strategy": "cross_venue_yes_no_arb",
+      "class": "cross_venue_complement",
+      "venues": [
+        "polymarket",
+        "kalshi"
+      ],
+      "title": "Will Marine Le Pen win the 2027 French presidential election?",
+      "market_ref": "will-marine-le-pen-win-the-2027-french-presidential-election",
+      "legs": [
+        {
+          "venue": "polymarket",
+          "side": "YES",
+          "price": 0.33,
+          "size_usd": 33,
+          "role": "taker",
+          "fee_usd": 0.88
+        },
+        {
+          "venue": "kalshi",
+          "side": "NO",
+          "price": 0.63,
+          "size_usd": 63,
+          "role": "taker",
+          "fee_usd": 1.8
+        }
+      ],
+      "gross_edge_bps": 416.67,
+      "executable_net_edge_bps": 137.5,
+      "net_profit_usd": 1.32,
+      "depth_usd": 96,
+      "capital_usd": 96,
+      "days_to_resolution": 237,
+      "annualized_pct": 12.1,
+      "hurdle_met": true,
+      "capital_lock_class": "long",
+      "resolution_at_by_venue": {
+        "kalshi": "2028-05-29T14:00:00.000Z",
+        "polymarket": "2027-04-30T14:00:00.000Z"
+      },
+      "status": "candidate",
+      "rejection_reason": null,
+      "gate_failed": null,
+      "rule_match": "unverified",
+      "rule_screen": "passed",
+      "rule_review": "none",
+      "first_seen_at": "2026-09-05T13:57:50.000Z",
+      "last_seen_at": "2026-09-05T13:57:50.000Z",
+      "open_seconds": 0
+    },
+    {
+      "id": "opp-0006",
+      "strategy": "neg_risk_bracket_arb",
+      "class": "neg_risk_no_basket",
+      "venues": [
+        "polymarket"
+      ],
+      "title": "OpenSea FDV one day after launch",
+      "market_ref": "opensea-fdv-above-one-day-after-launch",
+      "legs": [
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.81,
+          "size_usd": 4.1351,
+          "role": "taker",
+          "fee_usd": 0.012
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.86,
+          "size_usd": 4.3903,
+          "role": "taker",
+          "fee_usd": 0.012
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.945,
+          "size_usd": 4.8242,
+          "role": "taker",
+          "fee_usd": 0.012
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.959,
+          "size_usd": 4.8957,
+          "role": "taker",
+          "fee_usd": 0.012
+        },
+        {
+          "venue": "polymarket",
+          "side": "NO",
+          "price": 0.94,
+          "size_usd": 4.7987,
+          "role": "taker",
+          "fee_usd": 0.012
+        }
+      ],
+      "gross_edge_bps": 330.6,
+      "executable_net_edge_bps": 299.1,
+      "net_profit_usd": 0.591,
+      "depth_usd": 4763.67,
+      "capital_usd": 19.77,
+      "days_to_resolution": 41,
+      "annualized_pct": 26.63,
+      "hurdle_met": true,
+      "capital_lock_class": "long",
+      "resolution_at_by_venue": {
+        "kalshi": null,
+        "polymarket": "2026-10-16T14:00:00.000Z"
+      },
+      "status": "candidate",
+      "rejection_reason": null,
+      "gate_failed": null,
+      "rule_match": "unverified",
+      "rule_screen": "passed",
+      "rule_review": null,
+      "first_seen_at": "2026-09-05T13:59:10.000Z",
+      "last_seen_at": "2026-09-05T13:59:10.000Z",
+      "open_seconds": 0
+    }
+  ],
+  "rejected_examples": [
+    {
+      "reason": "multi_winner_or_qualifier_basket",
+      "label": "legs can pay out more than once",
+      "gate": 1,
+      "count_24h": 1,
+      "examples": [
+        {
+          "id": "opp-0008",
+          "strategy": "neg_risk_bracket_arb",
+          "class": "neg_risk_no_basket",
+          "venues": [
+            "polymarket"
+          ],
+          "title": "Which candidates will advance to Brazil's presidential runoff?",
+          "market_ref": "which-candidates-will-advance-to-brazils-presidential-runoff",
+          "legs": [],
+          "gross_edge_bps": null,
+          "executable_net_edge_bps": null,
+          "net_profit_usd": null,
+          "depth_usd": 0,
+          "capital_usd": 0,
+          "days_to_resolution": null,
+          "annualized_pct": null,
+          "hurdle_met": null,
+          "capital_lock_class": "long",
+          "resolution_at_by_venue": {
+            "kalshi": null,
+            "polymarket": "2026-10-03T14:00:00.000Z"
+          },
+          "status": "rejected",
+          "rejection_reason": "multi_winner_or_qualifier_basket",
+          "gate_failed": 1,
+          "rule_match": "unverified",
+          "rule_screen": null,
+          "rule_review": null,
+          "first_seen_at": "2026-09-05T13:59:15.000Z",
+          "last_seen_at": "2026-09-05T13:59:15.000Z",
+          "open_seconds": 0
+        }
+      ]
+    },
+    {
+      "reason": "question_type_mismatch",
+      "label": "titles ask different questions",
+      "gate": 1,
+      "count_24h": 1,
+      "examples": [
+        {
+          "id": "opp-0003",
+          "strategy": "cross_venue_yes_no_arb",
+          "class": "cross_venue_complement",
+          "venues": [
+            "kalshi",
+            "polymarket"
+          ],
+          "title": "Will Abdul El-Sayed win the 2026 Michigan Democratic Senate primary?",
+          "market_ref": "will-abdul-el-sayed-win-the-2026-michigan-democratic-senate-primary",
+          "legs": [],
+          "gross_edge_bps": null,
+          "executable_net_edge_bps": null,
+          "net_profit_usd": null,
+          "depth_usd": 0,
+          "capital_usd": 0,
+          "days_to_resolution": null,
+          "annualized_pct": null,
+          "hurdle_met": null,
+          "capital_lock_class": "unknown",
+          "resolution_at_by_venue": {
+            "kalshi": null,
+            "polymarket": null
+          },
+          "status": "rejected",
+          "rejection_reason": "question_type_mismatch",
+          "gate_failed": 1,
+          "rule_match": "mismatch",
+          "rule_screen": "different_question",
+          "rule_review": "none",
+          "first_seen_at": "2026-09-05T13:57:50.000Z",
+          "last_seen_at": "2026-09-05T13:57:50.000Z",
+          "open_seconds": 0
+        }
+      ]
+    },
+    {
+      "reason": "rule_review_not_equivalent",
+      "label": "a person found the two rulebooks not equivalent",
+      "gate": 1,
+      "count_24h": 1,
+      "examples": [
+        {
+          "id": "opp-0004",
+          "strategy": "cross_venue_yes_no_arb",
+          "class": "cross_venue_complement",
+          "venues": [
+            "kalshi",
+            "polymarket"
+          ],
+          "title": "Will Marco Rubio win the 2028 US Presidential Election?",
+          "market_ref": "will-marco-rubio-win-the-2028-us-presidential-election",
+          "legs": [],
+          "gross_edge_bps": null,
+          "executable_net_edge_bps": null,
+          "net_profit_usd": null,
+          "depth_usd": 0,
+          "capital_usd": 0,
+          "days_to_resolution": null,
+          "annualized_pct": null,
+          "hurdle_met": null,
+          "capital_lock_class": "long",
+          "resolution_at_by_venue": {
+            "kalshi": "2029-11-06T14:00:00.000Z",
+            "polymarket": "2028-11-06T14:00:00.000Z"
+          },
+          "status": "rejected",
+          "rejection_reason": "rule_review_not_equivalent",
+          "gate_failed": 1,
+          "rule_match": "mismatch",
+          "rule_screen": "passed",
+          "rule_review": "not_equivalent",
+          "first_seen_at": "2026-09-05T13:57:50.000Z",
+          "last_seen_at": "2026-09-05T13:57:50.000Z",
+          "open_seconds": 0
+        }
+      ]
+    },
+    {
+      "reason": "non_positive_executable_edge",
+      "label": "edge gone at executable prices",
+      "gate": 3,
+      "count_24h": 1,
+      "examples": [
+        {
+          "id": "opp-0009",
+          "strategy": "within_market_fast_arb",
+          "class": "same_market_complement",
+          "venues": [
+            "polymarket"
+          ],
+          "title": "Macron out as President of France by December 31, 2026?",
+          "market_ref": "macron-out-by-december-31-2026",
+          "legs": [
+            {
+              "venue": "polymarket",
+              "side": "YES",
+              "price": 0.12,
+              "size_usd": 2.4,
+              "role": "taker",
+              "fee_usd": 0.011
+            },
+            {
+              "venue": "polymarket",
+              "side": "NO",
+              "price": 0.885,
+              "size_usd": 17.7,
+              "role": "taker",
+              "fee_usd": 0.02
+            }
+          ],
+          "gross_edge_bps": -46.18,
+          "executable_net_edge_bps": -91.2,
+          "net_profit_usd": -0.182,
+          "depth_usd": 37194.87,
+          "capital_usd": 20,
+          "days_to_resolution": 117.64,
+          "annualized_pct": -2.83,
+          "hurdle_met": false,
+          "capital_lock_class": "long",
+          "resolution_at_by_venue": {
+            "kalshi": null,
+            "polymarket": "2026-12-31T14:00:00.000Z"
+          },
+          "status": "rejected",
+          "rejection_reason": "non_positive_executable_edge",
+          "gate_failed": 3,
+          "rule_match": "reviewed",
+          "rule_screen": "structural",
+          "rule_review": null,
+          "first_seen_at": "2026-09-05T13:59:20.000Z",
+          "last_seen_at": "2026-09-05T13:59:20.000Z",
+          "open_seconds": 0
+        }
+      ]
+    },
+    {
+      "reason": "below_annualized_hurdle",
+      "label": "annualised net return below the hurdle rate",
+      "gate": 4,
+      "count_24h": 1,
+      "examples": [
+        {
+          "id": "opp-0007",
+          "strategy": "neg_risk_bracket_arb",
+          "class": "neg_risk_no_basket",
+          "venues": [
+            "polymarket"
+          ],
+          "title": "2028 Republican presidential nominee",
+          "market_ref": "2028-republican-presidential-nominee",
+          "legs": [],
+          "gross_edge_bps": 71.2,
+          "executable_net_edge_bps": 42.8,
+          "net_profit_usd": 0.085,
+          "depth_usd": 12400,
+          "capital_usd": 19.9,
+          "days_to_resolution": 690,
+          "annualized_pct": 0.23,
+          "hurdle_met": false,
+          "capital_lock_class": "long",
+          "resolution_at_by_venue": {
+            "kalshi": null,
+            "polymarket": "2028-07-26T14:00:00.000Z"
+          },
+          "status": "rejected",
+          "rejection_reason": "below_annualized_hurdle",
+          "gate_failed": 4,
+          "rule_match": "unverified",
+          "rule_screen": "passed",
+          "rule_review": null,
+          "first_seen_at": "2026-09-05T13:59:16.000Z",
+          "last_seen_at": "2026-09-05T13:59:16.000Z",
+          "open_seconds": 0
+        }
+      ]
+    },
+    {
+      "reason": "near_resolution_watch",
+      "label": "watch candidate, not an executable edge",
+      "gate": 5,
+      "count_24h": 1,
+      "examples": [
+        {
+          "id": "opp-0001",
+          "strategy": "clear_win_watch",
+          "class": "clear_win_convergence",
+          "venues": [
+            "polymarket"
+          ],
+          "title": "nfl-week-1-chiefs-vs-chargers",
+          "market_ref": "nfl-week-1-chiefs-vs-chargers",
+          "legs": [],
+          "gross_edge_bps": 0,
+          "executable_net_edge_bps": 0,
+          "net_profit_usd": null,
+          "depth_usd": 0,
+          "capital_usd": 0,
+          "days_to_resolution": null,
+          "annualized_pct": null,
+          "hurdle_met": null,
+          "capital_lock_class": "short",
+          "resolution_at_by_venue": {
+            "kalshi": null,
+            "polymarket": "2026-09-05T17:00:00.000Z"
+          },
+          "status": "rejected",
+          "rejection_reason": "near_resolution_watch",
+          "gate_failed": 5,
+          "rule_match": "unverified",
+          "rule_screen": null,
+          "rule_review": null,
+          "first_seen_at": "2026-09-05T13:59:25.000Z",
+          "last_seen_at": "2026-09-05T13:59:25.000Z",
+          "open_seconds": 0
+        }
+      ]
+    }
+  ],
+  "pairs": [
+    {
+      "pair_id": "KXRECOGSOMALI-29-27|will-trump-recognize-somaliland-before-2027",
+      "title": "Will Trump recognize Somaliland before 2027?",
+      "category": "geopolitics",
+      "source": "config",
+      "kalshi": {
+        "ticker": "KXRECOGSOMALI-29-27",
+        "title": "Will the US recognize Somaliland before 2027?",
+        "resolution_at": "2026-12-31T23:36:00.000Z",
+        "rules_excerpt": "If the United States formally recognizes Somaliland as an independent state before January 1, 2027, then the market resolves to Yes."
+      },
+      "polymarket": {
+        "slug": "will-trump-recognize-somaliland-before-2027",
+        "question": "Will Trump recognize Somaliland before 2027?",
+        "resolution_at": "2026-12-31T14:00:00.000Z",
+        "rules_excerpt": "This market will resolve to Yes if the United States government formally recognizes Somaliland as a sovereign state by December 31, 2026, 11:59 PM ET. Resolution source: official US government statements or a consensus of credible reporting."
+      },
+      "resolution_gap_days": 0.4,
+      "rule_screen": "passed",
+      "rule_screen_detail": null,
+      "rule_review": "equivalent",
+      "review": {
+        "verdict": "equivalent",
+        "date": "2026-09-08",
+        "reviewer": "cc",
+        "note": "Both venues resolve on a formal US government recognition of Somaliland before 2027-01-01; both name official US government sources.",
+        "checklist": {
+          "1": true,
+          "2": true,
+          "3": true,
+          "4": true,
+          "5": true,
+          "6": true,
+          "7": "0 days apart"
+        },
+        "source": "manual review 2026-09-08"
+      },
+      "hedged": true,
+      "last": {
+        "gross_cents": 7.1,
+        "net_cents": 5.68,
+        "annualized_pct": 19,
+        "executable_size": 100,
+        "status": "validated"
+      },
+      "first_seen_at": "2026-09-05T13:57:50.000Z",
+      "last_seen_at": "2026-09-05T13:57:50.000Z"
+    },
+    {
+      "pair_id": "KXPRESPERSON-28-MRUB|will-marco-rubio-win-the-2028-us-presidential-election",
+      "title": "Will Marco Rubio win the 2028 US Presidential Election?",
+      "category": "politics",
+      "source": "config",
+      "kalshi": {
+        "ticker": "KXPRESPERSON-28-MRUB",
+        "title": "Who will be inaugurated as President in 2029? Marco Rubio",
+        "resolution_at": "2029-11-06T14:00:00.000Z",
+        "rules_excerpt": "If Marco Rubio is the next person inaugurated as President for the term beginning in 2029, then the market resolves to Yes."
+      },
+      "polymarket": {
+        "slug": "will-marco-rubio-win-the-2028-us-presidential-election",
+        "question": "Will Marco Rubio win the 2028 US Presidential Election?",
+        "resolution_at": "2028-11-06T14:00:00.000Z",
+        "rules_excerpt": "This market will resolve to the person who wins the 2028 US Presidential Election. The resolution source is the Associated Press, Fox News, and NBC; if all three have not called the race by January 20, 2029, it resolves based on who is inaugurated."
+      },
+      "resolution_gap_days": 365,
+      "rule_screen": "passed",
+      "rule_screen_detail": null,
+      "rule_review": "not_equivalent",
+      "review": {
+        "verdict": "not_equivalent",
+        "date": "2026-07-31",
+        "reviewer": "cc",
+        "note": "Kalshi pays on who is inaugurated in 2029; Polymarket on who wins the election per AP, Fox and NBC. A winner who is not inaugurated pays YES on one venue and NO on the other.",
+        "checklist": {
+          "1": true,
+          "2": false,
+          "3": false,
+          "4": true,
+          "5": false,
+          "6": true,
+          "7": "365 days apart, Kalshi later"
+        },
+        "source": "docs/research/resolution_rules_2026-07-31.md"
+      },
+      "hedged": false,
+      "last": {
+        "gross_cents": 4.6,
+        "net_cents": 3.07,
+        "annualized_pct": 1.4,
+        "executable_size": 100,
+        "status": "rejected"
+      },
+      "first_seen_at": "2026-09-05T13:57:50.000Z",
+      "last_seen_at": "2026-09-05T13:57:50.000Z"
+    },
+    {
+      "pair_id": "KXFRENCHPRES-27-MLEP|will-marine-le-pen-win-the-2027-french-presidential-election",
+      "title": "Will Marine Le Pen win the 2027 French presidential election?",
+      "category": "politics",
+      "source": "config",
+      "kalshi": {
+        "ticker": "KXFRENCHPRES-27-MLEP",
+        "title": "Who will win the 2027 French presidential election? Marine Le Pen",
+        "resolution_at": "2028-05-29T14:00:00.000Z",
+        "rules_excerpt": "If Marine Le Pen wins the next French presidential election, then the market resolves to Yes."
+      },
+      "polymarket": {
+        "slug": "will-marine-le-pen-win-the-2027-french-presidential-election",
+        "question": "Will Marine Le Pen win the 2027 French presidential election?",
+        "resolution_at": "2027-04-30T14:00:00.000Z",
+        "rules_excerpt": "This market will resolve according to the candidate who wins the next French presidential election, including any second round. If results are not known by December 31, 2027, this market will resolve to Other."
+      },
+      "resolution_gap_days": 395,
+      "rule_screen": "passed",
+      "rule_screen_detail": null,
+      "rule_review": "none",
+      "review": null,
+      "hedged": false,
+      "last": {
+        "gross_cents": 4,
+        "net_cents": 1.32,
+        "annualized_pct": 12.1,
+        "executable_size": 100,
+        "status": "candidate"
+      },
+      "first_seen_at": "2026-09-05T13:57:50.000Z",
+      "last_seen_at": "2026-09-05T13:57:50.000Z"
+    },
+    {
+      "pair_id": "KXMISENPRIMMARGIN-26|will-abdul-el-sayed-win-the-2026-michigan-democratic-senate-primary",
+      "title": "Will Abdul El-Sayed win the 2026 Michigan Democratic Senate primary?",
+      "category": "politics",
+      "source": "discovery",
+      "kalshi": {
+        "ticker": "KXMISENPRIMMARGIN-26",
+        "title": "Michigan Democratic Senate primary margin of victory",
+        "resolution_at": null,
+        "rules_excerpt": null
+      },
+      "polymarket": {
+        "slug": "will-abdul-el-sayed-win-the-2026-michigan-democratic-senate-primary",
+        "question": "Will Abdul El-Sayed win the 2026 Michigan Democratic Senate primary?",
+        "resolution_at": null,
+        "rules_excerpt": null
+      },
+      "resolution_gap_days": null,
+      "rule_screen": "different_question",
+      "rule_screen_detail": "different question types: result against margin",
+      "rule_review": "none",
+      "review": null,
+      "hedged": false,
+      "last": {
+        "gross_cents": null,
+        "net_cents": null,
+        "annualized_pct": null,
+        "executable_size": null,
+        "status": "rejected"
+      },
+      "first_seen_at": "2026-09-05T13:57:50.000Z",
+      "last_seen_at": "2026-09-05T13:57:50.000Z"
     }
   ],
   "paper_positions": [
     {
-      "trade_id": "pt-20260903-0007",
-      "opportunity_id": "opp-20260903-0007",
-      "strategy": "cross_venue_parity",
-      "title": "Fed cuts rates at the September 2026 meeting?",
-      "opened_at": "2026-09-03T05:12:45+00:00",
-      "capital_usd": 360.0,
-      "expected_edge_bps": 96,
+      "trade_id": "pt-0003",
+      "opportunity_id": "opp-0010",
+      "strategy": "within_market_fast_arb",
+      "title": "Will the Fed cut rates by 25 bps at the September 2026 meeting?",
+      "opened_at": "2026-09-05T13:33:00.001Z",
+      "capital_usd": 7.32,
+      "expected_edge_bps": 146.79,
       "status": "open",
       "pnl_usd": null
     },
     {
-      "trade_id": "pt-20260902-0021",
-      "opportunity_id": "opp-20260902-0021",
-      "strategy": "intra_market_complement",
-      "title": "Will the All-In podcast mention Nvidia this week?",
-      "opened_at": "2026-09-02T18:40:02+00:00",
-      "capital_usd": 40.0,
-      "expected_edge_bps": 88,
+      "trade_id": "pt-0002",
+      "opportunity_id": "opp-0010",
+      "strategy": "within_market_fast_arb",
+      "title": "Will the Fed cut rates by 25 bps at the September 2026 meeting?",
+      "opened_at": "2026-09-05T13:33:00.000Z",
+      "capital_usd": 12.3,
+      "expected_edge_bps": 146.79,
       "status": "open",
       "pnl_usd": null
     },
     {
-      "trade_id": "pt-20260902-0016",
-      "opportunity_id": "opp-20260902-0016",
-      "strategy": "cross_venue_parity",
-      "title": "ECB holds rates in September 2026?",
-      "opened_at": "2026-09-02T09:15:44+00:00",
-      "capital_usd": 120.0,
-      "expected_edge_bps": 64,
-      "status": "open",
-      "pnl_usd": null
-    },
-    {
-      "trade_id": "pt-20260901-0004",
-      "opportunity_id": "opp-20260901-0004",
-      "strategy": "cross_venue_parity",
+      "trade_id": "pt-0001",
+      "opportunity_id": "opp-0011",
+      "strategy": "within_market_fast_arb",
       "title": "Jobless claims above 230k for the week of 29 August?",
-      "opened_at": "2026-09-01T12:31:09+00:00",
-      "capital_usd": 80.0,
-      "expected_edge_bps": 110,
+      "opened_at": "2026-09-02T14:00:00.000Z",
+      "capital_usd": 9.8,
+      "expected_edge_bps": 88.4,
       "status": "resolved",
-      "pnl_usd": 0.86
-    },
-    {
-      "trade_id": "pt-20260831-0002",
-      "opportunity_id": "opp-20260831-0002",
-      "strategy": "intra_market_complement",
-      "title": "Will it rain in New York on 3 September?",
-      "opened_at": "2026-08-31T22:02:50+00:00",
-      "capital_usd": 30.0,
-      "expected_edge_bps": 140,
-      "status": "resolved",
-      "pnl_usd": -0.41
+      "pnl_usd": 10.2
     }
   ]
 }
