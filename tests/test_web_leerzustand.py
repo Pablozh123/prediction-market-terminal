@@ -402,6 +402,23 @@ class WebLeerzustandTest(unittest.TestCase):
         quelltext = (WURZEL / "web" / "js" / "app.js").read_text(encoding="utf-8")
         self.assertIn("min_holder=", quelltext)
 
+    def test_methodik_erklaert_wie_eine_wallet_gezaehlt_wird(self) -> None:
+        # Die vier Korrekturen aus app/track_record.py sind der Grund, warum
+        # unsere Quote unter der eines Vanity-Leaderboards liegt. Sie standen
+        # auf keiner Seite. Der Text muss auf der Methodik-Seite ankommen,
+        # nicht nur im Modulkopf.
+        text = _sichtbarer_text(self.ausgabe["live"]["research_methodology"])
+        self.assertIn("HOW A WALLET RECORD IS COUNTED", text)
+        self.assertIn("one record per event", text)
+        self.assertIn("closed-positions endpoint", text)
+        self.assertIn("$25,000", text)
+        self.assertIn("0.5%", text)
+        self.assertIn("insufficient sample", text)
+        self.assertIn("Settled rows only", text)
+        # Ohne Beleg keine Behauptung ueber fremde Zahlen: der Satz sagt, dass
+        # unsere Quote tiefer liegt, nicht was ein anderes Werkzeug zeigt.
+        self.assertNotIn("Polymarket leaderboard shows", text)
+
     def test_abgeschnittene_signalliste_sagt_es(self) -> None:
         live = _sichtbarer_text(self.ausgabe["live"]["alerts"])
         self.assertIn("showing the top 60 of 125 signals", live)
