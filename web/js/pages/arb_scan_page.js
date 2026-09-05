@@ -27,7 +27,8 @@
 // resolution pass over the scanner's journal (app/arb_resolution.py,
 // scripts/resolve_arb_paper.py). Where the scanner still says open, the
 // pass supplies status, settlement and figure; a row the scanner resolved
-// itself keeps the scanner's own figure.
+// itself keeps the scanner's own figure, or, since 2026-09-05, its own
+// reason for having none (resolution_reason, e.g. filled_after_close).
 
 import { esc, num, money, stempel, stempelBlock, dauer } from '../util.js';
 import { caveatZeile } from '../claims.js';
@@ -700,9 +701,10 @@ export function legPnl(r) {
 }
 
 // Tiles for our own resolution pass. They sit under the scanner's tiles
-// and say where the figures come from, because the scanner's own tiles
-// still show zero resolved trades: its lookup never finds a settled
-// market (it asks Gamma without closed=true).
+// and say where the figures come from. Until 2026-09-05 the scanner's own
+// lookup asked Gamma without closed=true and never found a settled market;
+// since prediction-alpha-bot#4 it asks for closed markets, and this pass
+// stays as the independent check on the same journal.
 export function aufloesungKennzahlen(auf) {
   if (!auf) return '';
   const s = auf.summary;
@@ -728,7 +730,7 @@ export function aufloesungKennzahlen(auf) {
     + tiles.map((t) => kpi({ label: esc(t.label), wert: esc(t.wert), sub: esc(t.sub), ton: t.ton || null, kuerzen: t.label !== 'MODELED PNL' })).join('')
     + '</div>'
     + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-3); max-width:760px; line-height:var(--lh-prose)">'
-    + esc(auf.source ? auf.source + '. ' : '') + 'The scanner\'s own tiles above still show zero resolved trades: its lookup asks Gamma without closed=true and never finds a settled market. '
+    + esc(auf.source ? auf.source + '. ' : '') + 'An independent pass over the same journal: the scanner\'s own lookup asked Gamma without closed=true until 2026-09-05 and found no settlement, and since then the two should agree; where they differ, the difference is the finding. '
     + 'A leg gets a figure only where the market was open at the fill and the CLOB day price supports the entry; where the journal stored the other side\'s price, the entry is 1 minus the recorded one. '
     + 'Everything else carries a reason instead of a number.'
     + '</div>';
@@ -743,10 +745,10 @@ export function paperBuch(positions, summary, resolutions) {
     + '<div>PAPER TRADE</div><div>STRATEGY</div><div>OPENED</div><div style="text-align:right">CAPITAL</div><div style="text-align:right">EXP. EDGE</div><div>STATUS</div><div style="text-align:right">PNL</div></div>';
   const koerper = rows.length ? rows.map((p) => {
     // Our resolution pass fills the gap the scanner leaves: where the
-    // scanner still says 'open' (it never finds a settled market, because
-    // it asks Gamma without closed=true), the pass supplies status, date
-    // and figure. A row the scanner has resolved itself keeps the
-    // scanner's own status and figure.
+    // scanner still says 'open', the pass supplies status, date and figure.
+    // A row the scanner has resolved itself keeps the scanner's own status
+    // and figure, or its own reason where it has no figure (a fill after
+    // the market's close, an entry at zero).
     const eigen = text(p.status).trim().toLowerCase();
     const r = auf && eigen !== 'resolved' ? auf.map.get(text(p.trade_id).trim()) || null : null;
     const gel = !!(r && text(r.status).trim().toLowerCase() === 'resolved');
@@ -754,7 +756,9 @@ export function paperBuch(positions, summary, resolutions) {
     const status = gel ? 'resolved' : eigen;
     const settle = gel ? zahl(r.settlement_price) : null;
     const tageGel = gel ? zahl(r.days_held) : null;
-    const grund = gel && pnl == null ? text(r.pnl_corrected_reason || r.pnl_reason).trim() : '';
+    const grund = gel && pnl == null
+      ? text(r.pnl_corrected_reason || r.pnl_reason).trim()
+      : (eigen === 'resolved' && pnl == null ? text(p.resolution_reason).trim() : '');
     return '<div style="display:grid; grid-template-columns:' + SPALTEN + '; gap:var(--sp-3); align-items:center; padding:var(--sp-4) var(--sp-5); border-bottom:1px solid var(--line-3)">'
       + '<div style="min-width:0"><div style="font-size:var(--t-body); color:var(--ink-1); line-height:var(--lh-snug)">' + esc(text(p.title).trim() || STRICH) + '</div>'
       + '<div style="' + NOTIZ + '; margin-top:var(--sp-1)">' + esc(text(p.trade_id).trim() || STRICH) + (text(p.opportunity_id).trim() ? ' · from ' + esc(p.opportunity_id) : '') + '</div></div>'

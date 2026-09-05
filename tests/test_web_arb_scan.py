@@ -74,6 +74,12 @@ class ArbScanAbschnittTest(unittest.TestCase):
                 self.assertIsNone(o["executable_net_edge_bps"], o["id"])
                 self.assertIsNone(o["annualized_pct"], o["id"])
         self.assertEqual(daten["config"]["hurdle_pct"], 5)
+        # Every paper position carries the scanner's own reason field; a row
+        # resolved without a figure names why (the legacy after-close row).
+        for p in daten["paper_positions"]:
+            self.assertIn("resolution_reason", p, p.get("trade_id"))
+        ohne_zahl = [p for p in daten["paper_positions"] if p["status"] == "resolved" and p["pnl_usd"] is None]
+        self.assertEqual([p["resolution_reason"] for p in ohne_zahl], ["filled_after_close"])
 
     def test_registrierung_abschnitt_statt_studie(self) -> None:
         # Kein eigener Studieneintrag, kein Sidebar-Eintrag, keine eigene Route.
@@ -355,15 +361,21 @@ class ArbScanAbschnittTest(unittest.TestCase):
 
     def test_paper_buch_mit_stichprobennotiz(self) -> None:
         text = self._text()
-        self.assertIn("PAPER BOOK · 4 POSITIONS", text)
+        self.assertIn("PAPER BOOK · 5 POSITIONS", text)
         self.assertIn("Jobless claims above 230k for the week of 29 August?", text)
         self.assertIn("+$10.20", text)
-        self.assertIn("pt-0003 · from opp-0010 within_market_fast_arb", text)
+        self.assertIn("pt-0004 · from opp-0010 within_market_fast_arb", text)
         self.assertIn("Modeled value frozen at emit time; not realized profit.", text)
+        self.assertIn("1 legacy trade(s) without a candidate link are excluded from PnL", text)
         # Without our resolution pass the scanner's own status stands: open, no figure.
         ohne = _sichtbarer_text(self.ausgabe["live"]["cross_arb_aufloesung_laedt"])
-        self.assertIn("pt-0003 · from opp-0010 within_market_fast_arb 2026-09-05 13:33 UTC $12.30 146.8 bps open open", ohne)
-        self.assertIn("pt-0002 · from opp-0011 within_market_fast_arb 2026-09-02 14:00 UTC $10.20 88.4 bps open open", ohne)
+        self.assertIn("pt-0004 · from opp-0010 within_market_fast_arb 2026-09-05 13:33 UTC $12.30 146.8 bps open open", ohne)
+        self.assertIn("pt-0003 · from opp-0011 within_market_fast_arb 2026-09-02 14:00 UTC $10.20 88.4 bps open open", ohne)
+        # The legacy row the scanner closed itself without a figure: its own reason
+        # stands in the PnL cell, with or without our pass.
+        legacy = "MicroStrategy sells any Bitcoin in 2025? pt-0001 neg_risk_bracket_arb 2026-05-20 14:00 UTC $1.00 — resolved filled_after_close"
+        self.assertIn(legacy, text)
+        self.assertIn(legacy, ohne)
 
     def test_klassentafel_und_methodik(self) -> None:
         text = self._text()
@@ -437,18 +449,21 @@ class AufloesungTest(unittest.TestCase):
         rows = {t["trade_id"]: t for t in daten["trades"]}
         scan = json.loads(FIXTURE.read_text(encoding="utf-8"))
         auf_seite = {p["trade_id"] for p in scan["paper_positions"]}
-        self.assertEqual(auf_seite, {"pt-0001", "pt-0002", "pt-0003", "pt-0004"})
+        self.assertEqual(auf_seite, {"pt-0001", "pt-0002", "pt-0003", "pt-0004", "pt-0005"})
         # Rows the scanner left open: won, lost, unsupported entry.
-        self.assertGreater(rows["pt-0003"]["pnl_corrected_usd"], 0)
-        self.assertLess(rows["pt-0002"]["pnl_corrected_usd"], 0)
-        self.assertEqual(rows["pt-0004"]["pnl_corrected_reason"], "entry_unsupported_by_day_price")
+        self.assertGreater(rows["pt-0004"]["pnl_corrected_usd"], 0)
+        self.assertLess(rows["pt-0003"]["pnl_corrected_usd"], 0)
+        self.assertEqual(rows["pt-0005"]["pnl_corrected_reason"], "entry_unsupported_by_day_price")
         # The row the scanner resolved itself: our pass corrects its entry and lands on another figure.
-        self.assertEqual(rows["pt-0001"]["entry_check"], "complement")
-        self.assertNotEqual(rows["pt-0001"]["pnl_corrected_usd"], rows["pt-0001"]["pnl_usd"])
-        # Journal rows the scanner does not publish: still open, and a fill after the close.
-        self.assertNotIn("pt-0005", auf_seite)
-        self.assertEqual(rows["pt-0005"]["status"], "open")
-        self.assertEqual(rows["pt-0006"]["pnl_corrected_reason"], "filled_after_close")
+        self.assertEqual(rows["pt-0002"]["entry_check"], "complement")
+        self.assertNotEqual(rows["pt-0002"]["pnl_corrected_usd"], rows["pt-0002"]["pnl_usd"])
+        # The legacy row: both the scanner and our pass call it a fill after the close.
+        self.assertEqual(rows["pt-0001"]["pnl_corrected_reason"], "filled_after_close")
+        self.assertEqual(next(p for p in scan["paper_positions"] if p["trade_id"] == "pt-0001")["resolution_reason"],
+                         "filled_after_close")
+        # A journal row the scanner does not publish: still open.
+        self.assertNotIn("pt-0006", auf_seite)
+        self.assertEqual(rows["pt-0006"]["status"], "open")
         self.assertEqual(daten["summary"]["filled_after_close"], 1)
         self.assertEqual(daten["summary"]["with_corrected_pnl"], 3)
         # The summary adds up to its rows.
@@ -475,27 +490,31 @@ class AufloesungTest(unittest.TestCase):
         self.assertIn("MEAN DAYS TO SETTLE", text)
         self.assertIn(f"fill to closedTime, n = {s['days_held_n']}", text)
         self.assertIn("BASKETS NOT EXCLUSIVE", text)
-        self.assertIn("asks Gamma without closed=true", text)
+        self.assertIn("asked Gamma without closed=true until 2026-09-05", text)
+        self.assertNotIn("still show zero resolved trades", text)
         # Rows the scanner left open get status, date, days and figure from our pass.
-        won = rows["pt-0003"]
+        won = rows["pt-0004"]
         self.assertIn(self._usd(won["pnl_corrected_usd"]), text)
         self.assertIn("settled 100.0¢", text)
         self.assertIn(f"{won['days_held']:.1f} d", text)
-        lost = rows["pt-0002"]
+        lost = rows["pt-0003"]
         self.assertIn(self._usd(lost["pnl_corrected_usd"]), text)
         self.assertIn("settled 0.0¢", text)
         self.assertIn("entry_unsupported_by_day_price", text)
         # The row the scanner resolved itself keeps the scanner's figure, not the corrected one.
         self.assertIn("+$10.20", text)
-        self.assertNotIn(self._usd(rows["pt-0001"]["pnl_corrected_usd"]), text)
+        self.assertNotIn(self._usd(rows["pt-0002"]["pnl_corrected_usd"]), text)
         self.assertNotIn("entry corrected", text)
-        self.assertNotIn("filled_after_close", text)
+        # The legacy row shows the scanner's own reason, and only once: the pass
+        # does not repeat it and does not attach a settlement note to it.
+        self.assertEqual(text.count("filled_after_close"), 1)
+        self.assertNotIn("$49.00", text)
         self.assertIn("Download the resolutions", text)
         self.assertIn('href="./data/arb_resolutions.json"', html)
         # The scanner's own tiles stay as they are; the pass sits between the pair board and the paper book.
         self.assertIn("RESOLVED PAPER TRADES 1", text)
         self.assertLess(text.index("CROSS-VENUE PAIR BOARD"), text.index("RESOLUTION PASS"))
-        self.assertLess(text.index("RESOLUTION PASS"), text.index("PAPER BOOK · 4 POSITIONS"))
+        self.assertLess(text.index("RESOLUTION PASS"), text.index("PAPER BOOK · 5 POSITIONS"))
 
     def test_ohne_die_datei_bleibt_das_paper_book_wie_es_war(self) -> None:
         for name in ("cross_arb_aufloesung_laedt", "cross_arb_aufloesung_fehler", "cross_arb_aufloesung_leer"):
@@ -506,8 +525,10 @@ class AufloesungTest(unittest.TestCase):
                 self.assertNotIn("Download the resolutions", text)
                 self.assertNotIn("settled 100.0¢", text)
                 self.assertIn("Paper scanner: executable edge", text)
-                self.assertIn("PAPER BOOK · 4 POSITIONS", text)
+                self.assertIn("PAPER BOOK · 5 POSITIONS", text)
                 self.assertIn("Download the data", text)
+                # The scanner's own reason needs no pass to show.
+                self.assertIn("filled_after_close", text)
         # Without the scanner's file, or without paper positions in it, there
         # is nothing to join onto and the block stays away.
         for name in ("cross_arb_ohne_datei", "cross_arb_leere_listen", "cross_arb_nur_schema"):
