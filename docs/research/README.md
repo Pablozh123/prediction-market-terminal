@@ -34,6 +34,7 @@ cannot trade through this code.
 | Are the large reward pools free money? | 9,900 markets carrying a pool, 164,661 USD per day, snapshot of 2026-07-31 | No. 14 of the 45 largest have a completely empty qualifying band, paying 250 to 1,475 USD a day — and quote 1 to 64 cents wide against a 2.5 cent band (4.5 cents on three of them) | [reward selection](reward_selection_2026-07-31.md) | [`src/reward_selection.py`](../../src/reward_selection.py) |
 | Do two venues settle the same event the same way? | 5 confirmed pairs, both rulebooks side by side | No. Kalshi resolves the 2028 presidential market on who is next inaugurated, Polymarket on who wins the election. A basket over that pair loses both legs instead of hedging | [resolution rules](resolution_rules_2026-07-31.md) | [`src/resolution_rules.py`](../../src/resolution_rules.py) |
 | Does the streamed book drift against the venue? | 24 tokens, 3 rounds of 120 seconds | 98.6% agreement, mean divergence 0.07 ticks, largest 2 ticks | [book reconciliation](book_reconcile_tick-2026-07-31.md) | [`src/book_reconcile.py`](../../src/book_reconcile.py) |
+| Did the arbitrage scanner's paper baskets pay? | 167 journal trades, 156 on settled markets, 45 with an entry the CLOB day price supports | No. -6.20 USD on 37.52 USD staked before fees (22 won, 21 lost, 2 flat); the four linked baskets made -1.52 USD, and three of them sat on deadlines that nest rather than exclude. 98 of the 156 fills were written after their market had already closed | [scanner paper trades](arb_paper_resolution_2026-09-05.md) | [`app/arb_resolution.py`](../../app/arb_resolution.py) |
 
 Two supporting documents sit alongside these: [`ertragsquellen_2026-07-31.md`](ertragsquellen_2026-07-31.md)
 places the measurements against the published literature, and
@@ -67,9 +68,9 @@ first and only looked like a distinction. One honest clock replaced it.
 
 ## Silent failures found
 
-Six defects that never crashed, never raised, and never failed a test, each of
+Seven defects that never crashed, never raised, and never failed a test, each of
 which would have corrupted numbers while every log stayed clean. The full list is
-in the [one-pager](ONE_PAGER.md); the two that generalise best:
+in the [one-pager](ONE_PAGER.md); the three that generalise best:
 
 - **Recorders watching the wrong markets.** Both streams select by volume. The
   cross-venue pairs are long-dated and thin and never rank, so zero of them had
@@ -81,6 +82,14 @@ in the [one-pager](ONE_PAGER.md); the two that generalise best:
   tick size at runtime. The giveaway was the shape of the numbers: every flagged
   divergence was an exact whole-cent multiple, in both directions. Drift
   accumulates and is directional; a moving market jumps by whole ticks either way.
+- **A resolver that could never resolve.** The arbitrage scanner asked Gamma for
+  each market by slug without `closed=true`, and that endpoint answers for settled
+  markets only with the parameter. Every settled market came back as *not found*,
+  so 167 paper trades stayed open for three months while the page showed zero
+  resolved. The same pass found that 98 of the settled fills had been written after
+  their market's close, and that the older journal rows stored the YES price on NO
+  trades. Found by resolving the journal from outside, in
+  [arb_paper_resolution_2026-09-05.md](arb_paper_resolution_2026-09-05.md).
 
 ## Reproducing
 

@@ -476,6 +476,81 @@ class RiskWalletAddressTests(unittest.TestCase):
         self.assertNotIn("cluster", row)
 
 
+class WinRateWithUnredeemedTests(unittest.TestCase):
+    """Die untere Schranke der korrigierten Quote.
+
+    Positionen, die gegen die Wallet aufgeloest und nie eingeloest wurden,
+    fehlen im closed-positions-Feed und sind ausschliesslich Verluste. Jede
+    Quote aus diesem Feed ist damit nach oben verzerrt, um einen Betrag, den
+    man kennt.
+    """
+
+    def test_die_treffer_bleiben_der_nenner_waechst(self) -> None:
+        b = apv.win_rate_with_unredeemed({"wins": 25, "n": 27}, 18)
+        self.assertEqual(b["wins"], 25)
+        self.assertEqual(b["n"], 45)
+        self.assertEqual(b["unredeemed"], 18)
+        self.assertAlmostEqual(b["win_rate"], 25 / 45)
+        self.assertTrue(b["is_lower_bound"])
+
+    def test_das_intervall_kommt_aus_derselben_funktion(self) -> None:
+        b = apv.win_rate_with_unredeemed({"wins": 25, "n": 27}, 18)
+        self.assertEqual(b["ci95"], apv._wilson(25, 45))
+
+    def test_ohne_fehlende_verluste_gibt_es_keine_schranke(self) -> None:
+        # Sonst stuende eine zweite Quote da, die dieselbe Zahl wiederholt.
+        self.assertIsNone(apv.win_rate_with_unredeemed({"wins": 25, "n": 27}, 0))
+        self.assertIsNone(apv.win_rate_with_unredeemed({"wins": 25, "n": 27}, None))
+
+    def test_ohne_quote_gibt_es_nichts_zu_korrigieren(self) -> None:
+        self.assertIsNone(apv.win_rate_with_unredeemed(None, 18))
+        self.assertIsNone(apv.win_rate_with_unredeemed({}, 18))
+        self.assertIsNone(apv.win_rate_with_unredeemed({"wins": 0, "n": 0}, 18))
+
+    def test_die_schranke_liegt_nie_ueber_der_quote(self) -> None:
+        for wins, n, fehlend in ((8, 11, 1), (25, 27, 18), (1, 2, 7), (50, 50, 3)):
+            with self.subTest(wins=wins, n=n, fehlend=fehlend):
+                b = apv.win_rate_with_unredeemed({"wins": wins, "n": n}, fehlend)
+                self.assertLessEqual(b["win_rate"], wins / n)
+
+
+class EdgeWithUnredeemedTests(unittest.TestCase):
+    """Dieselbe Luecke an der zweiten Kennzahl derselben Karte."""
+
+    def test_der_fehlende_einsatz_landet_im_nenner(self) -> None:
+        b = apv.edge_with_unredeemed({"cost_usd": 600.0, "payout_usd": 810.0}, -10.0, 1)
+        self.assertAlmostEqual(b["cost_usd"], 610.0)
+        self.assertAlmostEqual(b["edge"], 810.0 / 610.0 - 1.0)
+        self.assertEqual(b["unredeemed"], 1)
+        self.assertAlmostEqual(b["unredeemed_cost_usd"], 10.0)
+        self.assertTrue(b["is_lower_bound"])
+
+    def test_die_schranke_liegt_unter_der_quote(self) -> None:
+        roh = 810.0 / 600.0 - 1.0
+        b = apv.edge_with_unredeemed({"cost_usd": 600.0, "payout_usd": 810.0}, -10.0, 1)
+        self.assertLess(b["edge"], roh)
+
+    def test_sie_taeuscht_kein_intervall_vor(self) -> None:
+        # Die fehlenden Zeilen liegen nicht in der Bootstrap-Stichprobe.
+        b = apv.edge_with_unredeemed({"cost_usd": 600.0, "payout_usd": 810.0}, -10.0, 1)
+        self.assertNotIn("ci_low", b)
+        self.assertNotIn("ci95", b)
+        self.assertIn("No interval", b["ci_note"])
+
+    def test_ohne_fehlende_zeilen_oder_summen_gibt_es_keine_schranke(self) -> None:
+        self.assertIsNone(apv.edge_with_unredeemed({"cost_usd": 600.0, "payout_usd": 810.0}, 0.0, 0))
+        self.assertIsNone(apv.edge_with_unredeemed({"cost_usd": 600.0, "payout_usd": 810.0}, -10.0, 0))
+        self.assertIsNone(apv.edge_with_unredeemed({}, -10.0, 1))
+        self.assertIsNone(apv.edge_with_unredeemed(None, -10.0, 1))
+
+    def test_das_vorzeichen_des_fehlenden_einsatzes_ist_egal(self) -> None:
+        # Die Nutzlast fuehrt ihn als Kosten, das Frontend zeigt ihn als
+        # Verlust. Beide Schreibweisen muessen dasselbe ergeben.
+        a = apv.edge_with_unredeemed({"cost_usd": 600.0, "payout_usd": 810.0}, -10.0, 1)
+        b = apv.edge_with_unredeemed({"cost_usd": 600.0, "payout_usd": 810.0}, 10.0, 1)
+        self.assertEqual(a["edge"], b["edge"])
+
+
 class CrossRowsTests(unittest.TestCase):
     def test_maps_candidate_frame(self) -> None:
         frame = pd.DataFrame([
@@ -995,9 +1070,40 @@ class ResolvedRowsTests(unittest.TestCase):
         ])
         rows = apv.resolved_rows(closed)
         self.assertEqual(len(rows), 1, "Multi-Outcome-Maerkte fliegen raus")
-        self.assertEqual(rows[0]["err"], 19)
+        # Der Preis heisst, was er ist. Frueher stand hier ein Feld "err" mit
+        # dem Wert 19 — die Abweichung zwischen 81 Cent und dem Ausgang "Yes".
+        # Diese Zeile gibt es im echten Feed nicht: dort leitet
+        # get_polymarket_closed_markets den Ausgang aus genau diesem Preis ab,
+        # also ist der Preis bei einem abgerechneten Markt 0 oder 100 und die
+        # Abweichung strukturell null. Der Test baute den einzigen Fall, in dem
+        # die Kennzahl etwas gezeigt haette, und hielt sie damit am Leben.
+        self.assertEqual(rows[0]["settled_price"], 81)
+        self.assertNotIn("err", rows[0])
         self.assertTrue(rows[0]["yes"])
         self.assertIn("h ago", rows[0]["when"])
+
+    def test_ein_abgerechneter_markt_traegt_seinen_abrechnungspreis(self) -> None:
+        # So sieht der Feed wirklich aus: der Ausgang folgt dem Preis.
+        closed = pd.DataFrame([
+            {"title": "Won", "platform": "Polymarket", "category": "Sports",
+             "resolved_outcome": "Yes", "final_yes_price": 1.0, "decisive_resolution": True,
+             "closed_time": pd.Timestamp.now(tz="UTC"), "volume": 1000.0},
+            {"title": "Lost", "platform": "Polymarket", "category": "Sports",
+             "resolved_outcome": "No", "final_yes_price": 0.0, "decisive_resolution": True,
+             "closed_time": pd.Timestamp.now(tz="UTC"), "volume": 1000.0},
+        ])
+        rows = apv.resolved_rows(closed)
+        self.assertEqual([r["settled_price"] for r in rows], [100, 0])
+        self.assertTrue(all(r["decisive"] for r in rows))
+        # Keine Zeile behauptet eine Abweichung.
+        self.assertTrue(all("err" not in r for r in rows))
+
+    def test_der_hinweis_sagt_was_dem_feed_fehlt_und_was_es_braeuchte(self) -> None:
+        note = apv.RESOLVED_PRICE_NOTE
+        self.assertIn("settlement price", note)
+        self.assertIn("not the last price before settlement", note)
+        self.assertIn("CLOB price history", note)
+        self.assertIn("no deviation between crowd and outcome is computed here", note)
 
 
 class TrackPayloadTests(unittest.TestCase):
@@ -1023,6 +1129,7 @@ class ResearchFilesTests(unittest.TestCase):
         Unterstrich-Adresse fuehren auf dieselbe Datei."""
         self.assertEqual(apv.RESEARCH_FILES["arb-scan"], "arb_scan")
         self.assertEqual(apv.RESEARCH_FILES["arb_scan"], "arb_scan")
+        self.assertEqual(apv.RESEARCH_FILES["arb-resolutions"], "arb_resolutions")
 
 
 class LiveRunsExtrasTests(unittest.TestCase):

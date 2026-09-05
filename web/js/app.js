@@ -2,7 +2,7 @@
 // One controller class; each workspace renders as an HTML string from state.
 
 import { num, money, volume, esc, seriesPoints, tapeMatches, liveStatusLabel } from './util.js';
-import { STUDIEN } from './studies.js';
+import { STUDIEN, studienIndexAus as studienIndexIn } from './studies.js';
 import { caveatZeile, registerAktualisieren } from './claims.js';
 import { apiGet, apiGetRaw, apiPost } from './api.js';
 import { renderOverview, renderMarkets, renderFlow, renderCross, renderResolved } from './pages/core_pages.js';
@@ -95,7 +95,7 @@ class Terminal {
       tapeQuery: '', tapePlatform: 'all', tapeSide: 'all', tapeOutcome: 'all',
       // Whale flow: Sortierung der Wallet-Zeilen — 'total' | 'biggest' | 'prints'.
       whaleSort: 'total',
-      resQuery: '', resAnswer: 'all', resWindow: 'all', resError: 'all', resSort: 'recent',
+      resQuery: '', resAnswer: 'all', resWindow: 'all', resSort: 'recent',
       setMarketSample: 250, setTradeSample: 250, setWhale: 2500, setBankroll: 1000, setFee: 20, setSlip: 15,
       alertTab: 'signals', alertQuery: '', alertPlatform: 'all', alertType: 'all', alertScope: 'all',
       thMove: 5, thSpread: 3, thWhale: 2500, thEnding: 72, thHolder: 40,
@@ -199,6 +199,14 @@ class Terminal {
         // Drittes Segment = Karte auf der Seite (#research/microstructure/<id>)
         // oder der Reiter der Live runs (#research/live-runs/timing).
         this._pendingAnchor = segmente[2] && !this.tabAusAdresse(segmente) ? segmente.join('/') : null;
+      } else {
+        // Segment zeigt auf keine Studie: die Forschungsseite auf ihrem
+        // Standardreiter oeffnen und die Adresse darauf zurechtruecken, wie
+        // es die alte Scanner-Adresse oben schon tut. Eine Adresse, die eine
+        // Studie nennt, die nicht zu sehen ist, ist schlimmer als ein Reiter,
+        // den niemand verlangt hat.
+        this.state.page = 'research';
+        try { history.replaceState(null, '', '#research/' + this.studienSlug(this.state.researchTab)); } catch (e) { /* file:// */ }
       }
     }
     // Deep link #wallet/<address>: the page opens on that wallet and fetches
@@ -218,7 +226,7 @@ class Terminal {
     // when its tab is opened — null until then.
     // wallet: one entry per analysed address — { herkunft: 'loading' | 'live'
     // | 'fehler', data, fehler, status, retryAfter }.
-    this.liveData = { leaderboard: null, cross: null, arbScan: null, risk: null, riskLog: null, alerts: null, copy: null, portfolio: null, research: {}, backtest: null, walletDetail: {}, wallet: {}, riskBook: {}, walletSimilar: {}, walletEntity: {}, graph: null };
+    this.liveData = { leaderboard: null, cross: null, arbScan: null, arbResolutions: null, risk: null, riskLog: null, alerts: null, copy: null, portfolio: null, research: {}, backtest: null, walletDetail: {}, wallet: {}, riskBook: {}, walletSimilar: {}, walletEntity: {}, graph: null };
     // Venue-weite Suche (/api/search): die Palette filtert sonst nur die
     // geladenen Top-Volumen-Maerkte — alles ausserhalb davon fand sie nie.
     // q traegt die Anfrage, zu der die Treffer gehoeren; status ist
@@ -587,11 +595,7 @@ class Terminal {
   }
 
   studienIndexAus(slug) {
-    if (!slug) return -1;
-    for (let i = 0; i < this.studies.length; i += 1) {
-      if (this.studienSlug(i) === slug) return i;
-    }
-    return -1;
+    return studienIndexIn(this.studies, slug);
   }
 
   // #research/arb-scan (and #research/arb_scan, typed from the file name)
@@ -928,6 +932,10 @@ class Terminal {
       // scanner: executable edge"). It is one small request, asked for
       // first so it does not wait behind the pair scan below.
       const scanner = this.holen('arbScan', '/api/research/arb-scan');
+      // Our resolution pass over the same journal (arb_resolutions.json);
+      // it changes only when the script runs, so the 60 s refresh below
+      // leaves it alone.
+      const aufloesung = this.holen('arbResolutions', '/api/research/arb-resolutions');
       // While the request runs the page shows a loading line; the server
       // already applies the honesty gate (similarity >= 0.5, volume on both
       // venues), so nothing here lowers a threshold to make rows appear.
@@ -936,6 +944,7 @@ class Terminal {
       });
       this.herkunft.cross = this.herkunftAus('cross', this.crossPairs);
       await scanner;
+      await aufloesung;
     } else if (page === 'risk') {
       // Bewusst nicht mehr von der Startseite: der erste Aufbau paged einen Tag
       // Prints und schlaegt Marktkategorien nach, das blockierte die Overview.
@@ -1612,7 +1621,13 @@ class Terminal {
         // The third segment is a card anchor (#research/microstructure/<id>)
         // unless it names a Live-runs tab (#research/live-runs/timing).
         this._pendingAnchor = segmente[2] && !this.tabAusAdresse(segmente) ? segmente.join('/') : null;
-        this.setState({ page: 'research', researchTab: i >= 0 ? i : this.state.researchTab, detail: null });
+        const reiter = i >= 0 ? i : this.state.researchTab;
+        this.setState({ page: 'research', researchTab: reiter, detail: null });
+        // Nennt die Adresse eine Studie, die es nicht gibt, ruecke sie auf
+        // die zurecht, die wirklich zu sehen ist.
+        if (segmente[1] && i < 0) {
+          try { history.replaceState(null, '', '#research/' + this.studienSlug(reiter)); } catch (e) { /* file:// */ }
+        }
         this.fetchPageData('research');
       } else if (segmente[0] === 'wallet') {
         // #wallet/<addr> from back/forward or a pasted link: analyse that
