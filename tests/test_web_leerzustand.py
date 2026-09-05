@@ -2261,6 +2261,26 @@ class WebLeerzustandTest(unittest.TestCase):
         whale = _sichtbarer_text(self.ausgabe["live"]["whale"])
         self.assertIn("SUMMED OVER Window:", whale)
 
+    def test_resolved_verspricht_keine_messung_die_die_daten_nicht_hergeben(self) -> None:
+        # Die Seite versprach "the gap between the two is what the crowd got
+        # wrong" und zeigte dafuer eine Zahl, die strukturell null ist: der
+        # Feed liefert fuer einen abgerechneten Markt nur den
+        # Abrechnungspreis, und der Ausgang wird aus genau diesem Preis
+        # abgeleitet.
+        text = _sichtbarer_text(self.ausgabe["live"]["resolved"])
+        self.assertNotIn("CROWD OFF BY", text)
+        self.assertNotIn("BIGGEST SURPRISE", text)
+        self.assertNotIn("what the crowd got wrong", text)
+        self.assertNotIn("Biggest surprise", text)
+        # Die Spalte heisst, was sie ist, und der Hinweis nennt Quelle und
+        # das, was fehlt.
+        self.assertIn("SETTLED PRICE", text)
+        self.assertIn("not the last price before settlement", text)
+        self.assertIn("CLOB price history", text)
+        # Und die Kachel belegt es an den Zeilen selbst.
+        self.assertIn("PRICE NOT 0 OR 100", text)
+        self.assertIn("1 of 2", text)
+
     def test_resolved_und_whale_tragen_einen_as_of_stempel(self) -> None:
         """Beide Seiten zeigen abgeleitete Live-Daten und sagen, von wann.
 

@@ -2421,7 +2421,14 @@ def resolved(limit: int = Query(250, ge=1, le=500)) -> dict[str, Any]:
         rows = cached(f"resolved_{limit}", _load, ttl=300.0)
     except Exception as exc:
         raise HTTPException(status_code=503, detail=f"closed markets unavailable: {_oeffentlich(exc)}")
-    return {"rows": rows, "total": len(rows), "as_of": md.now_utc_label()}
+    return {
+        "rows": rows,
+        "total": len(rows),
+        # Was der Feed hergibt und was nicht. Ohne diesen Satz sieht ein
+        # Abrechnungspreis aus wie ein letzter Preis vor der Abrechnung.
+        "price_note": apv.RESOLVED_PRICE_NOTE,
+        "as_of": md.now_utc_label(),
+    }
 
 
 @app.get("/api/track")
