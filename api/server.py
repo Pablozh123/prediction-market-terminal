@@ -147,6 +147,7 @@ from app import ledger
 from app import pilot_result
 from app import scorecard as sc
 from app import signals as sig
+from app import study_datasets as sds
 from app import track_record as trec
 from app import venue_fees as vf
 from app.analysis_views import load_publish_payload
@@ -2402,6 +2403,12 @@ def research(name: str) -> dict[str, Any]:
     payload = load_publish_payload(PUBLISH_DIR, filename + ".json")
     if payload is None:
         raise HTTPException(status_code=404, detail=f"no published data for '{name}'")
+    if filename == "microstructure":
+        # Die Datensaetze neben den Berichten werden beim Lesen nachgetragen,
+        # nicht nur beim Publizieren: sonst zeigte eine Nutzlast, die vor
+        # dieser Aenderung geschrieben wurde, die Links erst nach dem
+        # naechsten Publish-Lauf. Verlinkt wird nur, was im Repo liegt.
+        payload = sds.with_datasets(payload)
     if filename == "pipeline_forward":
         payload = apv.trim_pipeline_payload(payload)
     if filename == "pilot":

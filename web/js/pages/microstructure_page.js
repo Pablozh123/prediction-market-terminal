@@ -136,8 +136,15 @@ function quelleLinks(s) {
     '<a href="https://github.com/Pablozh123/prediction-market-terminal/blob/main/' + esc(pfad)
     + '" target="_blank" rel="noopener" style="' + M + '; font-size:var(--t-micro); color:var(--info); text-decoration:none; '
     + 'border:1px solid rgba(var(--info-rgb),.35); border-radius:var(--r-control); padding:var(--sp-2) var(--sp-3)">' + esc(text) + ' ↗</a>';
+  // Der Datensatz gehoert daneben. Bericht und Modul sagen, wie gemessen
+  // und womit gerechnet wurde; ohne die Zahlen selbst kann niemand
+  // nachrechnen. Der Endpunkt liefert nur, was wirklich im Repo liegt
+  // (app/study_datasets.py), also entsteht hier kein toter Link.
+  const daten = Array.isArray(s.daten) ? s.daten : [];
   return '<div style="display:flex; gap:var(--sp-3); flex-wrap:wrap; align-items:center">'
-    + link(s.report, 'FULL REPORT') + link(s.modul, 'SOURCE MODULE') + '</div>';
+    + link(s.report, 'FULL REPORT') + link(s.modul, 'SOURCE MODULE')
+    + daten.map((d) => link(d.path, 'DATA · ' + String(d.format || ''))).join('')
+    + '</div>';
 }
 
 // Methode, Fliesstext und Deutung, zugeklappt. Der Inhalt ist derselbe wie
