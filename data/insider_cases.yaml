@@ -1,0 +1,461 @@
+# Documented public cases of suspicious prediction-market flow, replayed
+# through the insider screen (app/insider_cases.py, tests/test_insider_cases.py,
+# scripts/replay_insider_cases.py).
+#
+# Versioned on purpose, like data/claims.yaml: adding or changing a case is a
+# reviewed diff with a source. Every case names where its numbers come from.
+# Numbers a source did not give are modelled and say so in the note; a case
+# whose shape cannot be rebuilt from its source is kept for the record with
+# replayable: false.
+#
+# What this list is: a regression suite for the patterns the screen claims
+# to catch. What it is not: a hit rate. Tracker posts and press reports are
+# not established findings, and the list says nothing about the flow the
+# screen flags besides these cases.
+#
+# Fields
+#   id               stable slug
+#   source           URL of the post, article, report or "trade store" for own data
+#   source_kind      tracker_post | press | research | court | store
+#   date             date of the flow (UTC), the replay clock is 18:00 UTC that day
+#   category         group the case belongs to, for the report
+#   market           question as the venue words it (drives the context classifier)
+#   side, price      the outcome bought ("YES" or "NO", quoted: bare YES is a YAML boolean) and its price in (0, 1)
+#   notional         dollars, all prints of the case together
+#   wallets, prints  how many wallets and how many prints carried the notional
+#   minutes_before_end   minutes from the last print to the market's end date
+#   first_trade_days     days between the wallet's first trade on the venue and its
+#                        first case print; null when nobody measured it
+#   wallet           public address when the case names one (blockchain data)
+#   outcome          won | lost | unknown, as far as the source says
+#   expectation      flag | no_flag | excluded | open (see app/insider_cases.py)
+#   replayable       false keeps a case for the record without a replay
+#   note             what was modelled, and why the expectation is what it is
+
+version: 1
+updated: 2026-09-05
+
+cases:
+  # ------------------------------------------------------------- tracker posts
+  - id: pms-2026-03-27-us-forces-iran
+    source: https://x.com/PolymarketStory/status/2037551216821989720
+    source_kind: tracker_post
+    date: 2026-03-27
+    category: geopolitics
+    market: "Will US forces enter Iran before March 31?"
+    side: "YES"
+    price: 0.22
+    notional: 170000
+    wallets: 1
+    prints: 1
+    minutes_before_end: 5760
+    first_trade_days: 1.0
+    wallet: null
+    outcome: unknown
+    expectation: flag
+    note: >
+      "A fresh wallet just placed over $170,000 on US forces entering Iran before
+      March 31. Joined in March 2026, just 7 predictions. Potential payout $777,000+"
+      (price from payout). The first trade is not dated in the post; modelled as one
+      day before, inside the freshness horizon. One wallet, one print: the pattern
+      that used to stop at 25 points because a lone print earns no distribution
+      points and the fresh cluster needs two wallets.
+
+  - id: pms-2026-03-22-ceasefire-ten-fresh-wallets
+    source: https://x.com/PolymarketStory/status/2035737368141902238
+    source_kind: tracker_post
+    date: 2026-03-22
+    category: geopolitics
+    market: "US-Iran ceasefire by March 31?"
+    side: "YES"
+    price: 0.155
+    notional: 160000
+    wallets: 10
+    prints: 10
+    minutes_before_end: 12960
+    first_trade_days: 0.3
+    wallet: null
+    outcome: won
+    expectation: flag
+    note: >
+      Ten wallets, $7,000 to $24,000 each, $160,000 together, YES on a ceasefire by
+      end of March, potential payout $1.04M (price from payout). "Almost no history,
+      all created around the same time", 99 percent market orders; two of them had
+      profited from the US strikes market before. The later post of April 5 reports
+      every flagged wallet won. Modelled with all ten prints inside one window.
+
+  - id: pms-2026-09-04-fed-48k-ten-hour-wallet
+    source: https://x.com/PolymarketStory/status/2095912741995217232
+    source_kind: tracker_post
+    date: 2026-09-04
+    category: macro
+    market: "Will the Fed decrease interest rates by 25 bps after the September 2026 meeting?"
+    side: "YES"
+    price: 0.21
+    notional: 48000
+    wallets: 1
+    prints: 1
+    minutes_before_end: 18720
+    first_trade_days: 0.42
+    wallet: null
+    outcome: unknown
+    expectation: flag
+    note: >
+      "This wallet loaded $48,000 on the upcoming Fed meeting market. This account was
+      created just 10 hours ago. Potential payout $230,000+" (price from payout). The
+      exact sub-market is not named; modelled as the 25 bps cut.
+
+  - id: pms-2026-09-03-fed-three-fresh-wallets
+    source: https://x.com/PolymarketStory/status/2095912741995217232
+    source_kind: tracker_post
+    date: 2026-09-03
+    category: macro
+    market: "Will there be no change in Fed interest rates after the September 2026 meeting?"
+    side: "YES"
+    price: 0.44
+    notional: 44000
+    wallets: 3
+    prints: 3
+    minutes_before_end: 20160
+    first_trade_days: 0.5
+    wallet: null
+    outcome: unknown
+    expectation: flag
+    note: >
+      Quoted post of 2026-09-03: "3 Fresh Whales Alert. This wallets loaded $44,000 on
+      the Fed not changing the rate at the next meeting. All wallets registered today.
+      Potential payout $100,000+" (price from payout). Not long odds at all: the
+      pattern here is freshness plus size plus the same side.
+
+  - id: pms-2026-08-31-fed-not-hiking-40k-sixteen-hour-wallet
+    source: https://x.com/PolymarketStory
+    source_kind: tracker_post
+    date: 2026-08-30
+    category: macro
+    market: "Will the Fed increase interest rates by 25 bps after the September 2026 meeting?"
+    side: "NO"
+    price: 0.48
+    notional: 40740
+    wallets: 1
+    prints: 1
+    minutes_before_end: 25920
+    first_trade_days: 0.0
+    wallet: "0xde0828bb8493e55928bc5f44367d70f67f127cd3"
+    outcome: unknown
+    expectation: flag
+    note: >
+      Timeline post of 2026-08-31: "This wallet placed $40,700 on the Fed not increasing
+      rates by 25 bps at the next meeting. The wallet was created 16 hours ago. Potential
+      payout $84,000+". The print sits in this repository's trade store (2026-08-30 23:49
+      UTC, NO at 0.48, $40,740, name magnusmajor) and the Data API names that print as
+      the wallet's first trade. The production flag log of that day holds no row for
+      it: the case the old screen missed.
+
+  - id: pms-2026-09-02-us-iran-70k-accumulation
+    source: https://x.com/PolymarketStory/status/2095204726472139050
+    source_kind: tracker_post
+    date: 2026-09-02
+    category: geopolitics
+    market: "US military action against Iran by September 30?"
+    side: "YES"
+    price: 0.32
+    notional: 70000
+    wallets: 1
+    prints: 3
+    minutes_before_end: 40320
+    first_trade_days: 200
+    wallet: null
+    outcome: unknown
+    expectation: open
+    note: >
+      "Smart Money Flow in Geopolitics. This wallet loaded $70,000 into the US x Iran
+      markets. A lot of wallets have started accumulating larger positions there.
+      Potential payout $220,000+" (price from payout). An established wallet
+      accumulating, not a fresh one; the screen has no stated position on it.
+
+  - id: pms-2026-08-30-fed-380k-established
+    source: https://x.com/PolymarketStory
+    source_kind: tracker_post
+    date: 2026-08-30
+    category: macro
+    market: "Will the Fed decrease interest rates by 50+ bps after the September 2026 meeting?"
+    side: "YES"
+    price: 0.19
+    notional: 380000
+    wallets: 1
+    prints: 1
+    minutes_before_end: 25920
+    first_trade_days: 600
+    wallet: null
+    outcome: unknown
+    expectation: open
+    note: >
+      Timeline post: "Smart Money Flow continues. This wallet loaded $380,000 on the next
+      FED meeting markets. His potential payout could reach up to $2,000,000+". Size and
+      long odds from an established wallet, one print: documented so the replay shows
+      what the screen makes of size alone.
+
+  - id: pms-2026-03-29-ground-operation-200k
+    source: https://x.com/PolymarketStory/status/2040644519851389135
+    source_kind: tracker_post
+    date: 2026-03-29
+    category: geopolitics
+    market: "US ground operation in Iran by April 30?"
+    side: "YES"
+    price: 0.2
+    notional: 200000
+    wallets: 2
+    prints: 2
+    minutes_before_end: 46080
+    first_trade_days: null
+    wallet: null
+    outcome: won
+    expectation: open
+    replayable: false
+    note: >
+      "Suspicious wallets just placed $200,000+ on this. Potential payouts now over
+      $1,000,000"; the follow-up of April 5 reports the largest payout at $1,300,000+.
+      Neither the wallets nor the exact market are named: kept for the record.
+
+  - id: pms-2026-05-10-ufc-underdog-200k-fresh-wallet
+    source: https://x.com/PolymarketStory/status/2053365836077777374
+    source_kind: tracker_post
+    date: 2026-05-10
+    category: sports
+    market: "UFC 328: Sean Strickland vs. Dricus Du Plessis"
+    side: "YES"
+    price: 0.19
+    notional: 200000
+    wallets: 1
+    prints: 1
+    minutes_before_end: 1440
+    first_trade_days: 0.5
+    wallet: null
+    outcome: won
+    expectation: excluded
+    note: >
+      "A brand new wallet joined right before UFC 328. It put $200K+ on the underdog
+      Sean Strickland at 19 cents and is now up over $1,000,000 in a single day."
+      Sports odds are dropped by the screen before scoring, by design; the case
+      documents what that design gives up.
+
+  # -------------------------------------------------------------------- press
+  - id: ap-2026-04-07-ceasefire-72k-same-day-wallet
+    source: https://www.euronews.com/business/2026/04/09/newly-made-polymarket-accounts-won-massively-on-us-iran-ceasefire-bets
+    source_kind: press
+    date: 2026-04-07
+    category: geopolitics
+    market: "US-Iran ceasefire announced by April 8?"
+    side: "YES"
+    price: 0.088
+    notional: 72000
+    wallets: 1
+    prints: 4
+    minutes_before_end: 1200
+    first_trade_days: 0.35
+    wallet: null
+    outcome: won
+    expectation: flag
+    note: >
+      AP analysis of Dune blockchain data: a wallet created around 10 am ET the same
+      day placed roughly $72,000 at an average of 8.8 cents before the 6:30 pm ET
+      announcement and cashed out about $200,000 in profit. At least 50 newly created
+      wallets bet YES that day. Four clips modelled.
+
+  - id: ap-2026-04-07-ceasefire-32k-twelve-minute-wallet
+    source: https://www.euronews.com/business/2026/04/09/newly-made-polymarket-accounts-won-massively-on-us-iran-ceasefire-bets
+    source_kind: press
+    date: 2026-04-07
+    category: geopolitics
+    market: "US-Iran ceasefire announced by April 8?"
+    side: "YES"
+    price: 0.33
+    notional: 31908
+    wallets: 1
+    prints: 3
+    minutes_before_end: 60
+    first_trade_days: 0.01
+    wallet: null
+    outcome: won
+    expectation: flag
+    note: >
+      Same AP analysis: a wallet created twelve minutes before the post placed
+      $31,908 of YES at around 33 cents and walked away with $48,500. Inside the
+      market's last hour, at 33 cents: the outer long-odds band and the late window.
+
+  - id: ap-2026-04-07-ceasefire-fifty-wallets
+    source: https://www.euronews.com/business/2026/04/09/newly-made-polymarket-accounts-won-massively-on-us-iran-ceasefire-bets
+    source_kind: press
+    date: 2026-04-07
+    category: geopolitics
+    market: "US-Iran ceasefire announced by April 8?"
+    side: "YES"
+    price: 0.2
+    notional: 500000
+    wallets: 50
+    prints: 50
+    minutes_before_end: 600
+    first_trade_days: 0.3
+    wallet: null
+    outcome: won
+    expectation: open
+    replayable: false
+    note: >
+      "At least 50 accounts placed substantial YES bets before the announcement";
+      sizes per wallet are not given, so the total here is a placeholder and the
+      case is kept for the record only.
+
+  - id: bloomberg-2026-06-permanent-peace-deal-accumulation
+    source: https://www.bloomberg.com/graphics/2026-polymarket-bets-iran-war-insider-trading/
+    source_kind: press
+    date: 2026-06-10
+    category: geopolitics
+    market: "US x Iran permanent peace deal by June 15, 2026?"
+    side: "YES"
+    price: 0.06
+    notional: 90000
+    wallets: 1
+    prints: 6
+    minutes_before_end: 7200
+    first_trade_days: null
+    wallet: null
+    outcome: won
+    expectation: open
+    note: >
+      One account accumulated YES over days from as little as 6 percent; the
+      position paid out about $1.5M for a net profit of roughly $370,000. Notional
+      inferred from the payout; the date is approximate and the wallet's first trade
+      is not reported. Slow accumulation over days does not fit one screen window.
+
+  - id: doj-2026-01-maduro-van-dyke-400k
+    source: https://www.ibtimes.com/more-150-polymarket-wallets-may-have-traded-us-military-secrets-research-finds-3806617
+    source_kind: court
+    date: 2026-01-03
+    category: geopolitics
+    market: "Maduro out as President of Venezuela by January 31?"
+    side: "YES"
+    price: 0.15
+    notional: 400000
+    wallets: 1
+    prints: 8
+    minutes_before_end: 40320
+    first_trade_days: null
+    wallet: null
+    outcome: won
+    expectation: open
+    note: >
+      Army Master Sgt. Gannon Ken Van Dyke, charged in 2026, built a $400,000 position
+      on Maduro's January ouster "at a slower pace"; ACDC notes he fell outside its
+      Orca sample for that reason. Date, price and clip count are modelled; the
+      first trade is not reported.
+
+  # ----------------------------------------------------------------- research
+  - id: acdc-2026-08-orca-definition
+    source: https://www.cryptotimes.io/2026/08/20/150-polymarket-wallets-suspected-of-trading-on-us-military-secrets/
+    source_kind: research
+    date: 2026-08-20
+    category: geopolitics
+    market: "Will Israel strike Iran by June 30?"
+    side: "YES"
+    price: 0.3
+    notional: 2500
+    wallets: 1
+    prints: 1
+    minutes_before_end: 28800
+    first_trade_days: 0.1
+    wallet: null
+    outcome: won
+    expectation: no_flag
+    note: >
+      The Anti-Corruption Data Collective's "Orca": at least $2,500 on an outcome at
+      35 percent or less, placed within an hour, later cashed out; 556 such wallets
+      through May 2026, 152 of them on military markets with a 97.2 percent win rate.
+      At $2,500 a print sits on this screen's tape floor and far below its size caps:
+      the definition is retrospective and the screen is not built to flag it. A
+      documented gap, not a target.
+
+  # ------------------------------------------------------------- trade store
+  - id: store-2026-09-04-clarity-act-454k-sixteen-hour-wallet
+    source: trade store
+    source_kind: store
+    date: 2026-09-04
+    category: politics
+    market: "Clarity Act (H.R.3633) signed into law in 2026?"
+    side: "NO"
+    price: 0.846
+    notional: 456290
+    wallets: 1
+    prints: 2
+    minutes_before_end: 169920
+    first_trade_days: 0.67
+    wallet: "0xe609d476ebecc64e55788b4595fc53c343a1d4d4"
+    outcome: unknown
+    expectation: flag
+    note: >
+      data/trade_store.sqlite, 2026-09-04 07:26 UTC: $453,928 plus $2,362 of NO at
+      0.846 from a wallet (name TahitiBob) whose Gamma profile was created
+      2026-09-03 15:57 UTC and whose first trade the Data API dates to 15:26 UTC
+      that day. The production log flagged the market at 62 for concentration and
+      size; the freshness was not part of the reading.
+
+  # ----------------------------------------------------------------- controls
+  - id: control-established-favourite-99c
+    source: trade store
+    source_kind: store
+    date: 2026-08-30
+    category: geopolitics
+    market: "US ceasefire against Iran continues through September 15?"
+    side: "NO"
+    price: 0.99
+    notional: 95006
+    wallets: 1
+    prints: 1
+    minutes_before_end: 22800
+    first_trade_days: 139.7
+    wallet: "0xc96e5287ab294ac0388c2ddb00180fc464cff1f9"
+    outcome: unknown
+    expectation: no_flag
+    note: >
+      A wallet trading for 140 days buys $95,000 of the 99-cent favourite: a hedge or
+      a yield trade, the most common shape of a big print in the store. Size alone
+      from an established wallet must not clear the floor.
+
+  - id: control-old-wallet-long-odds-single-print
+    source: trade store
+    source_kind: store
+    date: 2026-09-01
+    category: geopolitics
+    market: "Will Israel strike Iran by June 30?"
+    side: "YES"
+    price: 0.15
+    notional: 30000
+    wallets: 1
+    prints: 1
+    minutes_before_end: 28800
+    first_trade_days: 400
+    wallet: null
+    outcome: unknown
+    expectation: no_flag
+    note: >
+      Modelled control: long odds and size from a wallet with 400 days of history,
+      one print, no burst, no cluster, no timing. The screen wants freshness, a burst,
+      timing or a cluster besides size, and says so by staying below the floor.
+
+  - id: control-busy-established-50c
+    source: trade store
+    source_kind: store
+    date: 2026-09-01
+    category: politics
+    market: "Will the Senate pass the appropriations bill by September 30?"
+    side: "YES"
+    price: 0.5
+    notional: 60000
+    wallets: 1
+    prints: 1
+    minutes_before_end: 41760
+    first_trade_days: 300
+    wallet: null
+    outcome: unknown
+    expectation: no_flag
+    note: >
+      Modelled control: a coin-flip market, an established wallet, one $60,000 print.

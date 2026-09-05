@@ -4103,8 +4103,29 @@ def _prepare_whale_risk_trades(trades: pd.DataFrame, now: Any | None = None) -> 
     df["outcome_upper"] = _df_col(df, "outcome", "").fillna("").astype(str).str.upper()
     df["hours_to_end"] = (df["end_time"] - current_time).dt.total_seconds() / 3600
     df["late_notional"] = df["notional"].where(df["hours_to_end"].between(0, 48, inclusive="both"), 0.0)
-    df["long_odds_notional"] = df["notional"].where(df["price"].between(0.0001, 0.20, inclusive="both"), 0.0)
+    df["long_odds_notional"] = df["notional"] * long_odds_weight(df["price"])
     return df, current_time
+
+
+#: What counts as long odds for the insider screen. Up to 20 cents a print
+#: counts in full; 21 to 35 cents at ``LONG_ODDS_OUTER_WEIGHT``. The outer
+#: band exists because the documented cases sit there: the public tracker
+#: posts of 2026 name prints at 21, 22 and 33 cents, and the ACDC "Orca"
+#: definition of August 2026 draws its line at 35 percent. Above 35 cents a
+#: print is not long odds, whatever else it is.
+LONG_ODDS_FULL_PRICE = 0.20
+LONG_ODDS_OUTER_PRICE = 0.35
+LONG_ODDS_OUTER_WEIGHT = 0.6
+
+
+def long_odds_weight(price: pd.Series) -> pd.Series:
+    """Per print: 1.0 up to 20 cents, 0.6 up to 35 cents, else 0.0."""
+
+    p = pd.to_numeric(price, errors="coerce").fillna(0.0)
+    weight = pd.Series(0.0, index=p.index)
+    weight[p.between(0.0001, LONG_ODDS_FULL_PRICE, inclusive="both")] = 1.0
+    weight[(p > LONG_ODDS_FULL_PRICE) & (p <= LONG_ODDS_OUTER_PRICE)] = LONG_ODDS_OUTER_WEIGHT
+    return weight
 
 
 def whale_wallet_risk_scores(trades: pd.DataFrame, whale_threshold: float = 10_000.0, now: Any | None = None,

@@ -285,11 +285,16 @@ class DeepTapeTests(unittest.TestCase):
         # gap", waehrend der Tape auf halber Strecke abgebrochen ist. Der
         # Screen-Tape und der tiefe Tape lesen denselben Endpunkt, deshalb
         # bricht hier nur der tiefe ab.
+        import os
+        import tempfile
         from unittest.mock import patch
 
-        with offline_market_apis():
-            with patch.object(self.server, "load_deep_tape", side_effect=lambda *a, **k: self._abgebrochen()):
-                payload = self.server.risk()
+        # The route writes the flag log; without a directory of its own the
+        # fixture markets landed in data/risk_flags/flags.jsonl for real.
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {"RISK_LOG_DIR": tmp}):
+            with offline_market_apis():
+                with patch.object(self.server, "load_deep_tape", side_effect=lambda *a, **k: self._abgebrochen()):
+                    payload = self.server.risk()
         self.assertIn("cluster_sample", payload)
         self.assertIn("stopped answering after page 2", payload["cluster_sample"]["note"])
 

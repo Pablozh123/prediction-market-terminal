@@ -941,7 +941,7 @@ function renderRiskTab(d) {
     + Object.entries(rp.rules).map((kv) => '<span style="color:var(--ink-3)">' + esc(kv[0].replace(/_/g, ' ')) + '</span>: ' + esc(kv[1])).join(' · ') + '</div>' : '';
   // Die Kachel hiess INSIDER-RISK SCORE und zeigte daneben das interne Level
   // (HIGH/MEDIUM/ELEVATED/LOW). Zusammen las sich das wie eine
-  // Wahrscheinlichkeit fuer Insiderhandel. Es ist eine Punktesumme aus neun
+  // Wahrscheinlichkeit fuer Insiderhandel. Es ist eine Punktesumme aus zehn
   // Flow-Merkmalen mit gesetzten Gewichten; Name und Band kommen jetzt aus
   // ../risk_bands.js, der stehende Vorbehalt aus dem Register.
   const insiderBand = d.risk && typeof d.risk === 'object' && d.risk.wallet_insider_score != null

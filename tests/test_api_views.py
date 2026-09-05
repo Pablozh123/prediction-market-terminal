@@ -532,7 +532,7 @@ class RiskPayloadTests(unittest.TestCase):
         payload = apv.risk_payload(wallets, events)
         self.assertEqual(payload["score_name"], susp.SCORE_NAME)
         self.assertEqual(payload["score_bands"], susp.score_band_table())
-        self.assertEqual(len(payload["score_basis"]["features"]), 9)
+        self.assertEqual(len(payload["score_basis"]["features"]), 10)
         self.assertIsNone(payload["score_validation"]["against_outcome"])
         self.assertEqual(
             payload["score_caveat"],
@@ -2285,3 +2285,63 @@ class ClaimsPayloadTests(unittest.TestCase):
     def test_risk_disclaimer_is_the_register_entry_not_a_second_copy(self) -> None:
         payload = apv.risk_payload(pd.DataFrame(), pd.DataFrame())
         self.assertEqual(payload["disclaimer"], claims.disclaimer("screen_not_proof", "en"))
+
+class FirstTradeSurfaceTests(unittest.TestCase):
+    """The measured first trade reaches the cards, the wallet table and the KPIs."""
+
+    def test_first_trade_label(self) -> None:
+        self.assertEqual(apv.first_trade_label(0.02), "<1 h")
+        self.assertEqual(apv.first_trade_label(0.67), "16 h")
+        self.assertEqual(apv.first_trade_label(3.3), "3.3 d")
+        self.assertEqual(apv.first_trade_label(140), "5 mo")
+        self.assertEqual(apv.first_trade_label(780), "2.1 y")
+        self.assertEqual(apv.first_trade_label(None), "not asked")
+        self.assertEqual(apv.first_trade_label(None, "unmeasured"), "not asked")
+        self.assertEqual(apv.first_trade_label(None, "none"), "no trade")
+        self.assertEqual(apv.first_trade_label(None, "error"), "lookup failed")
+
+    def test_the_event_row_passes_the_reading_and_the_wallet_ages(self) -> None:
+        row = pd.Series({
+            "platform": "Polymarket", "title": "Fed hike?", "market_key": "0xc1", "event_insider_score": 45.0,
+            "event_insider_level": "Elevated", "event_insider_flags": "large print; fresh wallet: first trade 16 h before, $40.7k",
+            "unique_wallets": 1, "trades": 1, "notional": 40740.0, "trades_per_hour": 12.0,
+            "insider_context": "Macro & central banks", "context_note": "rate decisions", "context_multiplier": 1.1,
+            "first_trade_wallets": 1, "first_trade_notional": 40740.0, "first_trade_youngest_days": 0.67, "first_trade_measured": 1,
+            "top_wallets": [{"wallet": "0xde0828bb8493e55928bc5f44367d70f67f127cd3", "notional": 40740.0, "share": 1.0,
+                             "side": "NO buys", "fresh": True, "first_trade_days": 0.67, "first_trade_state": "measured"}],
+        })
+        event = apv.risk_event_row(row)
+        self.assertEqual(event["category"], "Macro & central banks")
+        self.assertEqual(event["first_trade_wallets"], 1)
+        self.assertAlmostEqual(event["first_trade_youngest_days"], 0.67)
+        self.assertEqual(event["first_trade_measured"], 1)
+        self.assertAlmostEqual(event["top_wallets"][0]["first_trade_days"], 0.67)
+        self.assertEqual(event["top_wallets"][0]["first_trade_state"], "measured")
+        # A wallet nobody measured says so instead of carrying a zero.
+        row["top_wallets"] = [{"wallet": "0xabc", "notional": 1.0, "share": 1.0, "side": "", "fresh": None}]
+        event = apv.risk_event_row(row)
+        self.assertIsNone(event["top_wallets"][0]["first_trade_days"])
+        self.assertEqual(event["top_wallets"][0]["first_trade_state"], "unmeasured")
+
+    def test_the_wallet_table_and_the_kpi_carry_the_first_trade(self) -> None:
+        wallets = pd.DataFrame([{
+            "wallet": "0xde0828bb8493e55928bc5f44367d70f67f127cd3", "trader": "magnusmajor", "wallet_insider_score": 61.0,
+            "wallet_insider_flags": "one-sided flow; first trade 16 h before this print", "trade_count": 1,
+            "notional": 40740.0, "largest_trade": 40740.0, "first_seen": "2026-08-30T23:49:10Z",
+            "latest_trade": "2026-08-30T23:49:10Z", "top_market": "Fed hike?", "first_trade_age_days": 0.67,
+            "first_trade_state": "measured", "insider_context": "Macro & central banks",
+        }])
+        events = pd.DataFrame([{
+            "platform": "Polymarket", "title": "Fed hike?", "market_key": "0xc1", "event_insider_score": 45.0,
+            "event_insider_level": "Elevated", "event_insider_flags": "large print", "unique_wallets": 1, "trades": 1,
+            "notional": 40740.0, "trades_per_hour": 12.0, "first_trade_wallets": 1, "first_trade_measured": 1,
+        }])
+        payload = apv.risk_payload(wallets, events, min_event_score=40.0)
+        wallet = payload["wallets"][0]
+        self.assertEqual(wallet["firstTrade"], "16 h")
+        self.assertAlmostEqual(wallet["first_trade_days"], 0.67)
+        self.assertEqual(wallet["first_trade_state"], "measured")
+        self.assertEqual(wallet["category"], "Macro & central banks")
+        self.assertAlmostEqual(wallet["notional_usd"], 40740.0)
+        self.assertEqual(payload["kpis"]["fresh_first_trade_events"], 1)
+        self.assertEqual(payload["events"][0]["first_trade_wallets"], 1)

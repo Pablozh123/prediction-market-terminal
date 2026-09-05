@@ -152,7 +152,7 @@ def _risk_block(row: Mapping[str, Any] | None) -> dict[str, Any] | None:
         # ``risk_level`` ist das interne Level (High/Medium/Elevated/Low) und
         # bleibt, weil Filter und Flag-Log daran haengen. ``band`` ist, was
         # eine Oberflaeche anzeigen darf: die Zahl ist eine Punktesumme aus
-        # neun Flow-Merkmalen mit gesetzten Gewichten, keine Wahrscheinlichkeit,
+        # zehn Flow-Merkmalen mit gesetzten Gewichten, keine Wahrscheinlichkeit,
         # und das Band zaehlt getroffene Pruefungen (app.suspicion.score_band).
         "risk_level": str(row.get("wallet_insider_level", row.get("wallet_risk_level", "")) or ""),
         "band": susp.score_band(score),

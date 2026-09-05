@@ -17,12 +17,13 @@ from __future__ import annotations
 import hashlib
 import math
 import re
-from typing import Any
+from typing import Any, Mapping, NamedTuple
 
 import pandas as pd
 
 from app.filters import numeric_col
 from app.format import money, pct
+from src import prediction_markets as md
 from src.prediction_markets import identified_wallets
 
 try:
@@ -77,7 +78,7 @@ WATCH_ONLY = "watch only"
 # What follows is the DISPLAY vocabulary, and it is a different thing on
 # purpose. "High" next to a number between 0 and 100 reads as a probability
 # of insider trading, and the number is nothing of the kind: it is the sum
-# of nine flow features against fixed point caps, with weights that were
+# of ten flow features against fixed point caps, with weights that were
 # chosen rather than estimated, and it has never been measured against a
 # single confirmed case. The bands below therefore count how much of the
 # screen's checklist a row tripped, which is what the arithmetic does.
@@ -89,9 +90,13 @@ SCORE_NAME = "flow-pattern score"
 SCORE_UNIT = "pattern points"
 #: Points at or above which the screen keeps a row (api_views, risk_log).
 FLAG_FLOOR = 40.0
-#: Raw sum of all caps before the clip to 100. Both surfaces reach 110, so a
-#: row can max out several features and still not reach 100 on the others.
-SCORE_RAW_MAX = 110.0
+#: Raw sum of all caps before the clip to 100. Both surfaces pass 100 by a
+#: wide margin, so a row can max out several features and still not reach
+#: 100 on the others. The event side carries the bigger first-trade cap.
+SCORE_RAW_MAX_EVENT = 135.0
+SCORE_RAW_MAX_WALLET = 125.0
+#: The event figure under the name the basis has always used.
+SCORE_RAW_MAX = SCORE_RAW_MAX_EVENT
 
 #: (floor, label, tone, what the band means). Ordered high to low; the labels
 #: say how many of the checks fired, never how likely anything is.
@@ -102,7 +107,7 @@ SCORE_BANDS = (
     (0.0, "FEW PATTERNS", "quiet", "below the flag floor: counted, not shown as a card"),
 )
 
-#: The nine features the scorer sums, with the caps each one is worth. The
+#: The ten features the scorer sums, with the caps each one is worth. The
 #: caps ARE the weights, and they were set by hand: nothing in this repo
 #: fitted them, and no column anywhere joins them to an outcome.
 #: (key, name, what goes in, event cap, wallet cap)
@@ -112,7 +117,8 @@ SCORE_FEATURES = (
     ("largest", "Biggest single print",
      "the largest single trade; full marks at 5x the whale threshold", 10.0, 10.0),
     ("long_odds", "Long-odds money",
-     "share of the flow placed at 20 cents or below, plus its dollar size", 10.0, 15.0),
+     "share of the flow placed at 35 cents or below (20 cents and under count in full, 21 to 35 cents at 60 percent), "
+     "plus its dollar size", 10.0, 15.0),
     ("concentration", "Concentration",
      "share of the flow done by the top wallet (event) or sitting in the top market (wallet)", 15.0, 15.0),
     ("direction", "One-sided flow",
@@ -125,9 +131,12 @@ SCORE_FEATURES = (
      "first-to-last price change in the flow's direction; full marks at 15 cents", 10.0, 10.0),
     ("cluster", "Several wallets, or a fresh one",
      "3 or more wallets at 10+ prints an hour (event); a barely-seen wallet placing a 2x print (wallet)", 10.0, 10.0),
+    ("first_trade", "First trade just before",
+     "dollars from wallets whose first trade on the venue lies under 3 days before their print, full marks at 4x the "
+     "whale threshold (event); the wallet's own first trade under 3 days back, half marks under 30 days (wallet)", 25.0, 15.0),
 )
 
-#: Bonuses and multipliers applied AFTER the nine features, in this module.
+#: Bonuses and multipliers applied AFTER the ten features, in this module.
 SCORE_ADJUSTMENTS = (
     ("fresh-wallet cluster", "up to +10 points when several barely-seen wallets take the same side"),
     ("coordinated timing", "up to +10 points when wallets hit one side within minutes"),
@@ -183,7 +192,8 @@ def score_basis() -> dict[str, Any]:
     return {
         "name": SCORE_NAME,
         "unit": SCORE_UNIT,
-        "scale": {"min": 0, "max": 100, "raw_max": SCORE_RAW_MAX, "clipped_at": 100},
+        "scale": {"min": 0, "max": 100, "raw_max": SCORE_RAW_MAX_EVENT, "raw_max_wallet": SCORE_RAW_MAX_WALLET,
+                  "clipped_at": 100},
         "flag_floor": round(FLAG_FLOOR),
         "weights": (
             "The caps below are the weights, and they were chosen, not estimated. "
@@ -231,7 +241,21 @@ def score_validation() -> dict[str, Any]:
             ),
         },
         "missing": list(SCORE_VALIDATION_MISSING),
+        # Documented public cases replayed through the screen: a regression
+        # suite for the patterns, not a hit rate. It answers "would the screen
+        # have shown this" for each case, and nothing about all the flow it
+        # would have shown besides.
+        "case_list": _case_list_summary(),
     }
+
+
+def _case_list_summary() -> dict[str, Any] | None:
+    try:
+        from app import insider_cases
+
+        return insider_cases.summary()
+    except Exception:  # noqa: BLE001 - the basis must render without the list
+        return None
 
 # Insider-plausibility context: in some market categories there is nothing to
 # "know" early (game results, weather models, public asset prices) — big flow
@@ -241,7 +265,9 @@ def score_validation() -> dict[str, Any]:
 CONTEXT_SPORTS = "Sports odds"
 CONTEXT_MARKET_PRICES = "Crypto & market prices"
 CONTEXT_WEATHER = "Weather & climate"
-CONTEXT_POLITICS = "Politics & geopolitics"
+CONTEXT_POLITICS = "Politics & elections"
+CONTEXT_GEOPOLITICS = "Geopolitics & conflict"
+CONTEXT_MACRO = "Macro & central banks"
 CONTEXT_AWARDS = "Awards & entertainment"
 CONTEXT_CORPORATE = "Corporate & legal"
 CONTEXT_GENERAL = "General"
@@ -263,6 +289,8 @@ CONTEXT_MULTIPLIERS = {
     CONTEXT_MARKET_PRICES: 0.6,
     CONTEXT_WEATHER: 0.5,
     CONTEXT_POLITICS: 1.1,
+    CONTEXT_GEOPOLITICS: 1.15,
+    CONTEXT_MACRO: 1.1,
     CONTEXT_AWARDS: 1.15,
     CONTEXT_CORPORATE: 1.15,
     CONTEXT_GENERAL: 1.0,
@@ -273,13 +301,15 @@ CONTEXT_NOTES = {
     CONTEXT_MARKET_PRICES: "asset prices are public — whales here are traders, not insiders",
     CONTEXT_WEATHER: "model-driven outcome — insider knowledge is implausible",
     CONTEXT_POLITICS: "decisions, talks and announcements are known to officials before the public",
+    CONTEXT_GEOPOLITICS: "strikes, ceasefires, sanctions and troop moves are known to officials and forces before the public",
+    CONTEXT_MACRO: "rate decisions and data releases are set inside institutions before the release",
     CONTEXT_AWARDS: "results are known to juries and production staff early — documented insider territory",
     CONTEXT_CORPORATE: "decisions are known internally before announcement",
     CONTEXT_GENERAL: "",
 }
 
 # Groups where insider knowledge is plausible — the only groups the screen shows.
-INSIDER_PRONE_GROUPS = (CONTEXT_POLITICS, CONTEXT_AWARDS, CONTEXT_CORPORATE, CONTEXT_GENERAL)
+INSIDER_PRONE_GROUPS = (CONTEXT_GEOPOLITICS, CONTEXT_MACRO, CONTEXT_POLITICS, CONTEXT_AWARDS, CONTEXT_CORPORATE, CONTEXT_GENERAL)
 
 _CATEGORY_GROUPS = (
     (("sport", "sports", "nba", "nfl", "mlb", "soccer", "football", "esports"), CONTEXT_SPORTS),
@@ -287,7 +317,10 @@ _CATEGORY_GROUPS = (
     # NOTE: "science" deliberately NOT here — tech/science markets are not
     # model-driven weather outcomes and must not be damped/excluded.
     (("weather", "climate"), CONTEXT_WEATHER),
-    (("politic", "geopolitic", "election", "world", "global affairs"), CONTEXT_POLITICS),
+    # "geopolitic" before "politic": the shorter key is inside the longer one.
+    (("geopolitic", "world", "global affairs", "middle east", "conflict"), CONTEXT_GEOPOLITICS),
+    (("econom", "macro", "fed rates", "inflation", "interest rate", "central bank"), CONTEXT_MACRO),
+    (("politic", "election"), CONTEXT_POLITICS),
     (("entertainment", "awards", "pop culture", "culture", "music", "movies", "tv"), CONTEXT_AWARDS),
     (("business", "companies", "tech", "earnings"), CONTEXT_CORPORATE),
 )
@@ -300,7 +333,7 @@ _CATEGORY_GROUPS = (
 # Corporate/Politics instead of being silently dropped as sports. A naked
 # "X vs Y" with no other signal stays a sports matchup.
 _TITLE_PATTERNS = (
-    (re.compile(r"\bw?nba\b|\bnfl\b|\bmlb\b|\bnhl\b|\bufc\b|\bfinals\b|\bgrand prix\b|\bpremier league\b|\bchampions league\b|\bbundesliga\b|\bserie a\b|\bla liga\b|\bsuper bowl\b|\bworld series\b|\bworld cup\b|\bplayoffs?\b|\bopen:\s|\bwimbledon\b|\bolympic|\bspread:?\b|\bmoneyline\b|\bover/under\b|\bo/u\b|\bexact score\b|\bat halftime\b|\bboth teams to score\b|\bwins? by over\b|\b\d+(?:\.\d+)?\s+goals?\b|\([+-]?\d+(?:\.5)\)|counter[- ]strike|\bcs2\b|\bcsgo\b|\bdota\b|\bvalorant\b|\bleague of legends\b|\besports?\b|\bgolf\b|\binnings?\b|\btouchdowns?\b|\bhome runs?\b|\bstrikeouts?\b|\brebounds?\b|\bassists?\b", re.I), CONTEXT_SPORTS),
+    (re.compile(r"\bw?nba\b|\bnfl\b|\bmlb\b|\bnhl\b|\bufc\b|\bfinals\b|\bgrand prix\b|\bpremier league\b|\bchampions league\b|\bbundesliga\b|\bserie a\b|\bla liga\b|\bsuper bowl\b|\bworld series\b|\bworld cup\b|\bplayoffs?\b|\bopen:\s|\b(?:us|french|australian) open\b|\bwimbledon\b|\bolympic|\bspread:?\b|\bmoneyline\b|\bover/under\b|\bo/u\b|\bexact score\b|\bat halftime\b|\bboth teams to score\b|\bwins? by over\b|\b\d+(?:\.\d+)?\s+goals?\b|\([+-]?\d+(?:\.5)\)|counter[- ]strike|\bcs2\b|\bcsgo\b|\bdota\b|\bvalorant\b|\bleague of legends\b|\besports?\b|\bgolf\b|\binnings?\b|\btouchdowns?\b|\bhome runs?\b|\bstrikeouts?\b|\brebounds?\b|\bassists?\b", re.I), CONTEXT_SPORTS),
     (re.compile(r"\bceo\b|\bacquisition\b|\bmerger\b|\bipo\b|\bearnings\b|\blawsuit\b|\bcourt\b|\bruling\b|\bverdict\b|\bindicted?\b|\bconvicted\b|\bpardon\b|\bresigns?\b|\bappoints?\b|\bnominee\b|\bnomination\b|\bcabinet\b|\bsteps? down\b|\bfired\b|\brelease date\b", re.I), CONTEXT_CORPORATE),
     (re.compile(r"\boscars?\b|\bgrammys?\b|\bemmys?\b|\bgolden globe\b|\baward\b|\balbum\b|\bbox office\b|\btrailer\b|\bseason finale\b|\brenewed\b|\beurovision\b|\bperson of the year\b|\bbillboard\b", re.I), CONTEXT_AWARDS),
     (re.compile(r"\btemperature\b|\brainfall\b|\bsnowfall\b|\bhurricane\b|\bstorm\b|\bheat wave\b|\bweather\b|\bdegrees\b|°[cf]\b", re.I), CONTEXT_WEATHER),
@@ -323,7 +356,16 @@ _TITLE_PATTERNS = (
     # as their Polymarket counterparts.
     (re.compile(r"\bkx(?:atp|wta|mlb|nba|wnba|nfl|nhl|ufc|mma|pga|lpga|f1|nascar|mls|epl|ucl|laliga|bundesliga|seriea|ligue1|valorant|cs2|csgo|lol|dota|tennis|golf|soccer|ncaa[a-z]*|mve[a-z]*|itf[a-z]*|[a-z0-9]*(?:game|match|set|map|series|round|race|fight))(?:[a-z0-9]*)?(?=-|\b)", re.I), CONTEXT_SPORTS),
     (re.compile(r"\bkx(?:high|low|temp|rain|snow|wind|hurr|precip|heat)[a-z0-9]*(?=-|\b)", re.I), CONTEXT_WEATHER),
-    (re.compile(r"\bceasefire\b|\bsanctions?\b|\btariffs?\b|\btreaty\b|\bagreement\b|\bexecutive order\b|\bmilitary\b|(?<!-)\bstrikes?\b|\binvasion\b|\bnato\b|\bsummit\b|\belections?\b|\bpresident\b|\bminister\b|\bparliament\b|\bcongress\b|\bsenate\b|\bimpeach|\bputin\b|\bzelensky?y?\b|\bnetanyahu\b|\bxi jinping\b|\bkim jong\b", re.I), CONTEXT_POLITICS),
+    # Elections first: an election in a conflict country is still an
+    # election, and "Will Newsom win on 2026-11-03?" must not read as a
+    # matchday. Then conflict and diplomacy, then central banks and data
+    # releases, then the rest of politics. Geopolitics and macro used to fall
+    # through to "General": the screen kept them but could not name them,
+    # and the public cases of 2026 sit almost entirely in those two groups.
+    (re.compile(r"\belections?\b|\bprimary\b|\brunoff\b|\bballot\b|\bnominee\b|\bgovernor\b|\bmayor\b|\bduma\b|\bparliamentary\b|\bmost seats\b|\bwin the presidency\b|\bpresidential\b", re.I), CONTEXT_POLITICS),
+    (re.compile(r"\bcease-?fire\b|\btruce\b|\bsanctions?\b|\btreaty\b|\bmilitary\b|(?<!-)\bstrikes?\b|\bairstrikes?\b|\binvasion\b|\binvades?\b|\bnato\b|\bwar\b|\bwarfare\b|\btroops\b|\bground operation\b|\bmissiles?\b|\bnuclear\b|\bblockade\b|\bhormuz\b|\bkharg\b|\bfarsi island\b|\biran\b|\biranian\b|\bisrael\b|\bisraeli\b|\bgaza\b|\bhamas\b|\bhezbollah\b|\bhouthis?\b|\bukraine\b|\bukrainian\b|\brussia\b|\brussian\b|\bputin\b|\bzelensky?y?\b|\btaiwan\b|\bnorth korea\b|\bkim jong\b|\bnetanyahu\b|\bidf\b|\bpentagon\b|\bairspace\b|\bregime\b|\bcoup\b|\bleadership change\b|\bpeace (?:deal|agreement|talks)\b|\bsummit\b|\bno[- ]fly zone\b|\bnaval\b|\bdrones?\b|\bmaduro\b|\bvenezuela\b|\bkremlin\b|\bstrait\b", re.I), CONTEXT_GEOPOLITICS),
+    (re.compile(r"\bfed\b|\bfomc\b|\bfederal reserve\b|\bfed chair\b|\bpowell\b|\binterest rates?\b|\brate (?:cut|hike|decision|change)s?\b|\bbps\b|\bbasis points?\b|\bcpi\b|\binflation\b|\bgdp\b|\brecession\b|\bunemployment\b|\bjobs? report\b|\bpayrolls?\b|\bnonfarm\b|\becb\b|\bbank of england\b|\bbank of japan\b|\bboj\b|\bboe\b|\bsnb\b|\bpce\b|\bjobless claims\b|\bdebt ceiling\b|\bcentral bank\b", re.I), CONTEXT_MACRO),
+    (re.compile(r"\btariffs?\b|\bagreement\b|\bexecutive order\b|\bpresident\b|\bminister\b|\bparliament\b|\bcongress\b|\bsenate\b|\bimpeach|\bxi jinping\b|\bsigned into law\b|\bh\.r\.\s?\d|\bbill\b|\bveto\b|\bwhite house\b|\bsupreme court\b|\bscotus\b|\btrump\b|\bbiden\b|\bshutdown\b|\bgovernment\b", re.I), CONTEXT_POLITICS),
     # Spieltag-Untermaerkte ohne Kontexttitel. "Will FC Thun win on
     # 2026-08-06?" traegt kein Liga- oder Vereinswort, das der Katalog oben
     # kennt, und rutschte deshalb als "General" in den Insider-Screen. Diese
@@ -1265,6 +1307,14 @@ def event_story(row: pd.Series) -> str:
     if fresh >= 2:
         outcome = str(row.get("fresh_outcome", "") or "").strip()
         parts.append(f"{fresh} fresh wallets on {outcome}" if outcome else f"{fresh} fresh wallets on the same side")
+    first_trade_wallets = int(row.get("first_trade_wallets", 0) or 0)
+    if first_trade_wallets >= 1:
+        youngest = float(row.get("first_trade_youngest_days", 0.0) or 0.0)
+        who = "one wallet" if first_trade_wallets == 1 else f"{first_trade_wallets} wallets"
+        parts.append(
+            f"{money(float(row.get('first_trade_notional', 0.0) or 0.0))} from {who} whose first trade was "
+            f"{_days_label(youngest)} before"
+        )
     direction_share = float(row.get("event_directional_share", 0.0) or 0.0)
     direction_label = str(row.get("event_directional_label", "") or "").strip()
     if sample_ok and direction_share >= 0.8 and direction_label:
@@ -1368,6 +1418,7 @@ def event_flow_details(
     top_n: int = 3,
     fresh_max_trades: int = 2,
     whale_threshold: float | None = None,
+    origins: Mapping[str, Any] | None = None,
 ) -> pd.DataFrame:
     """Per (platform, title): side split, dominant side, prices, window, top wallets, link.
 
@@ -1384,6 +1435,10 @@ def event_flow_details(
     :func:`fresh_wallet_clusters` (few prints in the whole tape, whale-sized
     total) and is only computed when ``whale_threshold`` is given; otherwise
     it is ``None`` — the payload says "not computed" rather than "no".
+    ``first_trade_days`` per wallet is the measured age of the wallet's first
+    trade on the venue at its last print here (``origins``, see
+    app/wallet_origin.py); None when nobody measured it, with
+    ``first_trade_state`` saying so.
     """
 
     columns = [
@@ -1398,6 +1453,7 @@ def event_flow_details(
     if df.empty:
         return pd.DataFrame(columns=columns)
 
+    origin_lookup = _origin_lookup(origins)
     fresh_set: set[str] | None = None
     if whale_threshold is not None:
         with_wallet = df[identified_wallets(df["_wallet"])]
@@ -1450,12 +1506,21 @@ def event_flow_details(
                 own = with_wallet[with_wallet["_wallet"].eq(wallet)]
                 own_split = own.groupby("_bucket_label")["_notional"].sum().sort_values(ascending=False)
                 own_side = str(own_split.index[0]) if not own_split.empty and str(own_split.index[0]) else ""
+                origin = origin_lookup.get(str(wallet))
+                first_trade_days: float | None = None
+                first_trade_state = ORIGIN_UNMEASURED if origin is None else origin[1]
+                if origin is not None and origin[1] == ORIGIN_MEASURED and origin[0] is not None:
+                    last_time = own["_time"].max()
+                    if pd.notna(last_time):
+                        first_trade_days = max(0.0, (last_time.timestamp() - float(origin[0])) / 86_400.0)
                 top_wallets.append({
                     "wallet": str(wallet),
                     "notional": float(value),
                     "share": float(value / total) if total > 0 else 0.0,
                     "side": own_side,
                     "fresh": (wallet in fresh_set) if fresh_set is not None else None,
+                    "first_trade_days": round(first_trade_days, 2) if first_trade_days is not None else None,
+                    "first_trade_state": first_trade_state,
                 })
 
         url = ""
@@ -1545,7 +1610,7 @@ EVENT_COMPONENTS = (
     # key, label on the card, cap, what the component measures (one line)
     ("component_notional", "Size of the flow", 15.0, "dollars traded in this market in the window"),
     ("component_largest", "Biggest single print", 10.0, "the largest one trade"),
-    ("component_long_odds", "Long-odds bet", 10.0, "money placed at 20¢ or below"),
+    ("component_long_odds", "Long-odds bet", 10.0, "money placed at 35¢ or below, 20¢ and under in full"),
     ("component_concentration", "One wallet dominates", 15.0, "share of the flow done by the top wallet"),
     ("component_direction", "One side only", 10.0, "net YES-vs-NO pressure of the flow"),
     ("component_burst", "Speed", 15.0, "prints per hour in the window"),
@@ -1554,6 +1619,7 @@ EVENT_COMPONENTS = (
     ("component_cluster", "Several wallets at once", 10.0, "3+ wallets and 10+ prints an hour"),
     ("component_fresh_wallets", "Fresh wallets", 10.0, "wallets barely seen on the tape, same side"),
     ("component_coordination", "Same minute, same side", 10.0, "wallets hitting one side within minutes"),
+    ("component_first_trade", "First trade just before", 25.0, "money from wallets whose first trade on the venue was days old"),
 )
 
 #: Components damped by the sample weight (a handful of prints makes every
@@ -1581,6 +1647,17 @@ def _dollars(value: float) -> str:
     return f"${value:,.0f}"
 
 
+def _days_label(days: float) -> str:
+    """An age in days as people say it: minutes under an hour, hours under a day."""
+
+    value = max(0.0, float(days or 0.0))
+    if value < 1.0 / 24.0:
+        return f"{value * 24 * 60:.0f} min"
+    if value < 1.0:
+        return f"{value * 24:.0f} h"
+    return f"{value:.1f} d"
+
+
 def _component_fact(key: str, getter: Any) -> tuple[str, str]:
     """(what was observed, what full marks would take) for one component —
     the plain-words line under the bar on the risk card."""
@@ -1597,8 +1674,8 @@ def _component_fact(key: str, getter: Any) -> tuple[str, str]:
         usd = _fnum(getter, "long_odds_notional")
         share = _fnum(getter, "long_odds_share")
         if usd <= 0:
-            return ("no money placed at 20¢ or below", "")
-        return (f"{_dollars(usd)} ({share:.0%} of the flow) placed at 20¢ or below",
+            return ("no money placed at 35¢ or below", "")
+        return (f"{_dollars(usd)} weighted ({share:.0%} of the flow) at 35¢ or below; 20¢ and under count in full, 21 to 35¢ at 60%",
                 f"full marks near {_dollars(base * 5)} or all of the flow")
     if key == "component_concentration":
         share = _fnum(getter, "top_wallet_share")
@@ -1643,6 +1720,20 @@ def _component_fact(key: str, getter: Any) -> tuple[str, str]:
         halved = _fnum(getter, "component_cluster") > 0
         return (f"{wallets} wallets on {outcome or 'one side'} within {span:.0f} min",
                 "full marks at 5 wallets" + ("; halved because 'several wallets at once' already scored this burst" if halved else ""))
+    if key == "component_first_trade":
+        measured = int(_fnum(getter, "first_trade_measured", 0.0))
+        wallets = int(_fnum(getter, "first_trade_wallets", 0.0))
+        horizon = _fnum(getter, "first_trade_horizon_days", FRESH_TRADE_DAYS) or FRESH_TRADE_DAYS
+        if wallets <= 0:
+            if measured <= 0:
+                return ("first trades of the wallets not measured in this window", "")
+            return (f"none of the {measured} measured wallet{'s' if measured != 1 else ''} had a first trade under "
+                    f"{horizon:g} d before its print", "")
+        usd = _fnum(getter, "first_trade_notional")
+        youngest = _fnum(getter, "first_trade_youngest_days")
+        return (f"{_dollars(usd)} from {wallets} wallet{'s' if wallets != 1 else ''} whose first trade was "
+                f"{_days_label(youngest)} before the print",
+                f"full marks at {_dollars(base * FIRST_TRADE_FULL_MARKS_MULTIPLE)} from such wallets")
     return ("", "")
 
 
@@ -1702,3 +1793,317 @@ def event_components(row: Any) -> list[dict[str, Any]]:
                       "fact": (context + (" — " + note if note else "")) if context else note,
                       "rule": "points × the multiplier; politics, awards and corporate decisions count more, general topics ×1"})
     return parts
+
+
+# ---------------------------------------------------------------------------
+# First trade as freshness.
+#
+# The sample-relative "fresh" above (few prints in the window, a 2x print,
+# first appearance in the younger half) describes the sample. The public
+# cases of 2026 describe something else: a wallet whose first trade on the
+# venue lies hours or days before the print in question, whatever the age of
+# the address. app/wallet_origin.py measures that with one call per wallet
+# and keeps the answer; the functions below turn it into points on the event
+# side and on the wallet side, and the flag log carries the days.
+#
+# The event side is what makes a single wallet visible. A lone print gets no
+# distribution points by design (one print is always "100% one wallet"), and
+# the fresh-wallet cluster needs two wallets; so the pattern every tracker
+# post describes, one fresh wallet with one big print, used to stop at 25
+# points and never reached a card or the log. Money from a measured-fresh
+# wallet now carries its own cap, and size, largest print and this cap
+# together clear the flag floor without any distribution claim.
+# ---------------------------------------------------------------------------
+
+#: A wallet whose first trade on the venue lies this many days or fewer
+#: before its print is fresh. Chosen against the public cases (hours to two
+#: days), not estimated; env ``RISK_FRESH_TRADE_DAYS`` overrides at runtime.
+FRESH_TRADE_DAYS = 3.0
+#: Up to here the wallet is young: half the wallet bonus, no event points.
+YOUNG_TRADE_DAYS = 30.0
+#: Event cap, and the dollars from fresh wallets that earn it, as a multiple
+#: of the whale threshold (4 x 2,500 = 10,000 by default).
+FIRST_TRADE_EVENT_CAP = 25.0
+FIRST_TRADE_FULL_MARKS_MULTIPLE = 4.0
+FIRST_TRADE_WALLET_BONUS = 15.0
+YOUNG_TRADE_WALLET_BONUS = 7.0
+ORIGIN_MEASURED = "measured"
+ORIGIN_UNMEASURED = "unmeasured"
+#: The base scorer's sample-relative flag and its points, taken back when the
+#: measured first trade says the wallet is old.
+SAMPLE_FRESH_FLAG = "sample-fresh large wallet"
+SAMPLE_FRESH_POINTS = 10.0
+
+
+def fresh_trade_days(default: float = FRESH_TRADE_DAYS) -> float:
+    """The freshness horizon in days: env ``RISK_FRESH_TRADE_DAYS`` or the default."""
+
+    import os
+
+    try:
+        value = float(os.environ.get("RISK_FRESH_TRADE_DAYS", "").strip() or default)
+    except ValueError:
+        value = float(default)
+    return value if value > 0 else float(default)
+
+
+def _origin_lookup(origins: Mapping[str, Any] | None) -> dict[str, tuple[int | None, str]]:
+    """Lowercased wallet -> (first_trade_ts, state) from an origins mapping.
+
+    Accepts the rows of ``wallet_origin.first_trade_map`` or a plain
+    ``{wallet: unix_seconds}`` mapping.
+    """
+
+    out: dict[str, tuple[int | None, str]] = {}
+    for wallet, info in (origins or {}).items():
+        key = str(wallet or "").strip().lower()
+        if not key:
+            continue
+        if isinstance(info, Mapping):
+            stamp = info.get("first_trade_ts")
+            state = str(info.get("state") or ORIGIN_UNMEASURED)
+        else:
+            stamp = info
+            state = ORIGIN_MEASURED if info is not None else ORIGIN_UNMEASURED
+        try:
+            stamp = int(stamp) if stamp is not None else None
+        except (TypeError, ValueError):
+            stamp = None
+        if state == ORIGIN_MEASURED and stamp is None:
+            state = ORIGIN_UNMEASURED
+        out[key] = (stamp, state)
+    return out
+
+
+def _drop_flag(flags: Any, label: str) -> str:
+    parts = [part.strip() for part in str(flags or "").split(";") if part.strip()]
+    kept = [part for part in parts if part != label]
+    return "; ".join(kept) if kept else WATCH_ONLY
+
+
+def first_trade_ages(trades: pd.DataFrame, origins: Mapping[str, Any] | None) -> pd.DataFrame:
+    """Per identified print: platform, title, wallet, time, notional,
+    ``first_trade_days`` (age of the wallet's first trade at that print, NaN
+    when unmeasured) and ``measured``."""
+
+    columns = ["platform", "title", "wallet", "time", "notional", "first_trade_days", "measured"]
+    if trades is None or trades.empty or not {"wallet", "title"}.issubset(trades.columns):
+        return pd.DataFrame(columns=columns)
+    lookup = _origin_lookup(origins)
+    df = trades.copy()
+    df["wallet"] = df["wallet"].astype(str).str.lower().str.strip()
+    df = df[identified_wallets(df["wallet"])]
+    if df.empty:
+        return pd.DataFrame(columns=columns)
+    df["platform"] = df.get("platform", pd.Series("", index=df.index)).fillna("").astype(str)
+    df["title"] = df["title"].fillna("").astype(str)
+    df["time"] = pd.to_datetime(df["time"] if "time" in df.columns else pd.Series(pd.NaT, index=df.index), utc=True, errors="coerce")
+    df["notional"] = numeric_col(df, "notional").clip(lower=0.0)
+    stamps = pd.to_numeric(df["wallet"].map(lambda w: lookup.get(w, (None, ORIGIN_UNMEASURED))[0]), errors="coerce")
+    states = df["wallet"].map(lambda w: lookup.get(w, (None, ORIGIN_UNMEASURED))[1])
+    measured = states.eq(ORIGIN_MEASURED) & stamps.notna() & df["time"].notna()
+    seconds = df["time"].map(lambda t: t.timestamp() if pd.notna(t) else float("nan"))
+    ages = ((seconds - stamps) / 86_400.0).clip(lower=0.0)
+    df["first_trade_days"] = ages.where(measured)
+    df["measured"] = measured
+    return df[columns].reset_index(drop=True)
+
+
+def apply_first_trade_bonus(
+    event_risk: pd.DataFrame,
+    trades: pd.DataFrame,
+    origins: Mapping[str, Any] | None,
+    *,
+    whale_threshold: float,
+    fresh_days: float | None = None,
+    cap: float = FIRST_TRADE_EVENT_CAP,
+) -> pd.DataFrame:
+    """Event points for money from wallets whose first trade was fresh.
+
+    Adds ``component_first_trade`` (0..cap), ``first_trade_wallets``,
+    ``first_trade_notional``, ``first_trade_youngest_days``,
+    ``first_trade_measured`` (how many of the market's wallets were measured
+    at all, so "0 fresh" and "not asked" stay apart) and
+    ``first_trade_horizon_days``; appends a flag. Full marks at
+    ``FIRST_TRADE_FULL_MARKS_MULTIPLE`` times the whale threshold.
+    """
+
+    if event_risk is None or event_risk.empty:
+        return event_risk
+    horizon = float(fresh_days) if fresh_days is not None else fresh_trade_days()
+    enriched = event_risk.copy()
+    enriched["component_first_trade"] = 0.0
+    enriched["first_trade_wallets"] = 0
+    enriched["first_trade_notional"] = 0.0
+    enriched["first_trade_youngest_days"] = float("nan")
+    enriched["first_trade_measured"] = 0
+    enriched["first_trade_horizon_days"] = horizon
+    ages = first_trade_ages(trades, origins)
+    if ages.empty:
+        return enriched
+    keys = ["platform", "title"] if "platform" in enriched.columns else ["title"]
+    measured = ages[ages["measured"]]
+    if measured.empty:
+        return enriched
+    counts = measured.groupby(keys)["wallet"].nunique().rename("_ft_measured").reset_index()
+    enriched = enriched.merge(counts, on=keys, how="left")
+    enriched["first_trade_measured"] = enriched["_ft_measured"].fillna(0).astype(int)
+    fresh = measured[measured["first_trade_days"] <= horizon]
+    if fresh.empty:
+        return enriched.drop(columns=["_ft_measured"])
+    grouped = (
+        fresh.groupby(keys)
+        .agg(_ft_notional=("notional", "sum"), _ft_wallets=("wallet", "nunique"), _ft_youngest=("first_trade_days", "min"))
+        .reset_index()
+    )
+    enriched = enriched.merge(grouped, on=keys, how="left")
+    has = enriched["_ft_wallets"].fillna(0) > 0
+    enriched.loc[has, "first_trade_wallets"] = enriched.loc[has, "_ft_wallets"].astype(int)
+    enriched.loc[has, "first_trade_notional"] = enriched.loc[has, "_ft_notional"].astype(float)
+    enriched.loc[has, "first_trade_youngest_days"] = enriched.loc[has, "_ft_youngest"].astype(float)
+    whale_base = max(float(whale_threshold or 0.0), 1_000.0)
+    points = (enriched["first_trade_notional"] / (whale_base * FIRST_TRADE_FULL_MARKS_MULTIPLE)).clip(lower=0.0, upper=1.0) * float(cap)
+    enriched["component_first_trade"] = points.round(1)
+    enriched["event_insider_score"] = (numeric_col(enriched, "event_insider_score") + points).clip(0, 100).round(0)
+    enriched["event_insider_level"] = enriched["event_insider_score"].map(risk_level)
+    if "event_risk_score" in enriched.columns:
+        enriched["event_risk_score"] = enriched["event_insider_score"]
+        enriched["event_risk_level"] = enriched["event_insider_level"]
+    if "event_insider_flags" in enriched:
+        for idx in enriched.index[has]:
+            count = int(enriched.at[idx, "first_trade_wallets"])
+            usd = money(float(enriched.at[idx, "first_trade_notional"]))
+            youngest = float(enriched.at[idx, "first_trade_youngest_days"])
+            label = (
+                f"fresh wallet: first trade {_days_label(youngest)} before, {usd}" if count == 1
+                else f"{count} wallets with a first trade under {horizon:g} d: {usd}"
+            )
+            enriched.at[idx, "event_insider_flags"] = _append_flag(enriched.at[idx, "event_insider_flags"], label)
+    return enriched.drop(columns=["_ft_measured", "_ft_notional", "_ft_wallets", "_ft_youngest"], errors="ignore")
+
+
+def apply_first_trade_bonus_wallets(
+    wallet_risk: pd.DataFrame,
+    origins: Mapping[str, Any] | None,
+    *,
+    fresh_days: float | None = None,
+    young_days: float = YOUNG_TRADE_DAYS,
+    bonus: float = FIRST_TRADE_WALLET_BONUS,
+    young_bonus: float = YOUNG_TRADE_WALLET_BONUS,
+    now: Any = None,
+) -> pd.DataFrame:
+    """Wallet points for a measured first trade, and the sample-relative
+    "fresh" taken back where the measurement says the wallet is old.
+
+    Adds ``first_trade_age_days`` (age at the wallet's latest print in the
+    window), ``first_trade_state`` and ``component_first_trade``. Only a
+    measured origin moves anything; an unmeasured wallet keeps its score.
+    """
+
+    if wallet_risk is None or wallet_risk.empty:
+        return wallet_risk
+    horizon = float(fresh_days) if fresh_days is not None else fresh_trade_days()
+    lookup = _origin_lookup(origins)
+    enriched = wallet_risk.copy()
+    enriched["first_trade_age_days"] = float("nan")
+    enriched["first_trade_state"] = ORIGIN_UNMEASURED
+    enriched["component_first_trade"] = 0.0
+    if not lookup:
+        return enriched
+    reference = (
+        pd.to_datetime(enriched["latest_trade"], utc=True, errors="coerce")
+        if "latest_trade" in enriched.columns else pd.Series(pd.NaT, index=enriched.index)
+    )
+    fallback = pd.Timestamp.now(tz="UTC") if now is None else pd.Timestamp(now)
+    if fallback.tzinfo is None:
+        fallback = fallback.tz_localize("UTC")
+    scores = numeric_col(enriched, "wallet_insider_score").astype(float)
+    has_flags = "wallet_insider_flags" in enriched.columns
+    for idx in enriched.index:
+        origin = lookup.get(str(enriched.at[idx, "wallet"]).strip().lower())
+        if origin is None:
+            continue
+        stamp, state = origin
+        enriched.at[idx, "first_trade_state"] = state
+        if state != ORIGIN_MEASURED or stamp is None:
+            continue
+        at = reference.at[idx] if pd.notna(reference.at[idx]) else fallback
+        age = max(0.0, (at.timestamp() - float(stamp)) / 86_400.0)
+        enriched.at[idx, "first_trade_age_days"] = age
+        flags = enriched.at[idx, "wallet_insider_flags"] if has_flags else ""
+        label = ""
+        if age <= horizon:
+            points = float(bonus)
+            label = f"first trade {_days_label(age)} before this print"
+        elif age <= young_days:
+            points = float(young_bonus)
+            label = f"first trade {age:.0f} d ago"
+        else:
+            points = 0.0
+            if "sample_fresh" in enriched.columns and bool(enriched.at[idx, "sample_fresh"]):
+                scores.at[idx] = max(0.0, float(scores.at[idx]) - SAMPLE_FRESH_POINTS)
+                enriched.at[idx, "sample_fresh"] = False
+                flags = _drop_flag(flags, SAMPLE_FRESH_FLAG)
+        enriched.at[idx, "component_first_trade"] = points
+        scores.at[idx] = float(scores.at[idx]) + points
+        if label:
+            flags = _append_flag(flags, label)
+        if has_flags:
+            enriched.at[idx, "wallet_insider_flags"] = flags
+    enriched["wallet_insider_score"] = scores.clip(0, 100).round(0)
+    enriched["wallet_insider_level"] = enriched["wallet_insider_score"].map(risk_level)
+    if "wallet_risk_score" in enriched.columns:
+        enriched["wallet_risk_score"] = enriched["wallet_insider_score"]
+        enriched["wallet_risk_level"] = enriched["wallet_insider_level"]
+        enriched["wallet_risk_reasons"] = enriched["wallet_insider_flags"] if has_flags else enriched.get("wallet_risk_reasons")
+    order = ["wallet_insider_score"] + (["notional"] if "notional" in enriched.columns else [])
+    return enriched.sort_values(order, ascending=False).reset_index(drop=True)
+
+
+class ScreenResult(NamedTuple):
+    """What one pass of the screen produced, in the order the surfaces read it."""
+
+    base: pd.DataFrame
+    events: pd.DataFrame
+    wallets: pd.DataFrame
+    fresh: pd.DataFrame
+    coord: pd.DataFrame
+
+
+def screen_tape(
+    trades: pd.DataFrame,
+    *,
+    whale_threshold: float,
+    now: Any = None,
+    known_since: Mapping[str, int] | None = None,
+    origins: Mapping[str, Any] | None = None,
+    market_categories: pd.DataFrame | None = None,
+    fresh_days: float | None = None,
+) -> ScreenResult:
+    """The whole ladder over one tape, in one place.
+
+    Filter to the insider-prone contexts, score events and wallets, add the
+    fresh-cluster and timing bonuses, the first-trade points where origins
+    were measured, the context multiplier, and the flow details for the
+    cards and the log. The API server, the Streamlit page and the case replay
+    call this, so the same tape gives the same numbers everywhere.
+    """
+
+    empty = pd.DataFrame()
+    base = filter_insider_prone_trades(trades, market_categories)
+    if base is None or base.empty:
+        return ScreenResult(empty, empty, empty, empty, empty)
+    wallets = md.whale_wallet_risk_scores(base, whale_threshold=whale_threshold, now=now, known_since=known_since or None)
+    events = md.whale_event_risk_scores(base, whale_threshold=whale_threshold, now=now)
+    fresh = fresh_wallet_clusters(base, whale_threshold=whale_threshold)
+    coord = coordinated_clusters(base)
+    events = apply_fresh_wallet_bonus(events, fresh)
+    events = apply_coordination_bonus(events, coord)
+    if origins:
+        events = apply_first_trade_bonus(events, base, origins, whale_threshold=whale_threshold, fresh_days=fresh_days)
+        wallets = apply_first_trade_bonus_wallets(wallets, origins, fresh_days=fresh_days, now=now)
+    events = apply_category_context(events, market_categories)
+    if wallets is not None and not wallets.empty:
+        wallets = apply_wallet_category_context(wallets, base, market_categories)
+    events = enrich_event_flow(events, base, whale_threshold=whale_threshold, origins=origins)
+    return ScreenResult(base, events, wallets, fresh, coord)

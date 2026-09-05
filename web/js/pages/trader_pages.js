@@ -667,15 +667,29 @@ export function riskScoreBreakdown(components, score) {
   return '<div>' + scored.map(bar).join('') + nichts + kontext + rechnung + '</div>';
 }
 
+// The measured first trade of a wallet as people say it: minutes, hours,
+// days, months, years. null means nobody measured it.
+export function firstTradeLabel(days) {
+  const d = Number(days);
+  if (days == null || !Number.isFinite(d)) return '';
+  if (d < 1 / 24) return '<1 h';
+  if (d < 1) return Math.round(d * 24) + ' h';
+  if (d < 45) return d.toFixed(1) + ' d';
+  if (d < 400) return Math.round(d / 30.4) + ' mo';
+  return (d / 365.25).toFixed(1) + ' y';
+}
+
 // Top wallets with share and profile link; "fresh" when the tape-relative
-// proxy says so, nothing when it was not computed.
+// proxy says so, nothing when it was not computed; "first trade 14 h" when
+// the venue named the wallet's first trade (days before its last print here).
 export function riskWalletsHtml(wallets, count) {
   if (!Array.isArray(wallets) || !wallets.length) {
     return count ? '' : '<span style="' + CHIP + '">wallet identities not public on this venue</span>';
   }
   return wallets.map((w) => {
+    const ft = firstTradeLabel(w.first_trade_days);
     const label = esc(w.short || w.wallet || '—') + (w.share != null ? ' ' + Math.round(w.share * 100) + '%' : '')
-      + (w.side ? ' · ' + esc(w.side) : '') + (w.fresh ? ' · fresh' : '');
+      + (w.side ? ' · ' + esc(w.side) : '') + (w.fresh ? ' · fresh' : '') + (ft ? ' · first trade ' + esc(ft) : '');
     return w.url
       ? '<a data-stop href="' + esc(w.url) + '" target="_blank" rel="noopener" style="' + CHIP + '; color:var(--accent); text-decoration:none">' + label + ' ↗</a>'
       : '<span style="' + CHIP + '">' + label + '</span>';
@@ -862,7 +876,8 @@ export function renderRiskLog(T) {
         + '<div style="display:flex; gap:var(--sp-3); flex-wrap:wrap; margin-top:var(--sp-3); align-items:center">' + riskSideChip(seite)
         + '<span style="' + CHIP + '">at flag ' + esc(riskPriceLabel(preis)) + '</span>'
         + '<span style="' + CHIP + '">' + esc(windowLabel(f.window_start, f.window_end, f.window_minutes)) + '</span>'
-        + '<span style="' + CHIP + '">' + (f.unique_wallets || 0) + ' wallet' + (f.unique_wallets === 1 ? '' : 's') + (f.prints ? ' · ' + f.prints + ' prints' : '') + '</span></div>'
+        + '<span style="' + CHIP + '">' + (f.unique_wallets || 0) + ' wallet' + (f.unique_wallets === 1 ? '' : 's') + (f.prints ? ' · ' + f.prints + ' prints' : '') + '</span>'
+        + (f.first_trade_wallets ? '<span style="' + CHIP + '; color:var(--warn)">first trade ' + esc(firstTradeLabel(f.first_trade_youngest_days)) + ' before · ' + f.first_trade_wallets + ' fresh wallet' + (f.first_trade_wallets === 1 ? '' : 's') + '</span>' : '') + '</div>'
         + (hatAfter ? '<div style="display:flex; gap:var(--sp-6); margin-top:var(--sp-4)">' + afterCell(f.after, '30m', '+30 MIN') + afterCell(f.after, '2h', '+2 H') + afterCell(f.after, '24h', '+24 H')
           + '<div><div style="' + LABEL + '">MEASURED ON</div><div style="' + M + '; font-size:var(--t-small); color:var(--ink-4); margin-top:var(--sp-1)">' + (f.after ? esc(f.price_outcome || 'flagged') + ' side, from last print' : (String(f.venue).toLowerCase() === 'kalshi' ? 'Kalshi: no history read' : 'no history / not in the enriched set')) + '</div></div></div>' : '')
         + '<div style="display:flex; gap:var(--sp-2); flex-wrap:wrap; margin-top:var(--sp-3)">' + riskWalletsHtml(f.top_wallets, f.unique_wallets) + '</div>'
@@ -882,7 +897,7 @@ export function renderRiskLog(T) {
 // Die Beschriftung des Bandes kommt aus ../risk_bands.js und damit aus
 // app/suspicion.py: HIGH / MEDIUM / ELEVATED / LOW stand neben einer Zahl von
 // 0 bis 100 und las sich als Wahrscheinlichkeit fuer Insiderhandel. Die Zahl
-// ist eine Punktesumme aus neun Flow-Merkmalen mit gesetzten Gewichten, also
+// ist eine Punktesumme aus zehn Flow-Merkmalen mit gesetzten Gewichten, also
 // zaehlen die Baender jetzt getroffene Pruefungen.
 const BAND = (score, T, roh) => scoreBand(score, T && T.liveData ? T.liveData.risk : null, roh);
 
@@ -1036,6 +1051,7 @@ export function renderRisk(T) {
     + seitenKpi('WALLETS AT 70 AND UP', kp ? kp.high_risk_wallets : null, true)
     + seitenKpi('FRESH-WALLET CLUSTERS', kp ? kp.fresh_clusters : null, false)
     + seitenKpi('COORDINATED CLUSTERS', kp ? kp.coordinated_clusters : null, false)
+    + seitenKpi('FRESH FIRST-TRADE CARDS', kp ? kp.fresh_first_trade_events : null, false)
     + '</div></div>'
     // Unter dem Trichter, nicht daneben: der Trichter zaehlt drei Stufen,
     // das Histogramm zeigt die Verteilung, aus der sie geschnitten sind.
@@ -1094,18 +1110,18 @@ export function renderRisk(T) {
     // nach Wallet gruppiert. Der Score allein war nichtssagend — jetzt sagt
     // die Zeile, welche Muster gefeuert haben (die Flags des Scorers), und
     // die tote CLUSTER-Spalte (immer "—") ist weg.
-    const GRID_W = 'minmax(230px,1.4fr) 80px 64px 96px 96px 96px';
+    const GRID_W = 'minmax(230px,1.4fr) 80px 64px 96px 96px 96px 96px';
     const antwortDa = !!live && live._quelle !== 'fehler';
     body = '<div>'
       + '<div style="padding:var(--sp-5) var(--sp-6) 0; font-size:var(--t-small); color:var(--ink-3); line-height:var(--lh-prose); max-width:860px">'
       + 'The flagged flow grouped by the wallet that placed it — the <span style="font-style:italic">who</span> behind the Events tab. '
-      + 'Same 0–100 point total and the same bands as Events: how many of the screen\'s nine flow checks this wallet\'s prints tripped '
-      + '(size, long odds, timing, account freshness). '
+      + 'Same 0–100 point total and the same bands as Events: how many of the screen\'s ten flow checks this wallet\'s prints tripped '
+      + '(size, long odds, timing, the measured first trade on the venue). '
       + 'The chips under each wallet say which patterns fired; <span style="' + M + '; font-size:var(--t-small)">watch only</span> means none did — the wallet is listed for size alone.'
       + '</div>'
       + '<div role="table" aria-label="Risk wallets" style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin:var(--sp-5) var(--sp-6); overflow:clip">'
       + '<div role="row" style="display:grid; grid-template-columns:' + GRID_W + '; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); background:var(--panel); position:sticky; top:0; z-index:3; border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">'
-      + '<div role="columnheader">WALLET · WHY FLAGGED</div><div role="columnheader" style="text-align:right">SCORE</div><div role="columnheader" style="text-align:right">PRINTS</div><div role="columnheader" style="text-align:right">NOTIONAL</div><div role="columnheader" style="text-align:right">BIGGEST</div><div role="columnheader" style="text-align:right">FIRST SEEN</div></div>'
+      + '<div role="columnheader">WALLET · WHY FLAGGED</div><div role="columnheader" style="text-align:right">SCORE</div><div role="columnheader" style="text-align:right">PRINTS</div><div role="columnheader" style="text-align:right">NOTIONAL</div><div role="columnheader" style="text-align:right">BIGGEST</div><div role="columnheader" style="text-align:right">FIRST SEEN</div><div role="columnheader" style="text-align:right" title="the wallet\'s first trade on the venue, measured, days before its last print here">FIRST TRADE</div></div>'
       + (walletRows.length ? '' : leerZeile(antwortDa ? 'No wallet cleared the screen in this window — nothing in the flagged flow groups to a suspicious wallet.' : risikoSatz))
       + walletRows.map((w) => {
         const band = BAND(Number(w.score) || 0, T, w);
@@ -1126,7 +1142,8 @@ export function renderRisk(T) {
           + '<div role="cell" style="text-align:right; color:var(--ink-3)">' + w.prints + '</div>'
           + '<div role="cell" style="text-align:right">' + esc(String(w.notional)) + '</div>'
           + '<div role="cell" style="text-align:right; color:var(--ink-3)">' + esc(String(w.largest || '—')) + '</div>'
-          + '<div role="cell" style="text-align:right; color:var(--ink-3)">' + esc(w.firstSeen) + '</div></div>';
+          + '<div role="cell" style="text-align:right; color:var(--ink-3)">' + esc(w.firstSeen) + '</div>'
+          + '<div role="cell" style="text-align:right; color:' + (w.first_trade_days != null && w.first_trade_days <= 3 ? 'var(--warn)' : 'var(--ink-3)') + '">' + esc(w.firstTrade || '—') + '</div></div>';
       }).join('')
       + '</div></div>';
   } else if (s.riskView === 'fresh') {
