@@ -108,6 +108,20 @@ export function tradeVerteilung(live) {
   });
 }
 
+function equityDomain(bankroll, ...serien) {
+  const alle = [];
+  serien.forEach((serie) => (serie || []).forEach((v) => { if (typeof v === 'number' && v === v) alle.push(v); }));
+  if (!alle.length) return null;
+  const basis = typeof bankroll === 'number' && bankroll > 0 ? bankroll : alle[0];
+  const rand = basis * 0.1;
+  let min = Math.min(basis - rand, ...alle);
+  let max = Math.max(basis + rand, ...alle);
+  const luft = (max - min) * 0.05;
+  min -= luft; max += luft;
+  if (min === max) max = min + 1;
+  return { min, max };
+}
+
 export function renderBacktester(T) {
   const s = T.state;
   const bank = s.btBankroll;
@@ -146,12 +160,24 @@ export function renderBacktester(T) {
   const ddPct = st ? Math.abs(+st.max_drawdown) * 100 : null;
   // Equity und Benchmark auf einer Skala mit Nullpunkt: getrennt skaliert
   // endete ein Benchmark 40 Prozent unter der Wallet auf derselben Hoehe.
-  const eqDom = st ? seriesDomain(live.equity, live.benchmark) : null;
+  // Skala um die Bankroll herum, mindestens zehn Prozent nach beiden
+  // Seiten, weiter nur, wenn die Kurven es verlangen. Mit der Null im Bild
+  // war ein Lauf von plus fuenf Prozent eine Gerade; ohne Mindestspanne
+  // fuellte ein halbes Prozent Rauschen die ganze Hoehe. Beide Serien
+  // teilen sich die Skala, die Startlinie steht als Referenz im Bild.
+  const eqDom = st ? equityDomain(bank, live.equity, live.benchmark) : null;
   const equityPts = st && live.equity && live.equity.length > 1
     ? T.seriesPoints(live.equity, 900, 270, eqDom) : '';
   const benchPts = st && live.benchmark && live.benchmark.length > 1
     ? T.seriesPoints(live.benchmark, 900, 270, eqDom) : '';
   const eqGrid = seriesGrid(eqDom, 900, 270, (v) => kurzGeld(v));
+  // Startlinie: die Bankroll als Referenz, damit ueber und unter Wasser
+  // ablesbar ist, ohne dass die Null im Bild sein muss.
+  const startY = eqDom ? (270 - 10 - ((bank - eqDom.min) / (eqDom.max - eqDom.min || 1)) * (270 - 30)) : null;
+  const startLinie = startY !== null
+    ? '<line x1="0" y1="' + startY.toFixed(1) + '" x2="900" y2="' + startY.toFixed(1) + '" style="stroke:rgba(var(--ink),.35)" stroke-dasharray="2 4" vector-effect="non-scaling-stroke" />'
+      + '<text x="896" y="' + (startY - 4).toFixed(1) + '" text-anchor="end" style="fill:var(--ink-3)" font-size="10" font-family="IBM Plex Mono, monospace">start ' + esc(kurzGeld(bank)) + '</text>'
+    : '';
   // Drawdown ist ein Anteil vom Hoch, 0 bis -1: die Skala reicht von null
   // bis zum tiefsten Punkt, nicht vom tiefsten bis zum hoechsten Wert.
   const ddDom = st && live.drawdown && live.drawdown.length > 1 ? seriesDomain(live.drawdown) : null;
@@ -207,6 +233,19 @@ export function renderBacktester(T) {
     + (live && live.stats && live.stats.window_truncated
       ? ' · window truncated at the engine\'s trade cap' + (live.stats.effective_start ? ' — data reaches back to ' + live.stats.effective_start : '')
       : '')
+    // "Match trader %": woran die Anteile haengen. Die Kasse kommt vom
+    // Polygon-RPC; ist sie nicht lesbar, steht das dran.
+    + (live && live.trader_portfolio
+      ? ' · trader portfolio $' + num(Math.round(+live.trader_portfolio.total))
+        + (live.trader_portfolio.cash_read ? ' (open positions + cash)' : ' (open positions only, cash not readable)')
+      : '')
+    // Bewertungskurve: wie viele Positionen unterwegs zum Marktpreis
+    // stehen. Ohne Verlauf laeuft eine gehaltene Position als Gerade.
+    + (st && st.mark_to_market && st.mark_to_market.positions_total
+      ? ' · open copies marked to market ' + (st.mark_to_market.interval === '1d' ? 'daily' : st.mark_to_market.interval === '6h' ? 'every 6 hours' : 'hourly')
+        + ' for ' + num(st.mark_to_market.positions_marked) + ' of ' + num(st.mark_to_market.positions_total) + ' positions'
+        + (st.mark_to_market.positions_marked < st.mark_to_market.positions_total ? ' (the rest at cost until they close)' : '')
+      : '')
     // Woher die Zahlen kommen und wie frisch: die Trades des Fensters
     // werden je Wallet und Fenster zehn Minuten wiederverwendet.
     + (live && live.data_loaded_at
@@ -241,13 +280,10 @@ export function renderBacktester(T) {
   ] : [];
 
   const stakeLabel = s.btSizing === 'pct' ? 'STAKE (% OF BANKROLL)' : s.btSizing === 'match' ? "MULTIPLIER (× TRADER'S SHARE)" : s.btSizing === 'kelly' ? 'ASSUMED EDGE (PROBABILITY POINTS)' : 'STAKE PER COPY ($)';
-  const stakeValue = s.btSizing === 'pct' ? s.btStakePct.toFixed(1) + '%' : s.btSizing === 'match' ? '×' + s.btStakeMult.toFixed(1) : s.btSizing === 'kelly' ? s.btStakeKelly.toFixed(1) + ' pts' : '$' + s.btStakeFixed;
   const stakeHint = s.btSizing === 'pct' ? 'Each copy bets ' + s.btStakePct.toFixed(1) + '% of your bankroll — about $' + (bank * s.btStakePct / 100).toFixed(0) + ' right now.'
-    : s.btSizing === 'match' ? 'If the trader puts 2% of their portfolio into a bet, you put 2% × ' + s.btStakeMult.toFixed(1) + ' of yours. Their portfolio size is read from their public profile.'
+    : s.btSizing === 'match' ? 'If the trader puts 2% of their portfolio into a bet, you put 2% × ' + s.btStakeMult.toFixed(1) + ' of yours, add for add. Their portfolio size is read at run time: open positions at market value plus USDC cash.'
     : s.btSizing === 'kelly' ? 'Assumes every entry is worth its price plus ' + s.btStakeKelly.toFixed(1) + ' points, then stakes quarter-Kelly of equity. Conservative on purpose — the edge is an assumption.'
     : 'Every followed position gets exactly $' + s.btStakeFixed + ' at entry. When the wallet adds to a position you already hold, the copy is only topped back up after a partial exit; the add is otherwise logged as filtered. Capped at $' + s.btCap + ' per position.';
-  const stakeUp = s.btSizing === 'pct' ? { btStakePct: Math.min(100, s.btStakePct + 0.5) } : s.btSizing === 'match' ? { btStakeMult: Math.min(10, s.btStakeMult + 0.5) } : s.btSizing === 'kelly' ? { btStakeKelly: Math.min(30, s.btStakeKelly + 0.5) } : { btStakeFixed: s.btStakeFixed + 5 };
-  const stakeDown = s.btSizing === 'pct' ? { btStakePct: Math.max(0.1, s.btStakePct - 0.5) } : s.btSizing === 'match' ? { btStakeMult: Math.max(0.1, s.btStakeMult - 0.5) } : s.btSizing === 'kelly' ? { btStakeKelly: Math.max(0.5, s.btStakeKelly - 0.5) } : { btStakeFixed: Math.max(1, s.btStakeFixed - 5) };
 
   // Weder erfundene Trades noch eine erfundene Vergleichs-Wallet. Hier lagen
   // acht ausgedachte Log-Zeilen, fuenf ausgedachte offene Positionen und eine
@@ -282,12 +318,33 @@ export function renderBacktester(T) {
     };
   });
 
-  const stepRow = (label, valueLabel, down, up) =>
-    '<div><div style="' + LABEL_BLOCK + '">' + label + '</div>'
-    + '<div style="display:flex; align-items:center; gap:var(--sp-3)">'
-    + '<div ' + T.act(bt(T, down)) + ' style="width:28px; height:32px; flex:none; border:1px solid var(--line-1); border-radius:var(--r-control); display:flex; align-items:center; justify-content:center; ' + M + '; font-size:var(--t-body); color:var(--ink-2); cursor:pointer">−</div>'
-    + '<div style="flex:1; background:var(--panel); border:1px solid var(--line-1); border-radius:var(--r-control); padding:var(--sp-3); ' + M + '; font-size:var(--t-small); text-align:center">' + esc(valueLabel) + '</div>'
-    + '<div ' + T.act(bt(T, up)) + ' style="width:28px; height:32px; flex:none; border:1px solid var(--line-1); border-radius:var(--r-control); display:flex; align-items:center; justify-content:center; ' + M + '; font-size:var(--t-body); color:var(--ink-2); cursor:pointer">+</div></div></div>';
+  // Zahlenfeld mit Minus/Plus UND freier Eingabe: die Knopfschritte
+  // (500 Dollar Bankroll, 5 Dollar Einsatz) waren die einzige Bedienung,
+  // und wer 1.250 Dollar oder 12 Dollar meinte, kam nie dorthin. Tippen
+  // setzt den Zustand ohne Neuzeichnen, der naechste RUN liest ihn.
+  const numFeld = (label, key, value, o) => {
+    const step = o.step || 1, min = o.min == null ? -Infinity : o.min, max = o.max == null ? Infinity : o.max;
+    const rund = (v) => Math.round(Math.min(max, Math.max(min, v)) * 100) / 100;
+    const patch = (v) => { const p = {}; p[key] = rund(v); return p; };
+    const knopf = (zeichen, ziel) => '<div ' + T.act(bt(T, ziel)) + ' class="hv-edge-max hv-white" role="button" aria-label="' + esc(label + ' ' + (zeichen === '+' ? 'up' : 'down')) + '" style="width:28px; height:32px; flex:none; border:1px solid var(--line-1); border-radius:var(--r-control); display:flex; align-items:center; justify-content:center; ' + M + '; font-size:var(--t-body); color:var(--ink-2); cursor:pointer">' + zeichen + '</div>';
+    const tippen = T.inp((e) => {
+      const v = parseFloat(e.target.value);
+      if (!isFinite(v)) return;
+      T.state[key] = rund(v);
+      if (T.liveData.backtest) T.state.btDirty = true;
+    }, key);
+    return '<div><div style="' + LABEL_BLOCK + '">' + label + '</div>'
+      + '<div style="display:flex; align-items:center; gap:var(--sp-3)">'
+      + knopf('−', patch(value - step))
+      + '<div style="flex:1; min-width:0; display:flex; align-items:center; background:var(--panel); border:1px solid var(--line-1); border-radius:var(--r-control)">'
+      + (o.prefix ? '<span style="padding-left:var(--sp-3); ' + M + '; font-size:var(--t-small); color:var(--ink-3)">' + esc(o.prefix) + '</span>' : '')
+      + '<input type="number" inputmode="decimal" value="' + esc(String(value)) + '" step="' + step + '"' + (isFinite(min) ? ' min="' + min + '"' : '') + (isFinite(max) ? ' max="' + max + '"' : '')
+      + ' ' + tippen + ' aria-label="' + esc(label) + '" style="flex:1; width:100%; min-width:0; background:transparent; border:0; outline:none; padding:var(--sp-3) var(--sp-2); ' + M + '; font-size:var(--t-small); color:var(--text); text-align:center" />'
+      + (o.unit ? '<span style="padding-right:var(--sp-3); ' + M + '; font-size:var(--t-small); color:var(--ink-3)">' + esc(o.unit) + '</span>' : '')
+      + '</div>'
+      + knopf('+', patch(value + step))
+      + '</div></div>';
+  };
 
   const btTabs = [
     T.tab('Trade log', s.btTab === 'log', { btTab: 'log' }),
@@ -365,7 +422,7 @@ export function renderBacktester(T) {
     // beschrieb die Simulation, sagte aber nirgends, dass ihre Zahlen
     // modelliert und nicht realisiert sind.
     + caveatZeile('backtest_modeled', {
-      vorsatz: 'Every simulated fill is priced with fees and slippage, up to ninety days back.',
+      vorsatz: 'Every simulated fill is priced with fees and slippage, up to a year back. Long windows on very active wallets stop at the engine\'s cap of 30,000 trades; the run line says where the data really starts.',
       stil: 'font-size:var(--t-body); color:var(--ink-4); margin-top:var(--sp-3); max-width:680px; line-height:var(--lh-snug)'
     }) + '</div>'
     + '<div style="' + M + '; font-size:var(--t-micro); color:var(--on-accent); background:var(--accent); border-radius:var(--r-control); padding:var(--sp-2) var(--sp-4)">POLYMARKET</div>'
@@ -384,11 +441,11 @@ export function renderBacktester(T) {
       '<div ' + T.act(bt(T, { btSizing: k })) + ' style="font-size:var(--t-small); text-align:center; border-radius:var(--r-control); padding:var(--sp-3); cursor:pointer; ' + (s.btSizing === k ? 'color:var(--on-accent); background:var(--accent); font-weight:600' : 'color:var(--ink-3); border:1px solid var(--line-1)') + '">' + SIZING[k] + '</div>'
     ).join('')
     + '</div>'
-    + '<div style="margin-top:var(--sp-4)"><div style="' + LABEL_BLOCK + '">' + stakeLabel + '</div>'
-    + '<div style="display:flex; align-items:center; gap:var(--sp-3)">'
-    + '<div ' + T.act(bt(T, stakeDown)) + ' class="hv-edge-max hv-white" style="width:32px; height:34px; flex:none; border:1px solid var(--line-1); border-radius:var(--r-control); display:flex; align-items:center; justify-content:center; ' + M + '; font-size:var(--t-lead); color:var(--ink-2); cursor:pointer">−</div>'
-    + '<div style="flex:1; background:var(--panel); border:1px solid var(--line-1); border-radius:var(--r-control); padding:var(--sp-3) var(--sp-4); ' + M + '; font-size:var(--t-body); text-align:center">' + esc(stakeValue) + '</div>'
-    + '<div ' + T.act(bt(T, stakeUp)) + ' class="hv-edge-max hv-white" style="width:32px; height:34px; flex:none; border:1px solid var(--line-1); border-radius:var(--r-control); display:flex; align-items:center; justify-content:center; ' + M + '; font-size:var(--t-lead); color:var(--ink-2); cursor:pointer">+</div></div>'
+    + '<div style="margin-top:var(--sp-4)">'
+    + (s.btSizing === 'pct' ? numFeld(stakeLabel, 'btStakePct', s.btStakePct, { step: 0.5, min: 0.1, max: 100, unit: '%' })
+      : s.btSizing === 'match' ? numFeld(stakeLabel, 'btStakeMult', s.btStakeMult, { step: 0.5, min: 0.1, max: 10, prefix: '×' })
+      : s.btSizing === 'kelly' ? numFeld(stakeLabel, 'btStakeKelly', s.btStakeKelly, { step: 0.5, min: 0.5, max: 30, unit: 'pts' })
+      : numFeld(stakeLabel, 'btStakeFixed', s.btStakeFixed, { step: 5, min: 1, prefix: '$' }))
     + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-3); line-height:var(--lh-snug)">' + stakeHint + '</div></div>'
     // Auto-Fit: die Engine misst die Hoechstzahl gleichzeitig offener
     // Quell-Positionen und passt den Einsatz je Copy so an, dass Bankroll
@@ -402,23 +459,23 @@ export function renderBacktester(T) {
         + '</div>'
         + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-3); line-height:var(--lh-snug)">'
         + (s.btAutoFit
-          ? 'The engine measures the wallet\'s pace and adapts by itself: if the whole flow does not fit the bankroll at your stake, it follows only the wallet\'s largest entries (smaller ones are marked "filtered", not failed); when no threshold separates them, it shrinks the stake instead. What was applied is named in the result.'
+          ? 'The engine measures how many positions the wallet holds at once (sells and resolutions free a slot again) and sizes each copy so the bankroll is used at that peak: it raises the stake when the flow fits with room to spare, follows only the wallet\'s largest entries when it does not fit at your stake (smaller ones are marked "filtered", not failed), and shrinks the stake when no threshold separates them. What was applied is named in the result.'
           : 'The stake above is used as set. If the wallet\'s pace outruns it, the result names the skipped share and what auto-fit would do.')
         + '</div>'
         + (!s.btAutoFit
-          ? '<div style="margin-top:var(--sp-4)">' + stepRow('MIN TRADE TO COPY ($, 0 = ALL)', '$' + num(s.btMinNotional), { btMinNotional: Math.max(0, s.btMinNotional - 25) }, { btMinNotional: s.btMinNotional + 25 }) + '</div>'
+          ? '<div style="margin-top:var(--sp-4)">' + numFeld('MIN TRADE TO COPY ($, 0 = ALL)', 'btMinNotional', s.btMinNotional, { step: 25, min: 0, prefix: '$' }) + '</div>'
           : '')
         + '</div>'
       : '')
     + '<div style="display:grid; grid-template-columns:1fr 1fr; gap:var(--sp-4); margin-top:var(--sp-5)">'
-    + stepRow('CAP PER TRADE', '$' + s.btCap, { btCap: Math.max(10, s.btCap - 50) }, { btCap: s.btCap + 50 })
-    + stepRow('MAX BANKROLL IN OPEN COPIES', s.btExposure + '%', { btExposure: Math.max(5, s.btExposure - 5) }, { btExposure: Math.min(100, s.btExposure + 5) })
+    + numFeld('CAP PER POSITION', 'btCap', s.btCap, { step: 50, min: 10, prefix: '$' })
+    + numFeld('MAX BANKROLL IN OPEN COPIES', 'btExposure', s.btExposure, { step: 5, min: 5, max: 100, unit: '%' })
     + '</div>'
-    + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-3); line-height:var(--lh-snug)">New copies are skipped while open copies already tie up that share of the bankroll. Sells free the room up again.</div></div>'
+    + '<div style="font-size:var(--t-small); color:var(--ink-3); margin-top:var(--sp-3); line-height:var(--lh-snug)">New copies are skipped while open copies already tie up that share of the bankroll. Cash recycles during the window: a mirrored sell and every market that resolves (won or lost) pays out at its own time and is available for the next copy.</div></div>'
 
     + '<div><div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--accent); margin-bottom:var(--sp-3)">03 · TIME WINDOW</div>'
     + '<div style="display:flex; gap:var(--sp-3)">'
-    + [T.tab('7d', s.btWindow === 7, bt(T, { btWindow: 7 })), T.tab('30d', s.btWindow === 30, bt(T, { btWindow: 30 })), T.tab('90d', s.btWindow === 90, bt(T, { btWindow: 90 }))].join('')
+    + [7, 30, 90, 180, 365].map((d) => T.tab(d === 365 ? '1y' : d + 'd', s.btWindow === d, bt(T, { btWindow: d }))).join('')
     + '</div></div>'
 
     + '<div><div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--accent); margin-bottom:var(--sp-3)">04 · STRATEGY</div>'
@@ -432,9 +489,9 @@ export function renderBacktester(T) {
     + '<div style="font-size:var(--t-body)">Advanced settings</div><div style="' + advChevron + '">›</div></div>'
     + (s.advancedOpen ?
       '<div style="padding:var(--sp-5); display:flex; flex-direction:column; gap:var(--sp-4)">'
-      + stepRow('BANKROLL', '$' + num(s.btBankroll), { btBankroll: Math.max(100, s.btBankroll - 500) }, { btBankroll: s.btBankroll + 500 })
+      + numFeld('BANKROLL', 'btBankroll', s.btBankroll, { step: 500, min: 100, prefix: '$' })
       + '<div style="display:grid; grid-template-columns:1fr 1fr; gap:var(--sp-4)">'
-      + stepRow('SLIPPAGE (BPS)', s.btSlip + ' bps', { btSlip: Math.max(0, s.btSlip - 5) }, { btSlip: s.btSlip + 5 })
+      + numFeld('SLIPPAGE (BPS)', 'btSlip', s.btSlip, { step: 5, min: 0, unit: 'bps' })
       + '<div><div style="' + LABEL_BLOCK + '">FEE MODEL</div>'
       + '<div style="display:flex; gap:var(--sp-3); margin-top:var(--sp-3)">'
       + T.opt('Venue curve', s.btFeeModel !== 'flat', { btFeeModel: 'curve' })
@@ -448,7 +505,7 @@ export function renderBacktester(T) {
       // billig, und zu billige Gebuehren schmeicheln jedem Ergebnis.
       + (s.btFeeModel === 'flat'
         ? '<div style="display:flex; flex-direction:column; gap:var(--sp-3)">'
-          + stepRow('FLAT FEE (BPS)', s.btFee + ' bps', { btFee: Math.max(0, s.btFee - 5) }, { btFee: s.btFee + 5 })
+          + numFeld('FLAT FEE (BPS)', 'btFee', s.btFee, { step: 5, min: 0, unit: 'bps' })
           + '<div style="font-size:var(--t-micro); color:var(--warn); line-height:var(--lh-snug)">'
           + 'A flat rate cannot match the venue: Polymarket charges about 250 bps at a price of 0.50 '
           + 'and about 50 bps at 0.90. Anything near 20 bps understates the real cost by a wide margin.'
@@ -506,7 +563,9 @@ export function renderBacktester(T) {
             : 'already sized each copy down to $' + (+autoFit.stake).toFixed(2))
             + ', but the wallet peaks at ' + num(autoFit.peak_concurrent) + ' open positions — the remaining skips are the flow beyond what $' + num(s.btBankroll) + ' can hold. Only a larger bankroll follows this wallet fully.'
           : ' The bankroll cannot follow this wallet\'s pace at this stake: with $' + num(s.btBankroll) + ' and about $' + Math.round(stake) + ' per copy, at most ' + Math.max(1, Math.floor(bank * s.btExposure / 100 / Math.max(1, stake))) + ' copies can be open at once.'
-            + (autoFit && autoFit.stake != null
+            + (s.btSizing === 'match' || s.btSizing === 'kelly'
+              ? ' This sizing scales with the wallet, add for add, so the cap and the bankroll are the only levers: raise the exposure cap, lower the ' + (s.btSizing === 'match' ? 'multiplier' : 'assumed edge') + ', or raise the bankroll.'
+              : autoFit && autoFit.stake != null
               ? ' Auto-fit would follow the wallet\'s largest entries at your stake (it measured a peak of ' + num(autoFit.peak_concurrent) + ' open positions) — switch it on next to the stake and re-run.'
               : ' Lower the stake, raise the bankroll, or raise the exposure cap to copy more of the flow.'))
         : ' The trade log below marks each one.')
@@ -540,8 +599,9 @@ export function renderBacktester(T) {
     + '<span style="display:flex; align-items:center; gap:var(--sp-3); color:var(--ink-4)"><span style="width:14px; height:2px; background:var(--muted); display:inline-block"></span>Flat-bet benchmark</span>'
     + (s.sizingSimOpen && bestVariant ? '<span style="display:flex; align-items:center; gap:var(--sp-3); color:var(--warn)"><span style="width:14px; height:2px; background:var(--warn); display:inline-block"></span>Highest final equity: ' + esc(bestVariant.name) + '</span>' : '')
     + '</div></div>'
-    + '<svg width="100%" height="270" viewBox="0 0 900 270" preserveAspectRatio="none" role="img" aria-label="Equity for the replayed wallet against the flat-bet benchmark, one dollar scale">'
+    + '<svg width="100%" height="270" viewBox="0 0 900 270" preserveAspectRatio="none" role="img" aria-label="Equity for the replayed wallet against the flat-bet benchmark, one dollar scale around the starting bankroll">'
     + eqGrid
+    + startLinie
     + '<polyline points="' + benchPts + '" fill="none" style="stroke:var(--muted)" stroke-width="1.4" stroke-dasharray="6 4" vector-effect="non-scaling-stroke" />'
         + '<polyline points="' + equityPts + '" fill="none" style="stroke:' + (ret >= 0 ? 'var(--pos)' : 'var(--neg)') + '" stroke-width="2" vector-effect="non-scaling-stroke" />'
     + '</svg>'
@@ -754,15 +814,19 @@ export function renderPortfolio(T) {
     + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-max); color:var(--accent)">PORTFOLIO · PAPER</div>'
     + '<h1 style="font-size:var(--t-head); line-height:var(--lh-tight); margin:var(--sp-3) 0 0; font-weight:600; letter-spacing:var(--ls-flat)">What you would be holding</h1></div>'
     + '<div style="display:grid; grid-template-columns:repeat(4,1fr); border-bottom:1px solid var(--line-2)">'
-    + '<div style="padding:var(--sp-5) var(--sp-6); border-right:1px solid var(--line-2)"><div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">VALUE NOW</div><div style="' + M + '; font-size:var(--t-hero); margin-top:var(--sp-3)">$' + num((+kp.equity).toFixed(2)) + '</div></div>'
+    + '<div style="padding:var(--sp-5) var(--sp-6); border-right:1px solid var(--line-2)"><div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">VALUE NOW</div><div style="' + M + '; font-size:var(--t-hero); margin-top:var(--sp-3)">' + (kp.equity != null ? '$' + num((+kp.equity).toFixed(2)) : '—') + '</div></div>'
     // Keine Rueckfallwerte in der Kennzahlenzeile: hier standen 14 offene
     // Positionen, +$28.60 unrealisiert und $312.40 freie Kasse, sobald das
-    // Feld in der Antwort fehlte. Ein fehlendes Feld ist jetzt ein Strich.
+    // Feld in der Antwort fehlte. Ein fehlendes Feld ist jetzt ein Strich —
+    // seit eben auch bei VALUE NOW, das als einzige der vier Kacheln
+    // ungeprueft rechnete und ohne das Feld "$NaN" schrieb.
     // Und das Vorzeichen des Unrealisierten kommt aus der Zahl, nicht aus dem
     // Template — vorher stand "+$" fest davor, in Gruen, auch bei Verlust.
+    // Alle vier Betraege gehen durch num(): $1,000.00 neben $1000.00 in
+    // derselben Zeile sind zwei Schreibweisen fuer dieselbe Zahl.
     + '<div style="padding:var(--sp-5) var(--sp-6); border-right:1px solid var(--line-2)"><div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">OPEN POSITIONS</div><div style="' + M + '; font-size:var(--t-hero); margin-top:var(--sp-3)">' + (kp.open_positions != null ? num(kp.open_positions) : '—') + '</div></div>'
-    + '<div style="padding:var(--sp-5) var(--sp-6); border-right:1px solid var(--line-2)"><div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">UNREALISED</div><div style="' + M + '; font-size:var(--t-hero); margin-top:var(--sp-3); color:' + (kp.unrealized == null ? 'var(--ink-3)' : +kp.unrealized >= 0 ? 'var(--pos)' : 'var(--neg)') + '">' + (kp.unrealized != null ? (+kp.unrealized >= 0 ? '+' : '-') + '$' + Math.abs(+kp.unrealized).toFixed(2) : '—') + '</div></div>'
-    + '<div style="padding:var(--sp-5) var(--sp-6)"><div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">CASH FREE</div><div style="' + M + '; font-size:var(--t-hero); margin-top:var(--sp-3)">' + (kp.cash != null ? '$' + (+kp.cash).toFixed(2) : '—') + '</div></div>'
+    + '<div style="padding:var(--sp-5) var(--sp-6); border-right:1px solid var(--line-2)"><div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">UNREALISED</div><div style="' + M + '; font-size:var(--t-hero); margin-top:var(--sp-3); color:' + (kp.unrealized == null ? 'var(--ink-3)' : +kp.unrealized >= 0 ? 'var(--pos)' : 'var(--neg)') + '">' + (kp.unrealized != null ? (+kp.unrealized >= 0 ? '+' : '-') + '$' + num(Math.abs(+kp.unrealized).toFixed(2)) : '—') + '</div></div>'
+    + '<div style="padding:var(--sp-5) var(--sp-6)"><div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">CASH FREE</div><div style="' + M + '; font-size:var(--t-hero); margin-top:var(--sp-3)">' + (kp.cash != null ? '$' + num((+kp.cash).toFixed(2)) : '—') + '</div></div>'
     + '</div>'
     + '<div style="display:flex; gap:var(--sp-3); padding:var(--sp-5) var(--sp-6) 0; flex-wrap:wrap">' + portTabs + '</div>'
     + body

@@ -3,6 +3,38 @@
 // kommt aus ihrer publizierten Nutzlast in public/data. Bis die da ist,
 // zeigt die Seite den Leerzustand mit dem Dateinamen.
 
+// Adresssegment einer Studie: die Reiterbeschriftung in Kleinbuchstaben,
+// Leerzeichen als Bindestrich. Das ist die kanonische Form, die die Adresse
+// traegt.
+export function studienSlug(study) {
+  return String((study && study.tab) || '').toLowerCase().replace(/ /g, '-');
+}
+
+// Zum Vergleich wird jede Trennung weggelassen. Der Eintrag in der
+// Seitenleiste heisst "Post-mortems", die Studie aber "Postmortems", also
+// ist "#research/post-mortems" genau die Adresse, die jemand tippt, der die
+// Beschriftung abschreibt. Sie zeigte auf keine Studie, und die Seite blieb
+// dann still auf dem vorigen Reiter stehen: die Adresse sagte das eine, die
+// Seite zeigte das andere. Verglichen wird deshalb ohne Trennzeichen.
+function vergleichbar(wert) {
+  return String(wert || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+/** Index der Studie zu einem Adresssegment, oder -1.
+ *
+ *  Bindestriche, Unterstriche und Leerzeichen spielen keine Rolle; die
+ *  kanonische Adresse bleibt die aus studienSlug.
+ */
+export function studienIndexAus(studien, slug) {
+  const gesucht = vergleichbar(slug);
+  if (!gesucht) return -1;
+  const liste = Array.isArray(studien) ? studien : [];
+  for (let i = 0; i < liste.length; i += 1) {
+    if (vergleichbar(studienSlug(liste[i])) === gesucht) return i;
+  }
+  return -1;
+}
+
 export const STUDIEN = [
   // Archiviert: nicht mehr in der Seitenleiste, aber per #research/review-queue
   // erreichbar — die Zaehler stehen auf der Methodology-Seite.

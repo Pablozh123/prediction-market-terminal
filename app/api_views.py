@@ -48,6 +48,9 @@ RESEARCH_FILES = {
     # an alias: the file is arb_scan.json and the address gets typed from it.
     "arb-scan": "arb_scan",
     "arb_scan": "arb_scan",
+    # Our resolution pass over the scanner's journal (schema
+    # arb_resolutions/1), written by scripts/resolve_arb_paper.py.
+    "arb-resolutions": "arb_resolutions",
 }
 
 
@@ -791,6 +794,85 @@ def _wilson(wins: int, n: int) -> list[float] | None:
     return [round(float(lo), 4), round(float(hi), 4)]
 
 
+def win_rate_with_unredeemed(corrected: Any, worthless_n: Any) -> dict[str, Any] | None:
+    """Die korrigierte Quote mit den bekannten fehlenden Verlusten darin.
+
+    Eine Position, die gegen die Wallet aufgeloest und nie eingeloest wurde,
+    bleibt in ``/positions`` stehen und taucht im ``/closed-positions``-Feed
+    nie auf. Jede Quote aus diesem Feed laesst sie also weg, und es sind
+    ausschliesslich Verluste: die Quote ist nach oben verzerrt, und zwar um
+    einen Betrag, den man kennt.
+
+    Die Kachel nannte die Zahl der fehlenden Verluste bisher nur als Zusatz.
+    Ein Leser musste selbst rechnen, was 25 von 27 wert sind, wenn achtzehn
+    Verluste nicht im Nenner stehen. Diese Funktion rechnet es aus: dieselben
+    Treffer, der Nenner um die nicht eingeloesten Verluste erhoeht.
+
+    Bewusst konservativ. Der Nenner der korrigierten Quote zaehlt Ereignisse
+    (NegRisk-Beine sind genettet), die nicht eingeloesten Positionen zaehlen
+    Positionen. Gehoeren mehrere davon zu einem Ereignis, ist der Nenner hier
+    zu gross und die Schranke zu niedrig. Sie ist deshalb eine untere
+    Schranke, keine zweite Quote, und heisst auch so.
+
+    ``None``, wenn es nichts zu korrigieren gibt.
+    """
+
+    corr = corrected if isinstance(corrected, Mapping) else {}
+    n = int(corr.get("n") or 0)
+    wins = int(corr.get("wins") or 0)
+    fehlend = max(0, int(worthless_n or 0))
+    if not n or not fehlend:
+        return None
+    gesamt = n + fehlend
+    return {
+        "label": "per event, with the unredeemed losses counted",
+        "win_rate": wins / gesamt,
+        "wins": wins,
+        "n": gesamt,
+        "unredeemed": fehlend,
+        "ci95": _wilson(wins, gesamt),
+        "is_lower_bound": True,
+    }
+
+
+def edge_with_unredeemed(per_dollar: Any, worthless_cost: Any, worthless_n: Any) -> dict[str, Any] | None:
+    """Die realisierte Rendite je Dollar mit den fehlenden Verlusten darin.
+
+    Dieselbe Luecke wie bei der Trefferquote, an der zweiten Kennzahl
+    derselben Karte: die Rendite rechnet ueber den closed-positions-Feed, und
+    der laesst Positionen weg, die gegen die Wallet aufgeloest und nie
+    eingeloest wurden. Deren Einsatz ist bekannt und ihr Ruecklauf ist null.
+
+    Eingesetztes Geld plus dieser Einsatz im Nenner, Ruecklauf unveraendert
+    im Zaehler. Kein Intervall: die fehlenden Zeilen liegen nicht in der
+    Bootstrap-Stichprobe, aus der das Intervall der Quote stammt, und ein
+    Intervall, das nur so aussieht wie eines, waere schlimmer als keines.
+
+    ``None``, wenn nichts fehlt oder die Summen nicht bekannt sind.
+    """
+
+    pd_block = per_dollar if isinstance(per_dollar, Mapping) else {}
+    kosten = _num(pd_block.get("cost_usd"))
+    ruecklauf = _num(pd_block.get("payout_usd"))
+    fehlend_kosten = _num(worthless_cost)
+    fehlend_n = max(0, int(worthless_n or 0))
+    if kosten is None or ruecklauf is None or fehlend_kosten is None:
+        return None
+    fehlend_kosten = abs(fehlend_kosten)
+    if not fehlend_n or fehlend_kosten <= 0 or (kosten + fehlend_kosten) <= 0:
+        return None
+    return {
+        "label": "return per dollar, with the unredeemed losses counted",
+        "edge": (ruecklauf / (kosten + fehlend_kosten)) - 1.0,
+        "cost_usd": kosten + fehlend_kosten,
+        "unredeemed": fehlend_n,
+        "unredeemed_cost_usd": fehlend_kosten,
+        "is_lower_bound": True,
+        "ci_note": ("No interval: the omitted rows are not in the bootstrap sample the interval "
+                    "above comes from."),
+    }
+
+
 def _classify_titles(titles: list[str], classify: Callable[[Any, Any], Any] | None) -> list[str]:
     if classify is None:
         return ["Other"] * len(titles)
@@ -1073,6 +1155,11 @@ def _wallet_edge(
             per_dollar = perf.cluster_bootstrap_edge(df, "group", cost_column="cost", payout_column="payout")
         except Exception:  # noqa: BLE001
             pass
+        # Die beiden Summen, aus denen die Quote entsteht. Ohne sie laesst
+        # sich ausserhalb nicht ausrechnen, was fehlende Zeilen an ihr
+        # aendern wuerden.
+        per_dollar["cost_usd"] = float(pd.to_numeric(df["cost"], errors="coerce").fillna(0.0).sum())
+        per_dollar["payout_usd"] = float(pd.to_numeric(df["payout"], errors="coerce").fillna(0.0).sum())
         titles = [_text(v) for v in df.get("title", pd.Series("", index=df.index)).tolist()]
         df["category"] = _classify_titles(titles, classify)
         for category, part in df.groupby("category", sort=False):
@@ -1103,6 +1190,10 @@ def _wallet_edge(
             "ci_high": _num(per_dollar.get("ci_high")),
             "groups": int(per_dollar.get("groups") or 0),
             "significant": bool(per_dollar.get("significant")),
+            # Die beiden Summen gehen mit hinaus: aus ihnen rechnet
+            # edge_with_unredeemed die Schranke, ohne den Frame zu brauchen.
+            "cost_usd": _num(per_dollar.get("cost_usd")),
+            "payout_usd": _num(per_dollar.get("payout_usd")),
             "method": "payout / cost - 1 over resolved positions; 95% CI from a cluster bootstrap "
                       "resampling whole events (4000 draws)",
         },
@@ -1625,6 +1716,19 @@ def wallet_detail(
     payload["pnl"] = _wallet_pnl(pnl_points, stamp, pnl_window, resolved, capped)
     payload["edge"] = _wallet_edge(resolved, realized, capped, classify, stamp)
     payload["open_positions"] = open_block
+    # Die Schranke braucht beide Seiten: die korrigierte Quote aus dem
+    # closed-positions-Feed und die Zahl der Positionen, die dieser Feed
+    # systematisch weglaesst. Deshalb steht sie hier und nicht in
+    # _wallet_track_record.
+    schranke = win_rate_with_unredeemed(
+        (payload["track_record"] or {}).get("corrected"), open_block.get("worthless_n"))
+    if schranke and payload["track_record"]:
+        payload["track_record"]["corrected_bound"] = schranke
+    kanten_schranke = edge_with_unredeemed(
+        (payload["edge"] or {}).get("per_dollar"),
+        open_block.get("worthless_cost"), open_block.get("worthless_n"))
+    if kanten_schranke and payload["edge"]:
+        payload["edge"]["per_dollar_bound"] = kanten_schranke
     payload["closed"] = _wallet_closed(resolved, capped, open_block["worthless_n"], stamp,
                                        _text(track.get("coverage_note")) if track else "")
     payload["activity"] = _wallet_activity(activity, activity_truncated, stamp, activity_error)
@@ -2763,6 +2867,14 @@ def backtest_payload(result: Any) -> dict[str, Any]:
                 key: int(_num(value, 0.0) or 0)
                 for key, value in (stats.get("filter_reasons") or {}).items()
             },
+            # Bewertungskurve: wie viele der kopierten Positionen unterwegs
+            # zum Marktpreis bewertet sind (der Rest steht zum Einstand).
+            "mark_to_market": {
+                "positions_marked": int(_num((stats.get("mark_to_market") or {}).get("positions_marked"), 0.0) or 0),
+                "positions_total": int(_num((stats.get("mark_to_market") or {}).get("positions_total"), 0.0) or 0),
+                "capped": bool((stats.get("mark_to_market") or {}).get("capped", False)),
+                "interval": _text((stats.get("mark_to_market") or {}).get("interval")) or None,
+            },
             # Auto-Fit: was die Engine gemessen und ggf. angewendet hat —
             # Modus (Folge-Schwelle oder geschrumpfter Einsatz), Einsatz je
             # Copy, Schwelle, gefolgte Positionen und das rohe Tempo der
@@ -2879,11 +2991,38 @@ def trim_pipeline_payload(payload: Mapping[str, Any], max_entries: int = 40) -> 
     return out
 
 
+#: Was die Preisspalte der Resolved-Seite ist. Der oeffentliche
+#: Closed-Markets-Feed fuehrt fuer einen abgerechneten Markt nur noch den
+#: Abrechnungspreis; der letzte Preis davor steht in der Preishistorie des
+#: CLOB und wird hier nicht abgerufen.
+RESOLVED_PRICE_NOTE = (
+    "PRICE is the settlement price from the public closed-markets feed, not the last price "
+    "before settlement. That earlier price is not in this feed; reading it would mean fetching "
+    "the CLOB price history of each market at a fixed interval before close. Until that is done, no "
+    "deviation between crowd and outcome is computed here."
+)
+
+
 def resolved_rows(closed: pd.DataFrame, limit: int = 120) -> list[dict[str, Any]]:
     """`md.get_polymarket_closed_markets`-Frame in die Resolved-Zeilen.
 
-    Nur binaere Maerkte mit bekanntem Ausgang; ``err`` ist der letzte Preis
-    gegen die Antwort — das, was die Menge falsch hatte.
+    Nur binaere Maerkte mit bekanntem Ausgang.
+
+    ``price`` ist der Abrechnungspreis, nicht der letzte Preis davor. Die
+    Zeilen trugen frueher ein Feld ``err`` als "so weit lag die Menge daneben".
+    Das konnte nie etwas anderes als null sein: ``get_polymarket_closed_markets``
+    liest ``final_yes_price`` aus dem aktuellen Preis eines abgerechneten
+    Marktes (also 0 oder 1) und leitet ``resolved_outcome`` aus genau diesem
+    Preis ab. Die Abweichung wurde damit gegen sich selbst gerechnet. Ueber
+    fuenfzig echte Zeilen gemessen: fuenfzig Mal null, Preis 32 Mal 0 und 18
+    Mal 100.
+
+    Der Fehler ueberlebte, weil der Test eine Zeile baute, die es im Feed
+    nicht gibt (Preis 0.81 und Ausgang "Yes" nebeneinander).
+
+    Wer die echte Abweichung will, braucht die Preishistorie aus dem CLOB zu
+    einem festen Abstand vor Handelsschluss. Die steht in diesem Feed nicht,
+    also steht die Kennzahl nicht mehr auf der Seite.
     """
 
     if closed is None or closed.empty:
@@ -2908,8 +3047,8 @@ def resolved_rows(closed: pd.DataFrame, limit: int = 120) -> list[dict[str, Any]
             "title": _text(row.get("title")),
             "meta": (_text(row.get("platform")) or "Polymarket").upper() + " · " + (_text(row.get("category")) or "—").upper(),
             "yes": outcome == "Yes",
-            "last": last_cents,
-            "err": (100 - last_cents) if outcome == "Yes" else last_cents,
+            # Name sagt jetzt, was es ist: der Abrechnungspreis.
+            "settled_price": last_cents,
             "vol": money_label(volume),
             "when": when,
             "hours": round(hours, 1),

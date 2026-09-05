@@ -450,6 +450,9 @@ export function renderCopy(T) {
   const putInPts = equityCurve.length > 1 && isFinite(putInWert) ? T.seriesPoints(equityCurve.map(() => putInWert), 900, 240, eqDom) : '';
   const eqGrid = seriesGrid(eqDom, 900, 240, (v) => kurzGeld(v));
   const firstActive = traders.find((t) => t.active) || null;
+  // Name des Wallets, dem gefolgt wird. Steht an zwei Stellen (Kennzahl
+  // und Kurvenlegende) und ist deshalb einmal definiert.
+  const sourceName = firstActive ? (firstActive.label || shortW(firstActive.wallet)) : 'source wallet';
   const showSource = live.source_curve && live.source_curve.length > 1 && (filter === 'all' || (firstActive && firstActive.wallet === filter));
   // Zwei Serien, eine Skala: die eigene Equity und die offizielle PnL des
   // Quell-Wallets sind beide Dollar, aber auf verschiedenem Niveau. Beide
@@ -555,7 +558,6 @@ export function renderCopy(T) {
       + '</div>';
   } else if (tab === 'perf') {
     const putIn = filtered ? filtered.contributions : kp.contributions;
-    const sourceName = firstActive ? (firstActive.label || shortW(firstActive.wallet)) : 'source wallet';
     body = '<div style="padding:var(--sp-5) var(--sp-6)">'
       + '<div style="' + KARTE + '; padding:var(--sp-5)">'
       + '<div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:var(--sp-4); flex-wrap:wrap; gap:var(--sp-4)">'
@@ -680,7 +682,16 @@ export function renderCopy(T) {
     + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-2); margin-top:var(--sp-2)">' + esc(splitSatz(kp)) + '</div>'
     + (kp.pnl_reconciles === false ? '<div style="' + M + '; font-size:var(--t-micro); color:' + AMBER + '; margin-top:var(--sp-2)">the two halves do not add up to the equity change (' + esc(signedUsd(kp.pnl_residual)) + ' unaccounted), so this is not a breakdown</div>' : '')
     + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:var(--sp-2)">'
-    + (kp.source_pnl_delta != null ? 'first source ' + (kp.source_pnl_delta >= 0 ? '+' : '-') + '$' + num(Math.abs(kp.source_pnl_delta).toFixed(0)) + ' same window' : 'source wallet return not loaded') + '</div></div>'
+    + (kp.source_pnl_delta != null
+      // "same window" war unwahr: die Zahl ist die Veraenderung der
+      // oeffentlichen PnL-Kurve des ersten gefolgten Wallets ueber einen
+      // Monat (api/server.py holt sie mit "1mo"), das Papier-Konto laeuft
+      // seit dem Tag, an dem jemand gefolgt ist. Zwei Zeitraeume, die
+      // nichts voneinander wissen. Die Beschriftung nennt jetzt dasselbe
+      // Fenster wie die Legende der Kurve darunter.
+      ? esc(sourceName) + ' ' + (kp.source_pnl_delta >= 0 ? '+' : '-')
+        + '$' + num(Math.abs(kp.source_pnl_delta).toFixed(0)) + ' \u00b7 its own official PnL, 1 month'
+      : 'source wallet return not loaded') + '</div></div>'
     // Nenner ist, worueber zu entscheiden war. Vorher stand hier
     // kp.mirrored / kp.total: der Zaehler zaehlte nur ``copied``, der Nenner
     // jede Zeile. Eine kopierte Order, die aufgeloest wurde, fiel damit aus

@@ -24,6 +24,11 @@ import { healthStand, verdiktSatz, teileChancen } from '../web/js/pages/arb_scan
 // once; every use below takes its own copy.
 const ARB_FIXTURE = JSON.parse(readFileSync(new URL('./fixtures/arb_scan_example.json', import.meta.url), 'utf8'));
 const arbNutzlast = () => Object.assign({ _quelle: 'live' }, JSON.parse(JSON.stringify(ARB_FIXTURE)));
+// Our resolution pass over the same journal (schema arb_resolutions/1),
+// joined onto the paper book by trade_id.
+const AUF_FIXTURE = JSON.parse(readFileSync(new URL('./fixtures/arb_resolutions_example.json', import.meta.url), 'utf8'));
+const aufNutzlast = () => Object.assign({ _quelle: 'live' }, JSON.parse(JSON.stringify(AUF_FIXTURE)));
+const aufMit = (p) => (T) => { const alt = T.liveData.arbResolutions; T.liveData.arbResolutions = p; return () => { T.liveData.arbResolutions = alt; }; };
 // Swap the scanner payload on the Cross-venue page for one variant.
 const arbMit = (p) => (T) => { const alt = T.liveData.arbScan; T.liveData.arbScan = p; return () => { T.liveData.arbScan = alt; }; };
 
@@ -78,7 +83,7 @@ function neuesT() {
     herkunft: { markets: null, tape: null, traders: null, risks: null, cross: null },
     // Landing payloads (Overview): null until loaded, like in app.js.
     landing: { micro: null, runs: null, notes: null, ledger: null, herkunft: { micro: null, runs: null, notes: null, ledger: null } },
-    liveData: { leaderboard: null, cross: null, arbScan: null, risk: null, riskLog: null, alerts: null, copy: null, portfolio: null, research: {}, backtest: null, walletDetail: {}, wallet: {}, riskBook: {}, walletSimilar: {}, walletEntity: {}, graph: null },
+    liveData: { leaderboard: null, cross: null, arbScan: null, arbResolutions: null, risk: null, riskLog: null, alerts: null, copy: null, portfolio: null, research: {}, backtest: null, walletDetail: {}, wallet: {}, riskBook: {}, walletSimilar: {}, walletEntity: {}, graph: null },
     num, money, esc,
     seriesPoints: (v, w, h) => seriesPoints(v, w, h),
     act: () => 'data-act="0"',
@@ -421,7 +426,13 @@ function mitDaten(T) {
   };
   T.liveData.resolved = {
     _quelle: 'live', as_of: '2026-08-17 09:30 UTC',
-    rows: [{ title: 'Settled question', meta: 'POLYMARKET · MACRO', yes: true, last: 91, err: 9, vol: '$1.2m', when: '2 d ago', hours: 6 }]
+    price_note: 'PRICE is the settlement price from the public closed-markets feed, not the last price before settlement. That earlier price is not in this feed; reading it would mean fetching the CLOB price history of each market at a fixed interval before close. Until that is done, no deviation between crowd and outcome is computed here.',
+    rows: [
+      { title: 'Settled question', meta: 'POLYMARKET · MACRO', yes: true, settled_price: 100, decisive: true, vol: '$1.2m', when: '2 d ago', hours: 6 },
+      // Eine Zeile, die nicht bei 0 oder 100 abgerechnet hat: die Kachel
+      // muss sie zaehlen und darf dann nicht mehr warnen.
+      { title: 'Settled between the poles', meta: 'POLYMARKET · MACRO', yes: false, settled_price: 43, decisive: false, vol: '$300k', when: '30 h ago', hours: 30 }
+    ]
   };
   T.liveData.alerts = {
     _quelle: 'live', as_of: '2026-08-07',
@@ -821,6 +832,7 @@ function mitDaten(T) {
   // macht daraus Links, der Rest bleibt Text.
   // The arbitrage scanner's section on Cross-venue carries the full fixture.
   T.liveData.arbScan = arbNutzlast();
+  T.liveData.arbResolutions = aufNutzlast();
   T.liveData.research['Postmortems'] = {
     _quelle: 'live', stand_utc: '2026-08-07T04:33:12+00:00', hinweis: 'Harness postmortem note.', kennzeichnung: 'curated/postmortem',
     eintraege: [{ datum: '2026-07-18', profil: 'harness_a', achse: 'Evaluation', titel: 'Harness incident',
@@ -862,6 +874,9 @@ function walletNutzlast() {
       as_of: '2026-08-17 19:00 UTC', source: 'polymarket /closed-positions, winner and loser tails unioned', capped: false,
       naive: { label: 'per position leg', win_rate: 0.75, wins: 9, n: 12, ci95: [0.468, 0.911] },
       corrected: { label: 'per event, NegRisk legs netted', win_rate: 0.7273, wins: 8, n: 11, ci95: [0.4304, 0.9051] },
+      // Die untere Schranke rechnet api_views.win_rate_with_unredeemed:
+      // dieselben Treffer, der nicht eingeloeste Verlust im Nenner.
+      corrected_bound: { label: 'per event, with the unredeemed losses counted', win_rate: 0.6667, wins: 8, n: 12, unredeemed: 1, ci95: [0.3906, 0.8619], is_lower_bound: true },
       per_market: { label: 'per market', win_rate: 0.75, wins: 9, n: 12, ci95: [0.468, 0.911] },
       legs_netted: 1, leg_inflation: 1.03, win_rate_reliable: true,
       settled_pnl: 210.0, volume: 600.0, pnl_per_volume: 0.35, exit_win_rate: 1.0,
@@ -883,7 +898,10 @@ function walletNutzlast() {
     },
     edge: {
       as_of: '2026-08-17 19:00 UTC', capped: false,
-      per_dollar: { edge: 0.35, ci_low: 0.12, ci_high: 0.55, groups: 11, significant: true, method: 'payout / cost - 1 over resolved positions; 95% CI from a cluster bootstrap resampling whole events (4000 draws)' },
+      per_dollar: { edge: 0.35, ci_low: 0.12, ci_high: 0.55, groups: 11, significant: true, method: 'payout / cost - 1 over resolved positions; 95% CI from a cluster bootstrap resampling whole events (4000 draws)', cost_usd: 600.0, payout_usd: 810.0 },
+      // Die Schranke rechnet api_views.edge_with_unredeemed: der Einsatz der
+      // wertlosen Position im Nenner, ihr Ruecklauf null.
+      per_dollar_bound: { label: 'return per dollar, with the unredeemed losses counted', edge: 0.3278688524590164, cost_usd: 610.0, unredeemed: 1, unredeemed_cost_usd: 10.0, is_lower_bound: true, ci_note: 'No interval: the omitted rows are not in the bootstrap sample the interval above comes from.' },
       per_share: { n_positions: 12, n_events: 11, edge: 0.05, ci_low: -0.02, ci_high: 0.12, verdict: 'thin', headline: 'Too few resolved events (11 < 30) to tell edge from chance either way.', capped: false },
       by_category: [{ category: 'Politics', groups: 7, positions: 8, cost: 400.0, pnl: 160.0, edge: 0.4, ci_low: 0.1, ci_high: 0.6 }, { category: 'Sports', groups: 4, positions: 4, cost: 200.0, pnl: 50.0, edge: 0.25, ci_low: null, ci_high: null }]
     },
@@ -1132,6 +1150,22 @@ function rendern(T) {
     })],
     ['cross_arb_nur_schema', 'cross', {}, null, arbMit({ _quelle: 'live', schema: 'arb_scan/1' })],
     ['cross_arb_frisch', 'cross', {}, null, arbMit((() => { const p = arbNutzlast(); p.health.last_cycle_at = new Date().toISOString(); return p; })())],
+    // The resolution pass: absent while loading, failed fetch, and a file
+    // without trades. The joined state is the live pass itself.
+    ['cross_arb_aufloesung_laedt', 'cross', {}, null, aufMit(null)],
+    ['cross_arb_aufloesung_fehler', 'cross', {}, null, aufMit({ _quelle: 'fehler', _fehler: 'HTTP 503' })],
+    ['cross_arb_aufloesung_leer', 'cross', {}, null, aufMit({ _quelle: 'live', schema: 'arb_resolutions/1', trades: [], summary: {} })],
+    // Die PnL-Kurve des gefolgten Wallets ist geladen: die Zeile darunter
+    // muss sagen, wessen Zahl das ist und ueber welchen Zeitraum.
+    ['copy_mit_quellkurve', 'copy', {}, null, (T) => {
+      const alt = T.liveData.copy;
+      if (!alt || !alt.kpis) return () => {};
+      T.liveData.copy = Object.assign({}, alt, {
+        kpis: Object.assign({}, alt.kpis, { source_pnl_delta: 648516.4 }),
+        source_curve: [0, 120000, 400000, 648516.4]
+      });
+      return () => { T.liveData.copy = alt; };
+    }],
     ['copy_fidelity', 'copy', { copyTab: 'fidelity' }],
     // The copy desk: every tab, the trader filter, the inline edit and
     // top-up rows, a read-only host (remote, no token) and one asking for a
@@ -1180,6 +1214,25 @@ function rendern(T) {
         result: { api: { wallets: 2, copied: 3, skipped: 1, duplicates: 4, errors: [] },
           settlement: { wallets: 2, copied: 1, skipped: 0, duplicates: 0, undecided: 2, errors: [] } }
       } });
+      return () => { T.liveData.copy = alt; };
+    }],
+    // Betraege ueber tausend: alle vier Kacheln der Kopfzeile muessen
+    // dieselbe Schreibweise benutzen.
+    ['portfolio_gross', 'portfolio', {}, null, (T) => {
+      const alt = T.liveData.copy;
+      if (!alt || !alt.kpis) return () => {};
+      T.liveData.copy = Object.assign({}, alt, {
+        kpis: Object.assign({}, alt.kpis, { equity: 12345.6, cash: 9876.5, unrealized: 2468.9 })
+      });
+      return () => { T.liveData.copy = alt; };
+    }],
+    // Und wenn die Felder fehlen, steht ueberall ein Strich statt NaN.
+    ['portfolio_ohne_zahlen', 'portfolio', {}, null, (T) => {
+      const alt = T.liveData.copy;
+      if (!alt || !alt.kpis) return () => {};
+      const knapp = Object.assign({}, alt.kpis);
+      delete knapp.equity; delete knapp.cash; delete knapp.unrealized; delete knapp.open_positions;
+      T.liveData.copy = Object.assign({}, alt, { kpis: knapp });
       return () => { T.liveData.copy = alt; };
     }],
     ['portfolio_exposure', 'portfolio', { portTab: 'exposure' }],

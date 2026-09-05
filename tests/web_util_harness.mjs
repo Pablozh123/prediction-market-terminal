@@ -4,6 +4,7 @@
 // welcher Ueberschrift landet, entscheidet sich hier.
 
 import { mapMarket, mapTrade, money, liveStatusLabel, livePollFaellig, LIVE_ROUTEN, LIVE_TAKT_RUHIG_MS } from '../web/js/util.js';
+import { STUDIEN, studienSlug, studienIndexAus } from '../web/js/studies.js';
 
 // Der Takt des Live-Polls je Route. Auf einer Route, die die Zeilen nicht
 // zeigt, soll er nur alle fuenf Minuten laufen; die Kopfzeile und der Zaehler
@@ -60,5 +61,23 @@ const ausgabe = {
     wartet: liveStatusLabel('waiting', []),
   },
 };
+
+// Aufloesung eines Adresssegments auf eine Studie. Der Eintrag in der
+// Seitenleiste heisst "Post-mortems", die Studie "Postmortems": genau die
+// Adresse, die jemand tippt, der die Beschriftung abschreibt, zeigte auf
+// keine Studie, und die Seite blieb still auf dem vorigen Reiter.
+const studienAdressen = {
+  kanonisch: STUDIEN.map(studienSlug),
+  postmortems: studienIndexAus(STUDIEN, 'postmortems'),
+  mit_bindestrich: studienIndexAus(STUDIEN, 'post-mortems'),
+  mit_unterstrich_und_gross: studienIndexAus(STUDIEN, 'Post_Mortems'),
+  feldnotizen_ohne_strich: studienIndexAus(STUDIEN, 'fieldnotes'),
+  feldnotizen_mit_strich: studienIndexAus(STUDIEN, 'field-notes'),
+  unbekannt: studienIndexAus(STUDIEN, 'gibtsnicht'),
+  leer: studienIndexAus(STUDIEN, ''),
+  nichts: studienIndexAus(STUDIEN, null)
+};
+
+ausgabe.studien_adressen = studienAdressen;
 
 process.stdout.write(JSON.stringify(ausgabe));
