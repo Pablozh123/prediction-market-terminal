@@ -1,6 +1,6 @@
 {
  "hinweis": "Descriptive post-run review of our own small-stake live runs of the mentions bot. The dollar headlines are the wallet's own numbers, read from the public Polymarket Data API for this address; runs, timing and per-bet detail are reconstructed read-only from the run logs, resolutions from public Gamma data. No trading recommendation, no return forecast.",
- "stand_utc": "2026-09-03T04:34:36+00:00",
+ "stand_utc": "2026-09-06T04:33:57+00:00",
  "kennzeichnung": "live/descriptive",
  "aggregat": {
   "n_runs": 24,
