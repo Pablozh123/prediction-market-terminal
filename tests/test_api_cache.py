@@ -40,6 +40,26 @@ class CacheRetentionTests(unittest.TestCase):
 
 
 class MemoryCacheTests(unittest.TestCase):
+    def test_oversized_backtest_and_variants_share_one_request_local_window(self):
+        import dataclasses
+        from unittest.mock import patch
+        now = pd.Timestamp("2026-06-01", tz="UTC")
+        wallet = "0x" + "a" * 40
+        trades = pd.DataFrame([{"time": pd.Timestamp("2026-05-02", tz="UTC"),
+                               "type": "TRADE", "side": "BUY", "outcome": "Yes",
+                               "title": "Test", "price": .5, "size": 100., "notional": 50.,
+                               "market_key": "cond-1", "asset": "tok-yes", "transactionHash": "0x1"}])
+        data = bt.WindowData(wallet, 30, now - pd.Timedelta(days=30), now, trades,
+                             False, {"tok-yes": {"price": .7, "closed": False, "end_time": None}}, now)
+        history = pd.DataFrame({"time": pd.to_datetime(["2026-05-03", "2026-05-10", "2026-05-20"], utc=True),
+                                "price": [.5, .1, .7]})
+        with patch.object(server, "_CACHE", MemoryCache(max_bytes=1024)), \
+             patch.object(server.btr, "load_window_data", side_effect=lambda _: dataclasses.replace(data, price_history={})) as load, \
+             patch.object(server.md, "get_polymarket_price_history_lifetime", return_value=history):
+            result = server.backtest({"wallet": wallet, "window_days": 30, "variants": True})
+        self.assertTrue(any(row["max_drawdown"] < 0 for row in result["variants"]))
+        self.assertEqual(load.call_count, 1)
+
     def test_window_data_fields_cannot_bypass_budget(self):
         now = pd.Timestamp("2026-06-01", tz="UTC")
         data = bt.WindowData("0x" + "a" * 40, 30, now, now,

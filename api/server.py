@@ -2698,7 +2698,8 @@ def backtest(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
         min_follow_notional=max(0.0, float(body.get("min_notional", 0.0))),
         trader_portfolio_value=float(portfolio["total"]) if portfolio else 0.0,
     )
-    key = "bt_" + "_".join(str(v) for v in dataclasses.astuple(config))
+    with_variants = bool(body.get("variants"))
+    key = "bt_" + "_".join(str(v) for v in dataclasses.astuple(config)) + f"_variants_{with_variants}"
     # Die Daten des Fensters (Trades in Zeitscheiben, Aufloesungen) haengen
     # nur an Wallet und Fenster und bleiben zehn Minuten liegen: jede
     # Einstellung danach ist ein Replay in Sekunden statt ein neuer
@@ -2710,34 +2711,30 @@ def backtest(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
 
     def _run() -> dict[str, Any]:
         daten = cached(daten_key, _daten, ttl=BACKTEST_DATA_TTL)
-        # Replays and variants share these histories. The engine grows them
-        # after insertion, so reaccount even when a run fails halfway through.
+        # Keep main and variants in the same computation so oversized data
+        # remains available for this request even when it cannot be cached.
+        # Histories are shared, then reaccounted even if the replay fails.
         try:
             result = btr.run_backtest(config, data=daten,
                                       fetch_price_history=md.get_polymarket_price_history_lifetime)
+            payload = apv.backtest_payload(result)
+            payload["data_loaded_at"] = daten.loaded_at.isoformat()[:16] + "Z"
+            payload["data_rows"] = int(len(daten.trades)) if daten.trades is not None else 0
+            if portfolio:
+                payload["trader_portfolio"] = portfolio
+            if with_variants:
+                try:
+                    payload["variants"] = apv.variants_payload(btr.strategy_comparison(config, data=daten))
+                except Exception as exc:
+                    print(f"[warn] strategy comparison: {exc}")
+            return payload
         finally:
             _CACHE.refresh(daten_key, daten)
-        payload = apv.backtest_payload(result)
-        payload["data_loaded_at"] = daten.loaded_at.isoformat()[:16] + "Z"
-        payload["data_rows"] = int(len(daten.trades)) if daten.trades is not None else 0
-        if portfolio:
-            payload["trader_portfolio"] = portfolio
-        return payload
 
     try:
         payload = cached(key, _run, ttl=120.0)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"backtest failed: {_oeffentlich(exc)}")
-    if body.get("variants"):
-        def _variants() -> list[dict[str, Any]]:
-            daten = cached(daten_key, _daten, ttl=BACKTEST_DATA_TTL)
-            return apv.variants_payload(btr.strategy_comparison(config, data=daten))
-
-        try:
-            payload = dict(payload)
-            payload["variants"] = cached(key + "_variants", _variants, ttl=300.0)
-        except Exception as exc:
-            print(f"[warn] strategy comparison: {exc}")
     payload = dict(payload)
     payload["as_of"] = md.now_utc_label()
     return payload
