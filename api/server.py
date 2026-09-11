@@ -41,6 +41,7 @@ Umgebung (alles optional, Voreinstellung = lokale Entwicklung):
                                frischen Eimer; dann 0 setzen und nur den Header lesen,
                                den der eigene Proxy (Caddy) neu schreibt.
     CACHE_MAX_ENTRIES          Obergrenze des Prozess-Caches (512 Eintraege).
+    CACHE_MAX_MB               Budget fuer gespeicherte Cache-Werte (64 MiB).
     RISK_LOG_DIR               Verzeichnis des Flag-Logs des Risk-Screens (app/risk_log.py,
                                Datei flags.jsonl); Voreinstellung data/risk_flags unter dem
                                Repo-Root. Auf Railway ist das Dateisystem fluechtig: das Log
@@ -121,7 +122,6 @@ import tempfile
 import threading
 import time
 import zipfile
-from collections import OrderedDict
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -137,6 +137,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+from api.cache import MemoryCache
 from api.ratelimit import RateLimited, TokenBucketLimiter, client_ip
 from app import api_views as apv
 from app import app_settings as cfg
@@ -205,6 +206,9 @@ def _cors_origin_regex() -> str | None:
 async def _lifespan(_app: FastAPI):
     # Flag-Sampler (RISK_LOG_INTERVAL_MIN), siehe weiter unten; die Funktion
     # ist beim Start laengst definiert.
+    import asyncio
+    stop_cache_reaper = asyncio.Event()
+    cache_reaper = asyncio.create_task(_cache_reaper(stop_cache_reaper))
     start_risk_sampler()
     # Copy daemon in-process (COPY_DAEMON=1), see the paper copy desk section.
     start_copy_daemon()
@@ -213,7 +217,11 @@ async def _lifespan(_app: FastAPI):
     start_entity_scan_worker()
     # Kalte Routen warm halten (ROUTE_WARM_MIN), siehe Route-Waermer.
     start_route_warmer()
-    yield
+    try:
+        yield
+    finally:
+        stop_cache_reaper.set()
+        await cache_reaper
 
 
 app = FastAPI(title="Terminal API", version="0.2", lifespan=_lifespan)
@@ -227,54 +235,28 @@ app.add_middleware(
 
 PUBLISH_DIR = ROOT / "public" / "data"
 
-# Prozess-Cache mit Obergrenze. Die Schluessel enthalten Wallets und
-# Backtest-Parameter, also waechst er sonst mit jedem neuen Besucher; die
-# aeltesten Eintraege fallen zuerst heraus (LRU).
+# TTL expiry and a retained-payload budget prevent one-off wallet/backtest
+# requests from filling the 1 GB production container.
 CACHE_MAX_ENTRIES = max(16, _env_int("CACHE_MAX_ENTRIES", 512))
-_CACHE: OrderedDict[str, tuple[float, Any]] = OrderedDict()
-_CACHE_LOCK = threading.Lock()
-CACHE_TTL = 30.0  # Sekunden (Standard; einzelne Endpoints setzen mehr)
-#: Trades und Aufloesungen eines Backtest-Fensters (je Wallet und Tage).
+CACHE_MAX_MB = max(1, _env_int("CACHE_MAX_MB", 64))
+_CACHE = MemoryCache(CACHE_MAX_ENTRIES, CACHE_MAX_MB * 1024 * 1024)
+CACHE_TTL = 30.0
 BACKTEST_DATA_TTL = 600.0
 
 
-# Eine Sperre je Schluessel: zwei gleichzeitige Anfragen nach demselben
-# Ergebnis (Doppelklick, zwei Tabs, der Variantenlauf direkt nach dem
-# Hauptlauf) rechneten beide den vollen Weg — bei einem Backtest zweimal
-# 30.000 Activity-Zeilen. Die zweite wartet jetzt auf die erste und liest
-# dann aus dem Cache.
-_INFLIGHT: dict[str, threading.Lock] = {}
-
-
 def cached(key: str, fn, *args, ttl: float = CACHE_TTL, **kwargs):
-    now = time.time()
-    with _CACHE_LOCK:
-        hit = _CACHE.get(key)
-        if hit and now - hit[0] < ttl:
-            _CACHE.move_to_end(key)
-            return hit[1]
-        sperre = _INFLIGHT.get(key)
-        if sperre is None:
-            sperre = _INFLIGHT[key] = threading.Lock()
-    with sperre:
-        # Waehrend des Wartens kann die erste Anfrage den Wert abgelegt haben.
-        with _CACHE_LOCK:
-            hit = _CACHE.get(key)
-            if hit and time.time() - hit[0] < ttl:
-                _CACHE.move_to_end(key)
-                return hit[1]
-        # Der Aufruf selbst laeuft ohne die globale Sperre: er wartet oft auf das Netz.
+    return _CACHE.get_or_compute(key, fn, *args, ttl=ttl, **kwargs)
+
+
+async def _cache_reaper(stop):
+    # Also release expired payloads when no visitors return to their keys.
+    import asyncio
+    while not stop.is_set():
+        _CACHE.expire()
         try:
-            value = fn(*args, **kwargs)
-        finally:
-            with _CACHE_LOCK:
-                _INFLIGHT.pop(key, None)
-        with _CACHE_LOCK:
-            _CACHE[key] = (time.time(), value)
-            _CACHE.move_to_end(key)
-            while len(_CACHE) > CACHE_MAX_ENTRIES:
-                _CACHE.popitem(last=False)
-    return value
+            await asyncio.wait_for(stop.wait(), timeout=30)
+        except TimeoutError:
+            pass
 
 
 # --- Rate limiting -----------------------------------------------------------
@@ -548,7 +530,8 @@ def health() -> dict[str, Any]:
     # commit: der Git-Stand, aus dem Railway das Image gebaut hat
     # (RAILWAY_GIT_COMMIT_SHA, leer lokal). smoke-api.yml wartet darauf,
     # dass hier der gerade gepushte Stand steht, bevor es prueft.
-    return {"ok": True, "time": md.now_utc_label(), "commit": os.environ.get("RAILWAY_GIT_COMMIT_SHA", "")}
+    return {"ok": True, "time": md.now_utc_label(),
+            "commit": os.environ.get("RAILWAY_GIT_COMMIT_SHA", ""), "cache": _CACHE.stats()}
 
 
 @app.get("/api/overview")
@@ -2234,8 +2217,7 @@ def copy_write_guard(request: Request) -> None:
 
 
 def _copy_cache_drop() -> None:
-    with _CACHE_LOCK:
-        _CACHE.pop("copy_payload", None)
+    _CACHE.pop("copy_payload", None)
 
 
 def _copy_settings_for_engine():
@@ -2716,7 +2698,8 @@ def backtest(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
         min_follow_notional=max(0.0, float(body.get("min_notional", 0.0))),
         trader_portfolio_value=float(portfolio["total"]) if portfolio else 0.0,
     )
-    key = "bt_" + "_".join(str(v) for v in dataclasses.astuple(config))
+    with_variants = bool(body.get("variants"))
+    key = "bt_" + "_".join(str(v) for v in dataclasses.astuple(config)) + f"_variants_{with_variants}"
     # Die Daten des Fensters (Trades in Zeitscheiben, Aufloesungen) haengen
     # nur an Wallet und Fenster und bleiben zehn Minuten liegen: jede
     # Einstellung danach ist ein Replay in Sekunden statt ein neuer
@@ -2728,30 +2711,31 @@ def backtest(body: dict[str, Any] = Body(...)) -> dict[str, Any]:
 
     def _run() -> dict[str, Any]:
         daten = cached(daten_key, _daten, ttl=BACKTEST_DATA_TTL)
-        # Preisverlaeufe fuer die Bewertungskurve; sie bleiben im
-        # WindowData-Cache, jeder weitere Lauf im Fenster liest sie dort.
-        result = btr.run_backtest(config, data=daten, fetch_price_history=md.get_polymarket_price_history_lifetime)
-        payload = apv.backtest_payload(result)
-        payload["data_loaded_at"] = daten.loaded_at.isoformat()[:16] + "Z"
-        payload["data_rows"] = int(len(daten.trades)) if daten.trades is not None else 0
-        if portfolio:
-            payload["trader_portfolio"] = portfolio
-        return payload
+        # Keep main and variants in the same computation so oversized data
+        # remains available for this request even when it cannot be cached.
+        # Histories are shared, then reaccounted even if the replay fails.
+        try:
+            result = btr.run_backtest(config, data=daten,
+                                      fetch_price_history=md.get_polymarket_price_history_lifetime)
+            payload = apv.backtest_payload(result)
+            payload["data_loaded_at"] = daten.loaded_at.isoformat()[:16] + "Z"
+            payload["data_rows"] = int(len(daten.trades)) if daten.trades is not None else 0
+            if portfolio:
+                payload["trader_portfolio"] = portfolio
+            if with_variants:
+                try:
+                    payload["variants"] = apv.variants_payload(btr.strategy_comparison(config, data=daten))
+                except Exception as exc:
+                    print(f"[warn] strategy comparison: {exc}")
+            return payload
+        finally:
+            _CACHE.refresh(daten_key, daten)
 
     try:
         payload = cached(key, _run, ttl=120.0)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"backtest failed: {_oeffentlich(exc)}")
-    if body.get("variants"):
-        def _variants() -> list[dict[str, Any]]:
-            daten = cached(daten_key, _daten, ttl=BACKTEST_DATA_TTL)
-            return apv.variants_payload(btr.strategy_comparison(config, data=daten))
-
-        try:
-            payload = dict(payload)
-            payload["variants"] = cached(key + "_variants", _variants, ttl=300.0)
-        except Exception as exc:
-            print(f"[warn] strategy comparison: {exc}")
+    payload = dict(payload)
     payload["as_of"] = md.now_utc_label()
     return payload
 

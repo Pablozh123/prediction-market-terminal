@@ -31,6 +31,10 @@ jobs:
             echo "::error::COPY_ADMIN_TOKEN is not set, nothing was backed up"
             exit 1
           fi
+          if [ -z "$BACKUP_PASSPHRASE" ]; then
+            echo "::error::BACKUP_PASSPHRASE is required; refusing an unencrypted public artifact"
+            exit 1
+          fi
           code=$(curl -sS -o backup.zip -w "%{http_code}" --max-time 300 \
             -H "X-Admin-Token: $COPY_ADMIN_TOKEN" "$BACKUP_URL")
           if [ "$code" != "200" ]; then
@@ -47,19 +51,15 @@ jobs:
           sys.exit(1 if bad or "manifest.json" not in names else 0)
           PY
           stamp=$(date -u +%Y%m%d-%H%M)
-          if [ -n "$BACKUP_PASSPHRASE" ]; then
-            gpg --batch --yes --symmetric --cipher-algo AES256 \
-              --passphrase "$BACKUP_PASSPHRASE" -o "volume-$stamp.zip.gpg" backup.zip
-            rm backup.zip
-          else
-            echo "::warning::BACKUP_PASSPHRASE is not set, the artifact is stored unencrypted"
-            mv backup.zip "volume-$stamp.zip"
-          fi
+          printf '%s' "$BACKUP_PASSPHRASE" | gpg --batch --yes --pinentry-mode loopback \
+            --symmetric --cipher-algo AES256 --passphrase-fd 0 \
+            -o "volume-$stamp.zip.gpg" backup.zip
+          rm backup.zip
           ls -l volume-*
 
       - uses: actions/upload-artifact@v4
         with:
           name: volume-backup-${{ github.run_id }}
-          path: volume-*
+          path: volume-*.zip.gpg
           retention-days: 90
           if-no-files-found: error

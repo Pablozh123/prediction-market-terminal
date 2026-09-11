@@ -41,23 +41,10 @@ jobs:
       - name: Compare the live commit with main
         id: live
         run: |
-          want=$(git rev-parse HEAD)
-          got=$(curl -s --max-time 15 "$API_BASE/api/health" | python3 -c 'import json,sys
-          try:
-              print(json.load(sys.stdin).get("commit") or "")
-          except Exception:
-              print("")' || true)
-          age=$(( ( $(date +%s) - $(git log -1 --format=%ct HEAD) ) / 60 ))
-          echo "main: $want ($age min old); live: ${got:-unknown}"
-          if [ "$got" = "$want" ]; then
-            echo "current=true" >> "$GITHUB_OUTPUT"
-          elif [ "$age" -lt "$GRACE_MINUTES" ]; then
-            echo "::notice::main is $age min old and not live yet; the deploy is in flight, no smoke this run"
-            echo "current=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "::error::the API serves ${got:-an image without commit} while main has been $want for $age min; check the Railway deployments (a skipped deploy stays skipped)"
-            exit 1
-          fi
+          python scripts/check_live_deployment.py "$API_BASE" \
+            --commit "$(git rev-parse HEAD)" \
+            --commit-time "$(git log -1 --format=%ct HEAD)" \
+            --grace-minutes "$GRACE_MINUTES"
 
       - name: Smoke the live API
         if: steps.live.outputs.current == 'true'
