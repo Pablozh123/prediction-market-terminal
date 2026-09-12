@@ -1,20 +1,20 @@
 {
  "hinweis": "Descriptive post-run review of our own small-stake live runs of the mentions bot. The dollar headlines are the wallet's own numbers, read from the public Polymarket Data API for this address; runs, timing and per-bet detail are reconstructed read-only from the run logs, resolutions from public Gamma data. No trading recommendation, no return forecast.",
- "stand_utc": "2026-09-11T04:33:57+00:00",
+ "stand_utc": "2026-09-12T04:35:17+00:00",
  "kennzeichnung": "live/descriptive",
  "aggregat": {
-  "n_runs": 24,
-  "n_wetten": 27,
-  "gewonnen": 25,
+  "n_runs": 26,
+  "n_wetten": 28,
+  "gewonnen": 26,
   "verloren": 2,
   "offen": 0,
-  "einsatz_usd": 1172.23,
-  "aufgeloester_einsatz_usd": 1172.23,
-  "realisierter_payout_usd": 1460.9,
-  "realisierter_pnl_usd": 288.67,
+  "einsatz_usd": 1175.98,
+  "aufgeloester_einsatz_usd": 1175.98,
+  "realisierter_payout_usd": 1465.07,
+  "realisierter_pnl_usd": 289.09,
   "roi_realisiert_pct": 24.6,
   "offener_einsatz_usd": 0.0,
-  "sichtbare_tiefe_usd": 1515.04,
+  "sichtbare_tiefe_usd": 1518.79,
   "einsatz_zu_sichtbarer_tiefe_pct": 77.4,
   "wallet_netto_usd": 175.09,
   "wallet_kaeufe_usd": 492.51,
@@ -2722,6 +2722,143 @@
    "drop_erkannt_utc": "2026-08-29T01:25:40Z",
    "erkennungslatenz_s": null,
    "erste_entscheidung_s": 555.0,
+   "erster_fill_s": null,
+   "n_maerkte": 10,
+   "n_entscheidungen": 2,
+   "zaehler": {
+    "no_action": 2
+   },
+   "eingepreist": 1,
+   "einsatz_usd": 0.0,
+   "realisierter_pnl_usd": null,
+   "wetten": [],
+   "verpasste_chancen": [],
+   "race": null,
+   "repricing": [],
+   "sichtbare_tiefe_usd": null,
+   "einsatz_zu_sichtbarer_tiefe_pct": null,
+   "wallet_netto_usd": null,
+   "wallet_kaeufe_usd": null,
+   "wallet_verkaeufe_usd": null,
+   "wallet_einloesungen_usd": null
+  },
+  {
+   "profil": "allin_september11",
+   "event_slug": "what-will-be-said-on-the-next-all-in-podcast-september-11-20260908",
+   "episode_titel": "ALLIN-E289 (URL-Prober)",
+   "modus": "LIVE",
+   "drop_quelle": "mp3_url_prober",
+   "pubdate_utc": null,
+   "drop_erkannt_utc": "2026-09-12T00:16:35Z",
+   "erkennungslatenz_s": null,
+   "erste_entscheidung_s": 92.0,
+   "erster_fill_s": 92.0,
+   "n_maerkte": 10,
+   "n_entscheidungen": 14,
+   "zaehler": {
+    "live_fill": 1,
+    "no_action": 13
+   },
+   "eingepreist": 7,
+   "einsatz_usd": 3.75,
+   "realisierter_pnl_usd": 0.42,
+   "wetten": [
+    {
+     "frage": "Will \"AI\" be said 50+ times during the next episode of the All-In Podcast?",
+     "seite": "YES",
+     "entscheidungs_preis": 0.9,
+     "avg_fill_preis": 0.8993,
+     "shares": 4.17,
+     "einsatz_usd": 3.75,
+     "sweep_clips": 1,
+     "fill_status": "live_fill",
+     "fill_ts_utc": "2026-09-12T00:18:07Z",
+     "aufgeloest": true,
+     "gewonnen": true,
+     "payout_usd": 4.17,
+     "pnl_usd": 0.42,
+     "roi_pct": 11.2,
+     "aktueller_yes_preis": null,
+     "tape_rang": 1,
+     "fremde_davor": 0,
+     "fremdvolumen_davor_usd": 0.0,
+     "verfolger_s": 416.0,
+     "preis_nach_fill": {
+      "0": null,
+      "30": null,
+      "60": null,
+      "120": null,
+      "300": null,
+      "900": 0.95
+     },
+     "tiefe_usd_bis_deckel": 3.75,
+     "fill_quelle": "post_antwort",
+     "fill_verifiziert": true,
+     "wallet_shares": 4.17,
+     "wallet_einsatz_usd": 3.75,
+     "wallet_avg_fill_preis": 0.8993,
+     "wallet_pnl_usd": 0.42
+    }
+   ],
+   "verpasste_chancen": [],
+   "race": {
+    "quelle": "data-api.polymarket.com/trades (oeffentlich, read-only)",
+    "wetten_mit_tape": 1,
+    "first_on": 1,
+    "fremde_trades_vor_uns": 0,
+    "median_verfolger_s": 416.0
+   },
+   "repricing": [
+    {
+     "frage": "Will \"AI\" be said 50+ times during the next episode of the All-In Podcast?",
+     "seite": "YES",
+     "time_to_priced_s": 508.0,
+     "fill_nach_s": 92.0,
+     "punkte": [
+      [
+       508.0,
+       0.9663262509
+      ],
+      [
+       904.0,
+       0.95
+      ],
+      [
+       1411.0,
+       0.96
+      ],
+      [
+       1832.0,
+       0.96
+      ],
+      [
+       2335.0,
+       0.97
+      ],
+      [
+       7252.0,
+       0.9987142857
+      ]
+     ]
+    }
+   ],
+   "sichtbare_tiefe_usd": 3.75,
+   "einsatz_zu_sichtbarer_tiefe_pct": 100.0,
+   "wallet_netto_usd": null,
+   "wallet_kaeufe_usd": null,
+   "wallet_verkaeufe_usd": null,
+   "wallet_einloesungen_usd": null
+  },
+  {
+   "profil": "allin_september4",
+   "event_slug": "what-will-be-said-on-the-next-all-in-podcast-september-4-20260831",
+   "episode_titel": "ALLIN-E289 (URL-Prober)",
+   "modus": "LIVE",
+   "drop_quelle": "mp3_url_prober",
+   "pubdate_utc": null,
+   "drop_erkannt_utc": "2026-09-12T00:16:43Z",
+   "erkennungslatenz_s": null,
+   "erste_entscheidung_s": 184.0,
    "erster_fill_s": null,
    "n_maerkte": 10,
    "n_entscheidungen": 2,
