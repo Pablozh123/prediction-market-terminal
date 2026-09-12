@@ -313,11 +313,18 @@ export function linien(k) {
   // verankert, damit die letzte nicht zur Haelfte aus dem SVG haengt.
   let xLabels = '';
   const schritt = Math.max(1, Math.ceil(k.x.length / 6));
-  k.x.forEach((label, i) => {
-    if (i % schritt !== 0 && i !== k.x.length - 1) return;
+  // Mit xWerte liegen die Beschriftungen auf dem Wert, nicht auf dem Index:
+  // die vorletzte kann dann der letzten auf die Fuesse treten. Was der
+  // letzten zu nahe kommt (unter 84 Einheiten, gut zehn Zeichen), faellt
+  // weg; die letzte bleibt, weil sie das Ende der Reihe benennt.
+  const kandidaten = k.x.map((label, i) => i).filter((i) => i % schritt === 0 || i === k.x.length - 1);
+  const ersteX = x(0);
+  const letzteX = x(k.x.length - 1);
+  kandidaten.forEach((i) => {
+    if (i !== 0 && i !== k.x.length - 1 && (letzteX - x(i) < 84 || x(i) - ersteX < 84)) return;
     const anker = i === 0 ? 'start' : i === k.x.length - 1 ? 'end' : 'middle';
     xLabels += '<text x="' + x(i).toFixed(1) + '" y="' + (H - 10) + '" style="fill:var(--ink-3)" font-size="11" '
-      + 'font-family="IBM Plex Mono, monospace" text-anchor="' + anker + '">' + esc(String(label)) + '</text>';
+      + 'font-family="IBM Plex Mono, monospace" text-anchor="' + anker + '">' + esc(String(k.x[i])) + '</text>';
   });
   let pfade = '';
   let legende = '';
@@ -813,10 +820,13 @@ export function punktwolke(k) {
   const log = !!k.yLog;
   // Log braucht einen positiven Boden; bei y = 0 waere die Achse unendlich.
   const roh = ys.filter((v) => (log ? v > 0 : true));
-  let ymin = log ? Math.min(...roh) / 1.6 : 0;
-  let ymax = Math.max(...ys, 1);
+  // Linear beginnt die Achse bei null, oder darunter, wenn es negative
+  // Werte gibt: ein Sentiment von -0.4 auf die Nulllinie geklemmt saehe
+  // aus wie neutral. Nur das Log-Format braucht einen positiven Boden.
+  let ymin = log ? Math.min(...roh) / 1.6 : Math.min(0, ...ys);
+  let ymax = Math.max(...ys, log ? 1 : 0);
   if (log) { ymin = Math.max(1, Math.pow(10, Math.floor(Math.log10(ymin)))); ymax *= 1.25; }
-  else { ymax *= 1.1; }
+  else { ymax = ymax > 0 ? ymax * 1.1 : 1; ymin = ymin < 0 ? ymin * 1.1 : 0; }
   const y = log
     ? (v) => BOT - ((Math.log10(Math.max(ymin, v)) - Math.log10(ymin)) / (Math.log10(ymax) - Math.log10(ymin))) * (BOT - TOP)
     : (v) => BOT - ((Math.max(ymin, Math.min(ymax, v)) - ymin) / (ymax - ymin)) * (BOT - TOP);
