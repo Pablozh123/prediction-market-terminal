@@ -1,6 +1,6 @@
 {
  "hinweis": "Every trade and redemption of the trading wallet on Polymarket, grouped by event, rebuilt read-only from the public Polymarket Data API (/activity, /positions, /closed-positions in both sort directions). Anyone can rerun scripts/wallet_ledger.py for this address and get the same file. Type: bot = market and side appear in a runs.json run log; pilot = one of the pre-registered pilot trades in pilot.json; discretionary = placed by hand, in no run log. Dollar figures are sums over the API rows; realised PnL per market is the API's realizedPnl and can differ from the cash flow of an event. Where that field contradicts the settlement price and the redemption the wallet received, the wallet's own payments decide (pnl_art says so per market). realisierter_pnl_api_usd covers the closed-positions feed only; resolved positions that were never redeemed sit in /positions and are exclusively losses, so abgerechneter_pnl_usd (realised + worthless) is the settled total. Deposits are not in the Data API. A record of process, not a return claim.",
- "stand_utc": "2026-09-12T04:43:09+00:00",
+ "stand_utc": "2026-09-12T15:36:56+00:00",
  "wallet": "0x29afe1bf37700768a640a08f1b35dad5f202f88d",
  "kennzeichnung": "wallet/public-api",
  "regeln": {
@@ -10,12 +10,12 @@
  },
  "quellen": {
   "data_api": "https://data-api.polymarket.com",
-  "activity_rows": 129,
-  "positions_rows": 10,
+  "activity_rows": 130,
+  "positions_rows": 11,
   "closed_positions_desc_rows": 46,
   "closed_positions_asc_rows": 46,
-  "trades_rows": 80,
-  "gamma_event_titles": 31,
+  "trades_rows": 81,
+  "gamma_event_titles": 32,
   "gamma_pilot_condition_ids": 20
  },
  "abgleich": {
@@ -28,20 +28,20 @@
  "aggregat": {
   "einzahlungen_usd": 300.0,
   "einzahlungen_hinweis": "declared by the wallet owner; verifiable on-chain via the wallet's USDC transfers, not derivable from the public Data API",
-  "kaeufe_usd": 1528.29,
+  "kaeufe_usd": 1632.24,
   "verkaeufe_usd": 279.33,
   "einloesungen_usd": 1679.12,
   "rueckfluss_usd": 1958.46,
-  "netto_cashflow_usd": 430.16,
+  "netto_cashflow_usd": 326.21,
   "realisierter_pnl_api_usd": 545.96,
   "wertlos_pnl_usd": -113.86,
   "abgerechneter_pnl_usd": 432.1,
-  "offener_pnl_usd": 0.0,
+  "offener_pnl_usd": -2.38,
   "positionen_kassenkorrigiert": 6,
-  "n_events": 31,
-  "n_maerkte": 56,
-  "n_trades": 86,
-  "n_kaeufe": 79,
+  "n_events": 32,
+  "n_maerkte": 57,
+  "n_trades": 87,
+  "n_kaeufe": 80,
   "n_verkaeufe": 7,
   "n_einloesungen": 43,
   "n_activity_ignoriert": 0,
@@ -50,18 +50,18 @@
    "lost": 2,
    "flat": 1,
    "worthless": 10,
-   "open": 0,
+   "open": 1,
    "unknown": 0
   },
   "positionen_gewonnen": 43,
   "positionen_verloren": 12,
   "positionen_wertlos": 10,
-  "positionen_offen": 0,
+  "positionen_offen": 1,
   "positionen_flat": 1,
   "positionen_ohne_activity": 0,
   "closed_positions_capped": false,
   "erste_aktivitaet_utc": "2026-07-03T10:32:34Z",
-  "letzte_aktivitaet_utc": "2026-09-12T02:31:37Z",
+  "letzte_aktivitaet_utc": "2026-09-12T14:18:49Z",
   "nach_typ": {
    "bot": {
     "events": 9,
@@ -70,10 +70,10 @@
     "netto_cash_usd": 418.17
    },
    "discretionary": {
-    "events": 4,
-    "maerkte": 11,
-    "einsatz_usd": 385.35,
-    "netto_cash_usd": 23.1
+    "events": 5,
+    "maerkte": 12,
+    "einsatz_usd": 489.3,
+    "netto_cash_usd": -80.85
    },
    "pilot": {
     "events": 18,
@@ -84,6 +84,62 @@
   }
  },
  "events": [
+  {
+   "event_slug": "fed-decision-in-september-762",
+   "titel": "Fed Decision in September?",
+   "titel_quelle": "gamma",
+   "url": "https://polymarket.com/event/fed-decision-in-september-762",
+   "typ": "discretionary",
+   "typ_mix": "",
+   "run_profil": "",
+   "run_im_log": false,
+   "von_utc": "2026-09-12T14:18:49Z",
+   "bis_utc": "2026-09-12T14:18:49Z",
+   "n_maerkte": 1,
+   "n_trades": 1,
+   "n_kaeufe": 1,
+   "n_verkaeufe": 0,
+   "n_einloesungen": 0,
+   "einsatz_usd": 103.95,
+   "verkaeufe_usd": 0.0,
+   "einloesungen_usd": 0.0,
+   "netto_cash_usd": -103.95,
+   "pnl_usd": -2.38,
+   "pnl_offen_usd": -2.38,
+   "status": {
+    "won": 0,
+    "lost": 0,
+    "flat": 0,
+    "worthless": 0,
+    "open": 1,
+    "unknown": 0
+   },
+   "status_text": "1 open",
+   "notes": [],
+   "maerkte": [
+    {
+     "titel": "Will there be no change in Fed interest rates after the September 2026 meeting?",
+     "seite": "Yes",
+     "condition_id": "0xa3b36b2d6104d34af4e6c6215fc818e43352e78a748fbfb0b85e3a35f71dec9a",
+     "slug": "will-there-be-no-change-in-fed-interest-rates-after-the-september-2026-meeting-615",
+     "zuordnung": "discretionary",
+     "run_profil": "",
+     "avg_preis": 0.2183,
+     "shares": 476.19,
+     "einsatz_usd": 103.95,
+     "verkauft_usd": 0.0,
+     "eingeloest_usd": 0.0,
+     "netto_cash_usd": -103.95,
+     "pnl_usd": -2.38,
+     "pnl_art": "unrealised (API cashPnl at curPrice)",
+     "status": "open",
+     "n_trades": 1,
+     "n_einloesungen": 0,
+     "erster_trade_utc": "2026-09-12T14:18:49Z",
+     "letzter_trade_utc": "2026-09-12T14:18:49Z"
+    }
+   ]
+  },
   {
    "event_slug": "what-will-be-said-on-the-next-all-in-podcast-september-11-20260908",
    "titel": "What will be said on the next All-In Podcast? (September 11)",
