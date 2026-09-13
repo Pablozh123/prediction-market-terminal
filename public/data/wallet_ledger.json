@@ -1,6 +1,6 @@
 {
  "hinweis": "Every trade and redemption of the trading wallet on Polymarket, grouped by event, rebuilt read-only from the public Polymarket Data API (/activity, /positions, /closed-positions in both sort directions). Anyone can rerun scripts/wallet_ledger.py for this address and get the same file. Type: bot = market and side appear in a runs.json run log; pilot = one of the pre-registered pilot trades in pilot.json; discretionary = placed by hand, in no run log. Dollar figures are sums over the API rows; realised PnL per market is the API's realizedPnl and can differ from the cash flow of an event. Where that field contradicts the settlement price and the redemption the wallet received, the wallet's own payments decide (pnl_art says so per market). realisierter_pnl_api_usd covers the closed-positions feed only; resolved positions that were never redeemed sit in /positions and are exclusively losses, so abgerechneter_pnl_usd (realised + worthless) is the settled total. Deposits are not in the Data API. A record of process, not a return claim.",
- "stand_utc": "2026-09-13T04:56:37+00:00",
+ "stand_utc": "2026-09-13T12:00:56+00:00",
  "wallet": "0x29afe1bf37700768a640a08f1b35dad5f202f88d",
  "kennzeichnung": "wallet/public-api",
  "regeln": {
@@ -36,7 +36,7 @@
   "realisierter_pnl_api_usd": 545.96,
   "wertlos_pnl_usd": -113.86,
   "abgerechneter_pnl_usd": 432.1,
-  "offener_pnl_usd": -2.38,
+  "offener_pnl_usd": 2.38,
   "positionen_kassenkorrigiert": 6,
   "n_events": 32,
   "n_maerkte": 57,
@@ -104,8 +104,8 @@
    "verkaeufe_usd": 0.0,
    "einloesungen_usd": 0.0,
    "netto_cash_usd": -103.95,
-   "pnl_usd": -2.38,
-   "pnl_offen_usd": -2.38,
+   "pnl_usd": 2.38,
+   "pnl_offen_usd": 2.38,
    "status": {
     "won": 0,
     "lost": 0,
@@ -130,7 +130,7 @@
      "verkauft_usd": 0.0,
      "eingeloest_usd": 0.0,
      "netto_cash_usd": -103.95,
-     "pnl_usd": -2.38,
+     "pnl_usd": 2.38,
      "pnl_art": "unrealised (API cashPnl at curPrice)",
      "status": "open",
      "n_trades": 1,
