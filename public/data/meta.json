@@ -1,9 +1,9 @@
 {
  "hinweis": "Run timestamp, backend mode, and principles of the daily analysis run.",
- "stand_utc": "2026-09-12T04:30:19+00:00",
+ "stand_utc": "2026-09-13T04:30:08+00:00",
  "backend": "mock",
  "schritte": {
-  "collector": "ok (samples=2/2, alerts=75, baseline=diagnostic_scores_available)",
+  "collector": "ok (samples=2/2, alerts=76, baseline=diagnostic_scores_available)",
   "monitor_refresh": "ok (queue_rows=44)",
   "review_queue": "ok (backend=mock, cases=44)",
   "category_efficiency_snapshot": "ok",
