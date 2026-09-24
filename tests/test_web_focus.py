@@ -55,7 +55,7 @@ class ThemeToggleFocusTest(unittest.TestCase):
         self.assertIn("ae.dataset.key", render)
         kopf = render.split("this._focus = { key: ae.dataset.key")[0]
         self.assertNotIn("INPUT", kopf)
-        self.assertIn("document.querySelector('[data-key=\"' + this._focus.key + '\"]')", render)
+        self.assertIn("document.querySelector('[data-key=\"' + CSS.escape(this._focus.key) + '\"]')", render)
 
     def test_die_wiederherstellung_setzt_keinen_cursor_auf_ein_div(self) -> None:
         render = _methode(_quelle(), "render")

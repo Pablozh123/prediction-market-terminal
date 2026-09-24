@@ -374,9 +374,11 @@ export function renderSearch(T) {
   }
 
   return '<div ' + T.act(() => T.setState({ searchOpen: false }), { plain: true }) + ' data-bg style="position:fixed; inset:0; background:var(--scrim); display:flex; align-items:flex-start; justify-content:center; padding-top:14vh; z-index:50">'
-    + '<div data-stop role="dialog" aria-modal="true" aria-label="Search markets, wallets and categories" style="width:620px; background:var(--panel); border:1px solid var(--line-1); border-radius:14px; overflow:hidden; box-shadow:0 30px 80px var(--shadow-60)">'
-    + '<input value="' + esc(s.searchQuery) + '" ' + T.inp((e) => { T.sucheRemote(e.target.value); T.setState({ searchQuery: e.target.value }); }, 'searchQuery') + ' placeholder="Search pages, studies, markets, wallets, categories — or paste a 0x… address" style="width:100%; box-sizing:border-box; background:transparent; border:none; border-bottom:1px solid var(--line-edge); padding:var(--sp-5) var(--sp-6); ' + M + '; font-size:var(--t-body); color:var(--text)" autofocus />'
-    + '<div style="max-height:380px; overflow-y:auto">'
+    + '<div data-stop role="dialog" aria-modal="true" aria-label="Search the terminal" class="search-dialog" style="width:620px; max-width:calc(100vw - 32px); background:var(--panel); border:1px solid var(--line-1); border-radius:var(--r-panel); overflow:hidden; box-shadow:0 30px 80px var(--shadow-60)">'
+    + '<div class="search-heading"><div><label for="terminal-search-query">Search the terminal</label><p>Pages, studies, markets, categories or a wallet address.</p></div>'
+    + '<button type="button" ' + T.act(() => T.setState({ searchOpen: false }), { role: null }) + ' data-key="search-close" aria-label="Close search" class="ux-button">Esc</button></div>'
+    + '<input id="terminal-search-query" aria-label="Search the terminal" value="' + esc(s.searchQuery) + '" ' + T.inp((e) => { T.sucheRemote(e.target.value); T.setState({ searchQuery: e.target.value }); }, 'searchQuery') + ' placeholder="Type to search or paste 0x…" style="width:100%; box-sizing:border-box; background:transparent; border:none; border-bottom:1px solid var(--line-edge); padding:var(--sp-5) var(--sp-6); ' + M + '; font-size:var(--t-body); color:var(--text)" autofocus />'
+    + '<div class="search-results">'
     // The first row is marked (data-result) and lightly highlighted: Enter
     // opens it (app.js keydown), so the palette works without the mouse.
     + results.map((r, i) =>

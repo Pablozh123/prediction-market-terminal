@@ -1,0 +1,13 @@
+.env*
+data/
+public/data/
+.venv*/
+venv/
+.git*/
+outputs/
+artifacts/
+reports/
+notebooks/
+graphify-out/
+node_modules/
+dist/

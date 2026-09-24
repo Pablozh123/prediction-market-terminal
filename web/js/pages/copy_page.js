@@ -11,6 +11,8 @@ import { esc, num, leerZeile, seriesDomain, seriesGrid } from '../util.js';
 import { kurzGeld } from '../charts.js';
 import { caveatZeile } from '../claims.js';
 import { MONO as M, KARTE, LABEL_BLOCK } from '../ui.js';
+import { positionComparison } from './copy_positions.js';
+import { intelligencePanel, signalsPanel, signalsBanner } from './copy_intelligence.js';
 
 const ACCENT = 'var(--accent)';
 const POS = 'var(--pos)'; // gain green, always paired with RED
@@ -24,6 +26,7 @@ const BTN_WARN = BTN + '; color:' + AMBER + '; border:1px solid rgba(var(--warn-
 const BTN_OFF = BTN + '; color:var(--ink-4); border:1px solid var(--line-2); cursor:default';
 
 export const COPY_TABS = [
+  ['intelligence', 'Wallet research'], ['signals', 'Shared markets'],
   ['traders', 'Traders'], ['orders', 'Orders'], ['positions', 'Positions'], ['perf', 'Performance'],
   ['fidelity', 'Copy fidelity'], ['cash', 'Cash events'], ['settings', 'Settings']
 ];
@@ -97,8 +100,8 @@ function textInput(T, key, value, placeholder, onInput, extraStyle) {
 }
 
 function button(T, label, onClick, style, title) {
-  if (!onClick) return '<div style="' + (style || BTN_OFF) + '"' + (title ? ' title="' + esc(title) + '"' : '') + '>' + esc(label) + '</div>';
-  return '<div ' + T.act(onClick) + ' style="' + (style || BTN_GHOST) + '"' + (title ? ' title="' + esc(title) + '"' : '') + '>' + esc(label) + '</div>';
+  if (!onClick) return '<div class="ui-button" role="button" aria-disabled="true" style="' + (style || BTN_OFF) + '"' + (title ? ' title="' + esc(title) + '"' : '') + '>' + esc(label) + '</div>';
+  return '<div ' + T.act(onClick) + ' class="ui-button' + (style === BTN_PRIMARY ? ' ui-button-primary' : '') + '" style="' + (style || BTN_GHOST) + '"' + (title ? ' title="' + esc(title) + '"' : '') + '>' + esc(label) + '</div>';
 }
 
 // The empty state names the source; it never shows a number.
@@ -153,7 +156,7 @@ function traderRow(T, t, s, canWrite, busy) {
         + ' ' + button(T, topping ? 'Close' : 'Top up', () => T.setState({ copyTopup: topping ? null : { wallet: t.wallet, amount: '500' }, copyEdit: null }), BTN_GHOST, 'add paper cash to this sub-account (counts as put in, not profit)');
   const grid = 'display:grid; grid-template-columns:minmax(180px,1.6fr) 74px 90px 90px 110px 96px 70px 96px 92px minmax(200px,1.4fr); gap:var(--sp-4); align-items:center; padding:var(--sp-4) var(--sp-5); border-bottom:1px solid var(--line-3)';
   let html = '<div role="row" style="' + grid + '">'
-    + '<div role="cell"><div style="font-size:var(--t-body); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + esc(t.label || shortW(t.wallet)) + '</div>'
+    + '<div role="cell"><div style="font-size:var(--t-body); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">' + button(T, t.label || shortW(t.wallet), () => T.setState({ copyTrader: t.wallet, copyTab: 'positions' }), BTN_GHOST, 'Open source and copied positions') + '</div>'
     + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:var(--sp-1); display:flex; gap:var(--sp-3); align-items:center; flex-wrap:wrap">'
     + '<span ' + T.act(() => T.analyseWallet(t.wallet)) + ' class="hv-accent" title="open the wallet page" style="cursor:pointer; text-decoration:underline dotted">' + esc(shortW(t.wallet)) + '</span>'
     + (t.profile_url ? '<a href="' + esc(t.profile_url) + '" target="_blank" rel="noopener" style="color:' + BLUE + '">Polymarket ↗</a>' : '')
@@ -390,6 +393,7 @@ function settingsTab(T, s, live, canWrite) {
       ? pctField('copy_scale', '% OF HIS TRADE', 'Every order is this share of what he moved. 1 = his $1,000 becomes $10 here, regardless of either account size.')
       : '<div style="font-size:var(--t-small); color:var(--ink-4); line-height:var(--lh-snug); grid-column:span 2">Every order is booked at his notional. Only sensible when your sub-account is about the size of his — otherwise the order cap and the cash throttle below clip almost every trade and the copy stops resembling him.</div>';
   return '<div style="padding:var(--sp-5) var(--sp-6)">'
+    + boolField('realistic_copy_enabled', '1:1 ORDER-BOOK RESEARCH', 'Equal shares, visible depth only. Additional paper capital is recorded as contributions. Overrides sizing, cash caps and initial paper-book seeding below. No live orders. Partial fills are not retried.')
     + '<div style="' + KARTE + '; padding:var(--sp-5) var(--sp-6)">'
     + '<div style="display:flex; justify-content:space-between; align-items:baseline; gap:var(--sp-4); flex-wrap:wrap; margin-bottom:var(--sp-4)">'
     + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-4)">SIZING MODE — THE SAME FOR EVERY TRADER</div>'
@@ -404,7 +408,7 @@ function settingsTab(T, s, live, canWrite) {
     + '<div style="' + grid + '">'
     + modeFields
     + '</div>'
-    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3); margin:var(--sp-6) 0 var(--sp-4)">LIMITS AND CASH — APPLY IN EVERY MODE</div>'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3); margin:var(--sp-6) 0 var(--sp-4)">LIMITS AND CASH · LEGACY MODES ONLY</div>'
     + '<div style="' + grid + '">'
     + pctField('max_order_equity_pct', 'MAX PER ORDER · % OF YOUR EQUITY', 'Cap per order. 5 = at most 5 % of the sub-account in one order.')
     + pctField('cash_throttle_pct', 'CASH THROTTLE · % OF REMAINING CASH', 'One order may spend at most this share of the cash left; 25 keeps a drought from starving later trades. 0 = off.')
@@ -428,6 +432,24 @@ function settingsTab(T, s, live, canWrite) {
 export function renderCopy(T) {
   const s = T.state;
   const live = T.liveData.copy;
+  if (live && live.intelligence && ['intelligence', 'signals'].includes(s.copyTab)) {
+    return '<div style="padding-top:var(--sp-5)">'
+      + '<h1 style="font-size:var(--t-head); margin:0 var(--sp-6)">Copy desk · wallet research</h1>'
+      + '<div style="display:flex; gap:var(--sp-3); padding:var(--sp-5) var(--sp-6) 0; flex-wrap:wrap">'
+      + COPY_TABS.map(o => T.tab(o[1], s.copyTab === o[0], {copyTab:o[0]})).join('') + '</div>'
+      + signalsBanner(T, live)
+      + (s.copyTab === 'signals' ? signalsPanel(live) : intelligencePanel(live, T)) + '</div>';
+  }
+  if (s.copyTab === 'positions' && live && live.position_comparison) {
+    return '<div style="padding-top:var(--sp-5)"><h1 style="font-size:var(--t-head); margin:0 var(--sp-6)">Copy desk · positions</h1>'
+      + '<div style="display:flex; gap:var(--sp-3); padding:var(--sp-5) var(--sp-6); flex-wrap:wrap">'
+      + COPY_TABS.map(o => T.tab(o[1], s.copyTab === o[0], {copyTab:o[0]})).join('') + '</div>'
+      + '<div style="display:flex; gap:var(--sp-3); padding:0 var(--sp-6); flex-wrap:wrap">'
+      + T.tab('All traders', s.copyTrader === 'all', {copyTrader:'all'})
+      + (live.traders || []).map(t => T.tab(t.label || shortW(t.wallet), s.copyTrader === t.wallet, {copyTrader:t.wallet})).join('') + '</div>'
+      + positionComparison(live, s.copyTrader || 'all', s.copyPositionLimit || 100)
+      + button(T, 'Show 100 more positions', () => T.setState({copyPositionLimit: (s.copyPositionLimit || 100) + 100}), BTN_GHOST) + '</div>';
+  }
   const st = live && live.status ? live.status : null;
   const kp = live && live.kpis ? live.kpis : null;
   if (!st || !kp) return ohneDesk(live);
@@ -477,8 +499,12 @@ export function renderCopy(T) {
     : '';
 
   let body = '';
-  if (tab === 'traders') {
-    body = tradersTab(T, s, live, canWrite);
+  if (tab === 'intelligence') {
+    body = intelligencePanel(live, T);
+  } else if (tab === 'signals') {
+    body = signalsPanel(live);
+  } else if (tab === 'traders') {
+    body = (live.settings && live.settings.realistic_copy_enabled ? '<p style="padding:var(--sp-4) var(--sp-6); color:var(--accent)">1:1 order-book research active · equal shares · capital funded as needed · paper only</p>' : '') + tradersTab(T, s, live, canWrite);
   } else if (tab === 'settings') {
     body = settingsTab(T, s, live, canWrite);
   } else if (tab === 'orders') {
@@ -541,21 +567,7 @@ export function renderCopy(T) {
       }).join('')
       + '</div></div>';
   } else if (tab === 'positions') {
-    const grid = 'display:grid; grid-template-columns:120px 1fr 62px 78px 78px 78px 88px 100px; gap:var(--sp-4)';
-    body = '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin:var(--sp-5) var(--sp-6); overflow:hidden">'
-      + '<div style="' + grid + '; padding:var(--sp-3) var(--sp-5); background:var(--panel); border-bottom:1px solid var(--line-2); ' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-3)">'
-      + '<div>TRADER</div><div>MARKET</div><div style="text-align:right">SIDE</div><div style="text-align:right">SHARES</div><div style="text-align:right">AVG FILL</div><div style="text-align:right">MARK</div><div style="text-align:right">VALUE</div><div style="text-align:right">UNREALISED</div></div>'
-      + (positions.length ? '' : leerZeile('No open paper positions reported by /api/copy.'))
-      + positions.map((r) =>
-        '<div style="' + grid + '; align-items:center; padding:var(--sp-4) var(--sp-5); border-bottom:1px solid var(--line-3)">'
-        + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(r[7] || '') + '">' + esc(labelOf[r[7]] || shortW(r[7]) || '—') + '</div>'
-        + r.slice(0, 7).map((v, i) => {
-          const style = i === 0 ? "font-family:var(--font-ui); font-size:var(--t-small); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" : M + '; font-size:var(--t-small); text-align:right; color:' + (i === 6 ? (String(v).charAt(0) === '+' ? POS : RED) : i === 1 ? (v === 'Yes' ? POS : BLUE) : 'var(--ink-2)');
-          return '<div style="' + style + '">' + esc(String(v)) + '</div>';
-        }).join('')
-        + '</div>'
-      ).join('')
-      + '</div>';
+    body = positionComparison(live, filter);
   } else if (tab === 'perf') {
     const putIn = filtered ? filtered.contributions : kp.contributions;
     body = '<div style="padding:var(--sp-5) var(--sp-6)">'
@@ -655,7 +667,7 @@ export function renderCopy(T) {
     // Der Vorbehalt zum Papierkonto stand hier als Prosa und ist jetzt der
     // Registereintrag paper_desk_only.
     + caveatZeile('paper_desk_only', {
-      vorsatz: 'Every buy a followed wallet makes is scaled into that wallet\'s own sub-account and booked at the printed price. Equal start cash, equal settings, so the sub-accounts are the comparison.',
+      vorsatz: 'Each followed trader has a separate paper account. The 1:1 research mode uses observed order-book depth after the source fill; earlier legacy trades used the source price.',
       stil: 'font-size:var(--t-body); color:' + DIM + '; margin-top:var(--sp-3); max-width:760px; line-height:var(--lh-snug)'
     }) + '</div>'
 
@@ -710,6 +722,7 @@ export function renderCopy(T) {
     + button(T, 'Refresh', () => T.copyReload(), BTN_GHOST, 'ask /api/copy again')
     + '</div>'
     + msg
+    + signalsBanner(T, live)
     + '<div style="display:flex; gap:var(--sp-3); padding:var(--sp-5) var(--sp-6) 0; flex-wrap:wrap">' + copyTabs + '</div>'
     + traderChips
     + body

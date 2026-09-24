@@ -1,7 +1,187 @@
 # Handoff — Prediction Market Terminal
 
 Single entry point for continuing this project from another machine.
-Last updated 2026-08-18.
+Last updated 2026-09-24.
+
+## Current change: realistic 1:1 copy execution (2026-09-24)
+
+Implemented in isolated worktree/branch codex/copytrading-realistic, preserving
+the concurrent session's original working directory. SwissTony is paused in
+the shared local DB; nine others are active. The worktree daemon is running
+with realistic_copy_enabled=true. Equal-share book execution, partial fills,
+audited capital contributions and trader position comparison are implemented.
+
+UI: http://localhost:8788/#copy. Click a trader name for source/copy entries,
+open gross PnL, latest fill and latency. The fast positions endpoint avoids
+loading the historical order ledger. Older holdings remain explicitly legacy.
+
+Verification: 204 copy, 259 web and 28 server tests passed; both JS rendering
+harnesses and tests/web_copy_positions_browser.cjs passed. Python/JS syntax,
+git diff --check and independent correctness/Ponytail review passed.
+Live evidence includes full 8.62-share book fills and rejected stale books.
+See [decision and restart instructions](decisions/0002-realistic-copy-execution.md).
+
+Next boundary: integrate this worktree after the concurrent work and update
+the original watchdog's launch path. Until then, restart the worktree daemon
+explicitly after reboot; port 8787 still runs older code. No remote deployment
+was made. Fees and exchange matching delays remain outside this
+observed-depth simulation; PnL is labelled before fees. Research conclusions
+require a larger forward sample.
+
+## Session closure (2026-09-24)
+
+The user requested closing the worktree and archiving this task. This branch
+is preserved as a local checkpoint, including the uncommitted source-wallet,
+frontend and Fed-comparison baseline copied when the worktree was created.
+It is not a clean copytrading-only diff against main. No merge, push or worktree
+deletion is performed: the concurrent checkout remains separate and the
+paper daemon and preview still run from this directory. Integration and the
+watchdog restart-path update remain recorded in Intendant agenda item
+01M38VD4ZP1T2M0E9GSMFCK7WS and the execution decision record.
+
+Closure checks: full unittest discovery ran 2,892 tests (one skipped) and
+found one failing claims-lint test. Both reported text/register issues were
+corrected: paper disclaimer wording and the inherited shared-flow caveat.
+The 45 claims tests and 259 web tests passed after correction, as did the
+copy-intelligence rendering harness. The full suite was not repeated after
+this text-only fix. No remaining known test failure.
+
+The user also asked about uninterrupted operation when the PC is off.
+Recommendation: move the new engine and authoritative desk data to the
+existing Railway deployment with persistent storage, no serverless sleep,
+restart supervision and continuous worker-heartbeat monitoring. Verify the
+daemon settings path uses COPY_DATA_DIR before deployment. A Linux VPS is
+the alternative for independent process control. This was an options
+question, not authorization to deploy or provision resources. Data gaps need
+explicit coverage accounting; later snapshots cannot establish missing
+historical fills. No cloud runtime changes were made.
+
+## Current change: frontend UX
+
+The Markets table now appears in the first screen at 1280px and 1440px.
+Price distribution and insight lists are in a native, initially collapsed
+`Market context` disclosure. Its open state survives rerenders, and its note
+clarifies that the analysis covers the full loaded sample.
+
+Empty search results offer `Clear search` (keeps other filters) and
+`Reset filters` (restores defaults). Both return focus to the market search.
+Filter removal controls now state their action, and the filter disclosure
+exposes its expanded state. Market rows have escaped stable keys so closing
+a detail returns to the originating row without changing the scroll position.
+
+Global search supports Ctrl/Cmd+K, including from another input. The `/`
+shortcut still allows normal typing in fields. Search has a visible label,
+shorter prompt and explicit close button; its results scroll within short
+viewports. Escape closes the frontmost dialog first. Keyboard result navigation
+skips non-actionable hints. No new package or backend change was needed.
+
+Checks on 2026-09-19:
+- `python -m unittest discover -s tests -p 'test_web*.py'`: 258 passed.
+- `node --check` on `app.js`, `overlays.js`, `pages/core_pages.js`, plus
+  `git diff --check`: passed.
+- `node tests/web_ux_browser.cjs`: passed, covering list position, disclosure
+  persistence, both empty-result actions, retained platform filters, scrolled
+  row focus, nested dialogs, keyboard search, and a 1280x600 viewport.
+- `node tests/web_interactions_browser.cjs`: passed; existing hover, help,
+  stable filter geometry, both themes and reduced motion remain intact.
+- `graphify update .`: local code graph updated. Code and Ponytail review
+  found no unnecessary dependency or state abstraction.
+
+One browser run timed out waiting for the initial Markets table. A subsequent
+diagnostic loaded the data without page errors or HTTP errors, and the full
+UX test passed unchanged. The test still uses its original 30-second timeout.
+Browser tests use the same existing Playwright installation described below.
+Visual checks: `artifacts/ux-markets-dark.png`, `ux-markets-light.png`,
+`ux-market-context.png`, `ux-no-results.png`, `ux-search.png`,
+`ux-search-short.png`. Preview: `http://localhost:8787/#markets`.
+Changes are local, uncommitted and not deployed; no UX blocker remains.
+
+## Current change: frontend visual polish
+
+Detail pass, 2026-09-19: shared filters, tabs, buttons, navigation, cards and
+table rows now have consistent hover/focus feedback. Selected navigation
+keeps its highlight; filter borders and font weight stay stable when selected.
+Only small controls compress on press, and reduced-motion preferences disable
+card movement. Sort arrows expose the current direction. Copy-desk buttons
+also distinguish disabled and primary actions visually.
+
+Contextual info buttons explain frozen studies, sample size and median spread.
+`web/js/help.js` uses one native popover with escaped attributes and plain-text
+content. It opens on hover, focus or click, stays readable under the pointer,
+fits the viewport and closes on Escape, outside click, scrolling or rerender.
+Its accessibility state is cleared synchronously when closing.
+Important source dates and calculation bases remain visible on the page.
+
+Detail-pass checks: 258 Web tests passed; JS syntax and `git diff --check`
+passed. `tests/web_interactions_browser.cjs` passed against the local server:
+text escaping, hover, unchanged filter dimensions, selected navigation,
+mouse/keyboard help, Escape, outside click, both themes, viewport bounds and
+reduced motion. Run it with `PLAYWRIGHT_MODULE` pointing to an existing
+Playwright installation and optionally `TERMINAL_URL`; the app adds no package.
+Local screenshots: `artifacts/ui-help-dark.png`, `ui-help-light.png` and
+`ui-help-overview.png`. Review found no new dependencies or unnecessary
+state framework. This pass is also local and uncommitted.
+
+The overview now has a clearer title hierarchy, quieter background artwork,
+and a research snapshot derived from the existing verdict counts and payload
+timestamp. Its empty state omits the snapshot. Study rows share a CSS grid
+with explicit column gaps and separate units, preventing the previous
+number/window collisions. Navigation is narrower and more compact, with
+shorter source links. Both themes keep the established semantic palette.
+The small-screen summary has clearer typography and a prominent terminal
+button; the tablet notice no longer covers the topbar.
+
+Verification on 2026-09-19:
+- `python -m unittest discover -s tests -p 'test_web*.py'`: 258 passed,
+  including the new payload/empty-state regression for the research snapshot.
+- `node --check web/js/app.js` and
+  `node --check web/js/pages/core_pages.js`: passed.
+- `node artifacts/ui-review.cjs`: Chrome checks passed at 320, 390, 768,
+  1024, 1280 and 1440px; both themes, study-column bounds, keyboard theme
+  toggle, overview/markets navigation and search. No page errors observed.
+- `git diff --check`: passed. Code and Ponytail review: no new dependency,
+  data fetching, or state abstraction needed.
+
+Local preview: `http://localhost:8787/#overview`. Screenshots and the local
+browser-check script are under ignored `artifacts/ui-*`. Changes remain
+uncommitted alongside the existing copy-wallet work. Not deployed.
+The existing desktop-only terminal remains intentional: below 768px the
+readable summary is shown; at tablet widths the terminal scrolls horizontally.
+No remaining blocker for this UI change. The paper-sync investigation below
+remains a separate open task.
+
+## Current change: copy wallet research
+
+Implemented on `codex/copy-wallet-intelligence`: source-wallet profiles and
+X post links, canonical performance with coverage limits, category/entry/timing
+profiles and durable shared-market notices. Eight requested wallets were
+imported into the local paper desk; the explicitly excluded final link was
+not imported. Existing accounts and guard settings remain in place.
+
+Implementation and operation: [decision record](decisions/0001-copy-wallet-research.md).
+Local UI: `python api/server.py`, `http://localhost:8787/#copy`.
+Research storage is the sibling `copy_trading.intelligence.sqlite`; import
+input stays in ignored `data/copy_watchlist_import.json`. A consistent paper
+database backup was made before import in ignored `data/`.
+
+Verification: `python -m unittest discover -s tests -p 'test_copy*.py'`
+(192 tests passed), `python -m unittest discover -s tests -p 'test_web*.py'`
+(257 tests passed), `python -m unittest discover -s tests -p 'test_server*.py'`
+(28 tests passed), `node tests/web_copy_intelligence_harness.mjs` (passed).
+Live reads resolved all eight profile names; the first overlap correctly
+reported different outcomes / possible hedge. No source portfolio Sharpe can
+be computed from the available feed; the UI states why. Remote deployment
+and full-history/flow-adjusted performance are not part of this local change.
+
+Runtime verification: all ten paper trader rows are active, including the
+eight imports, and the eight source baseline markers exist. Research refreshed
+again at 2026-09-16 14:13 UTC with eight profiles and no upstream errors.
+The legacy paper daemon still reports `last_sync_at: null` after its restart;
+completion of its large first paper pass is **not verified**. Next open point:
+diagnose that long paper sync separately; do not describe it as a verified
+working copy-execution run. The independent research monitor is running.
+Intendant agenda lookup returned an unavailable/429 response, so this open
+point is preserved here instead of an unverified agenda write.
 
 > This is a data and analysis product for public Polymarket and Kalshi data.
 > The legal sections in the planning documents are compliance research for a

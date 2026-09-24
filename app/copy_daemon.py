@@ -74,6 +74,9 @@ def write_status(path: Path, payload: dict[str, Any], attempts: int = 8) -> None
 
 def run(args: DaemonConfig | Any) -> int:
     """Run the loop until the stop file appears (or once, with ``once``)."""
+    from app import copy_intelligence as ci
+    if not args.once:
+        ci.start_monitor(args.db, args.stop_file)
     interval = max(0.25, float(args.interval))
     api_interval = max(interval, float(args.api_interval))
     settlement_interval = max(api_interval, float(args.settlement_interval))

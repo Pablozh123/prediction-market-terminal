@@ -295,7 +295,7 @@ class OverviewTests(unittest.TestCase):
 
     def test_desk_state_bundles_everything(self) -> None:
         state = ca.desk_state(db_path=self.db, settings_path=Path(self.tmp.name) / "s.json", status_path=Path(self.tmp.name) / "none.json")
-        self.assertEqual(set(state), {"traders", "active_count", "settings", "daemon", "sync", "totals"})
+        self.assertEqual(set(state), {"traders", "active_count", "settings", "daemon", "sync", "totals", "intelligence", "position_comparison"})
         self.assertEqual(state["active_count"], 1)  # the seed wallet from the migration
         self.assertIsNone(state["daemon"]["running"])
         self.assertIn("editable", state["settings"])

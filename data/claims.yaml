@@ -118,9 +118,14 @@ disclaimers:
     surfaces:
       - web/js/app.js
   # Copy desk: stood hand-written as "Nothing is sent to a venue."
+  copy_shared_flow:
+    de: "Beobachteter Handelsfluss belegt weder aktuelle Bestände noch unabhängige Informationen."
+    en: "This is observed flow, not proof of current holdings or independent information."
+    surfaces:
+      - web/js/pages/copy_intelligence.js
   paper_desk_only:
-    de: "Papierkonto: jede Order wird lokal zum gedruckten Preis gebucht. Nichts geht an eine Venue."
-    en: "Paper desk: every order is booked in a local paper book at the printed price. Nothing is sent to a venue."
+    de: "Papierkonto: Fills werden lokal simuliert. Keine echten Orders; tatsächliche Börsenfills können abweichen."
+    en: "Paper desk: fills are simulated locally. No real orders or guaranteed executions."
     surfaces:
       - web/js/pages/copy_page.js
       - prediction_terminal.py

@@ -109,6 +109,14 @@ def execution_fidelity(orders: pd.DataFrame, window_hours: float = 24.0, now: An
     if frame.empty:
         return empty
 
+    # Equal-share book fills are valued at the source price for coverage:
+    # paying more because of slippage must not report >100% execution.
+    if {"reason", "copy_size", "source_price"} <= set(frame.columns):
+        book_rows = frame["reason"].fillna("").str.startswith("book_")
+        frame.loc[book_rows, "copy_notional"] = (
+            pd.to_numeric(frame.loc[book_rows, "copy_size"], errors="coerce").fillna(0)
+            * pd.to_numeric(frame.loc[book_rows, "source_price"], errors="coerce").fillna(0)
+        )
     desired = float(frame["desired_notional"].sum())
     filled = float(frame["copy_notional"].sum())
     skipped = frame[frame["status"] == "skipped"]
