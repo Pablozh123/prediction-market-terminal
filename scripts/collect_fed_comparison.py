@@ -81,7 +81,7 @@ def collect(raw: Path, offline=False, cme_dir: Path | None = None):
         try:
             cme_client = cme_session()
         except (requests.RequestException, ValueError):
-            errors.append("CME-Verbindung konnte nicht aktualisiert werden. Gespeicherte CSV-Dateien bleiben erhalten.")
+            errors.append("The CME connection could not be refreshed. Stored CSV files have been retained.")
 
     def archive(path, content, source):
         atomic_write(path, content)
@@ -123,7 +123,7 @@ def collect(raw: Path, offline=False, cme_dir: Path | None = None):
                     raise ValueError("Federal Reserve statement unavailable")
                 archive(raw / f"fed_{date}.html", response.content, statement_url)
             except (requests.RequestException, ValueError):
-                issues.append("Die Fed-Mitteilung konnte bei diesem Lauf nicht erneut archiviert werden.")
+                issues.append("The Fed statement could not be archived again during this run.")
         if not offline:
             try:
                 url = "https://gamma-api.polymarket.com/events/slug/" + slug
@@ -134,7 +134,7 @@ def collect(raw: Path, offline=False, cme_dir: Path | None = None):
                     raise ValueError("Unexpected Polymarket event")
                 archive(event_path, response.content, url)
             except (requests.RequestException, ValueError):
-                issues.append("Polymarket-Metadaten konnten nicht aktualisiert werden. Der gespeicherte Stand bleibt erhalten.")
+                issues.append("Polymarket metadata could not be refreshed. The stored snapshot has been retained.")
         if not event_path.exists():
             raise ValueError(f"Missing event metadata: {slug}")
         event = json.loads(event_path.read_text(encoding="utf-8"))
@@ -163,9 +163,9 @@ def collect(raw: Path, offline=False, cme_dir: Path | None = None):
                     if fetched:
                         save_json(path, fetched)
                     else:
-                        issue = "Keine historischen Polymarket-Preise verfügbar: " + b["label"]
+                        issue = "No historical Polymarket prices available: " + b["label"]
                 except (requests.RequestException, ValueError):
-                    issue = "Polymarket-Historie konnte nicht aktualisiert werden: " + b["label"]
+                    issue = "Polymarket history could not be refreshed: " + b["label"]
             points = json.loads(path.read_text()) if path.exists() else []
             return b["key"], points, issue, path, fetched is not None
 
@@ -193,19 +193,19 @@ def collect(raw: Path, offline=False, cme_dir: Path | None = None):
         except (requests.RequestException, ValueError, OSError):
             # Requests errors can contain ephemeral public-session query params.
             if cme_path.exists():
-                issues.append("CME-Historie konnte nicht aktualisiert werden. Der letzte gespeicherte Stand wird angezeigt.")
+                issues.append("CME history could not be refreshed. The latest stored snapshot is shown.")
         cme = []
         if cme_path.exists():
             cme = parse_cme_csv(cme_path.read_text(encoding="utf-8-sig"), baseline, buckets)
             cme = [r for r in cme if after <= r["t"] < min(decision, now_ts)]
         if not cme_path.exists():
-            issues.append("CME-Historie fehlt. Der öffentliche Download beginnt bei April 2026. Für März wird ein älterer Originalexport oder ein berechtigter FedWatch-API-Zugang benötigt.")
+            issues.append("CME history is missing. Public downloads start in April 2026. March requires an older original export or an authorised FedWatch API source.")
         archive_source = manifest.get(cme_path.name, {})
         archived = bool(archive_source.get("derived_from"))
         if archived:
-            issues.append("März: FedWatch-Tabellen aus dem SinoPac-Brokerarchiv, auf 0.1 Prozentpunkte gerundet. Lücken bleiben offen. Zeitstempel: Ende des Berichtstags in Chicago, kein CME-Schlusskurs; der untertägige Beobachtungszeitpunkt wird nicht für einen Handelsvergleich verwendet.")
+            issues.append("March: FedWatch tables from the SinoPac broker archive, rounded to 0.1 percentage point. Gaps remain visible. Timestamps represent the end of the report date in Chicago, not a CME closing price; the intraday observation time is not used for a trading comparison.")
         if baseline is None:
-            issues.append("Das vorherige Meeting ist noch offen. CME-Zinsniveaus lassen sich deshalb noch nicht eindeutig den Zinsänderungen dieses Meetings zuordnen.")
+            issues.append("The previous meeting has not yet taken place. CME rate levels therefore cannot yet be mapped unambiguously to rate changes at this meeting.")
         meeting = {"date": date, "decision_ts": decision, "previous_meeting": previous,
                    "baseline_upper_bps": baseline, "comparable_after": after if baseline is not None else None,
                    "actual": bucket_for(actual, buckets) if actual is not None else None,

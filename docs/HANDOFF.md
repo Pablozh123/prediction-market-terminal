@@ -3,6 +3,13 @@
 Single entry point for continuing this project from another machine.
 Last updated 2026-08-18.
 
+## Project language
+
+Website content, including labels, tooltips, data notices and accessibility
+text, must be English. Conversation with the owner remains German (Swiss).
+Clarified explicitly on 2026-09-24. The Fed page and collector notices follow
+this rule; numerical data and comparison methods are unchanged.
+
 ## Current change: Fed comparison, 2026-09-24
 
 `#fed` compares Polymarket outcomes with CME FedWatch probabilities. Real
