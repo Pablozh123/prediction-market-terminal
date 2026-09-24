@@ -376,7 +376,8 @@ export function kalibrierung(k) {
     // Ohne mitgeliefertes Intervall wird es aus n und der realisierten
     // Quote gerechnet (Wilson, 95%): ein Bin mit zwei Wetten darf nicht
     // dieselbe Sicherheit ausstrahlen wie einer mit zwoelf.
-    const ci = Array.isArray(p.ci) && p.ci.length === 2 ? p.ci
+    // Explicit false: descriptive dependent observations, no binomial CI.
+    const ci = p.ci === false ? null : Array.isArray(p.ci) && p.ci.length === 2 ? p.ci
       : (+p.n > 0 ? wilson(p.realisiert, +p.n) : null);
     const daneben = ci && (ci[0] > p.vorhergesagt || ci[1] < p.vorhergesagt);
     const farbe = daneben ? 'var(--warn)' : 'var(--info)';
