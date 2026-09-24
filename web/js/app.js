@@ -655,7 +655,7 @@ class Terminal {
         this.navItem('flow', 'Live tape', this.tape.length ? String(this.tape.length) : ''),
         this.navItem('whale', 'Whale flow'),
         this.navItem('cross', 'Cross-venue'),
-        this.navItem('fed', 'Fed-Vergleich'),
+        this.navItem('fed', 'Fed comparison'),
         this.navItem('traders', 'Leaderboard'),
         this.navItem('wallet', 'Wallet'),
         this.navItem('graph', 'Wallet graph'),
