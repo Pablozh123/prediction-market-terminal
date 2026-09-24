@@ -3,6 +3,34 @@
 Single entry point for continuing this project from another machine.
 Last updated 2026-08-18.
 
+## Current change: Fed comparison, 2026-09-24
+
+`#fed` compares Polymarket outcomes with CME FedWatch probabilities. Real
+30/7/1-day x-axis windows, meeting/outcome selectors, historical spread,
+paired Brier scores and descriptive calibration are implemented. All five
+past meetings have data and paired scores at all three horizons. March uses
+18 rounded FedWatch tables archived by SinoPac; this is explicitly labelled.
+October is comparable after September's known decision. December's change
+mapping remains unavailable until the October decision is known.
+
+Raw data and 70 verified source hashes: `data/fed_comparison/raw/` locally.
+Website payload: `public/data/fed_comparison.json`. Refresh with
+`python scripts/collect_fed_comparison.py`; rebuild using `--offline`.
+`python scripts/import_fedwatch_archive.py` recovers March (pdfplumber required
+in the analysis environment). The reviewed calendar ends in December 2026.
+This is stored research data, not a live recorder. No orders are submitted.
+
+Verification: 10 logic tests, 258 web tests on isolated main-based branch,
+160 API-view and 11 payload tests; Ruff, source hashes, score recomputation,
+static build and browser interaction checks. All 18 March rows visually
+verified. CME timestamps are conservative availability bounds, not tick
+alignment. Five meetings do not prove calibration or profitable arbitrage.
+
+Report: [stored findings](research/fed_comparison_2026-09-24.md).
+Method: [decision record](decisions/0002-fed-comparison.md).
+Fed-only changes isolated on `codex/fed-comparison`. Publication verification
+is the next step; original unrelated working changes are preserved.
+
 > This is a data and analysis product for public Polymarket and Kalshi data.
 > The legal sections in the planning documents are compliance research for a
 > memo — nothing there is implemented, and nothing should be without a lawyer.

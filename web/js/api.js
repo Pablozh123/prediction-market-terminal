@@ -35,6 +35,7 @@ const API_BASE = apiBaseAusMeta() || produktionsApi()
 // Forschungsseiten sind damit auch aus einem reinen Dateiserver lesbar, was
 // fuer eine statisch ausgelieferte Fassung der einzige Weg ist.
 export const STATISCH = {
+  '/api/research/fed-comparison': 'fed_comparison.json',
   '/api/research/review-queue': 'queue.json',
   '/api/research/category-efficiency': 'kategorie_karte.json',
   '/api/research/mentions-latency': 'mentions_latenz.json',

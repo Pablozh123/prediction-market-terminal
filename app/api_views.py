@@ -29,6 +29,7 @@ from app import venue_units as vu
 from src import prediction_markets as md
 
 RESEARCH_FILES = {
+    "fed-comparison": "fed_comparison",
     "review-queue": "queue",
     "category-efficiency": "kategorie_karte",
     "mentions-latency": "mentions_latenz",

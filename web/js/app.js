@@ -12,6 +12,7 @@ import { renderBacktester, renderCopy, renderPortfolio } from './pages/trading_p
 import { renderAlerts, renderResearch, renderSettings, ledgerVerwerfen } from './pages/system_pages.js';
 import { renderWallet, isFullAddress } from './pages/wallet_page.js';
 import { renderGraph } from './pages/graph_page.js';
+import { renderFed } from './pages/fed_page.js';
 import { renderDetail, renderSearch } from './overlays.js';
 import { mountAmbient } from './ambient.js';
 import { MONO as M } from './ui.js';
@@ -24,7 +25,7 @@ const PAGES = {
   overview: renderOverview, markets: renderMarkets, flow: renderFlow,
   cross: renderCross, resolved: renderResolved,
   traders: renderTraders, whale: renderWhale, risk: renderRisk, track: renderTrack,
-  wallet: renderWallet, graph: renderGraph,
+  wallet: renderWallet, graph: renderGraph, fed: renderFed,
   backtester: renderBacktester, copy: renderCopy, portfolio: renderPortfolio,
   alerts: renderAlerts, research: renderResearch, settings: renderSettings
 };
@@ -654,6 +655,7 @@ class Terminal {
         this.navItem('flow', 'Live tape', this.tape.length ? String(this.tape.length) : ''),
         this.navItem('whale', 'Whale flow'),
         this.navItem('cross', 'Cross-venue'),
+        this.navItem('fed', 'Fed-Vergleich'),
         this.navItem('traders', 'Leaderboard'),
         this.navItem('wallet', 'Wallet'),
         this.navItem('graph', 'Wallet graph'),
@@ -947,7 +949,9 @@ class Terminal {
   }
 
   async fetchPageData(page) {
-    if (page === 'traders') {
+    if (page === 'fed') {
+      await this.holen('fed', '/api/research/fed-comparison');
+    } else if (page === 'traders') {
       await this.holen('leaderboard', '/api/leaderboard?limit=100', (lb) => {
         this.applyLeaderboard(lb.rows || []);
       });
