@@ -1,0 +1,1747 @@
+{
+ "hinweis": "Results of the bachelor thesis behind this site, read from its published result tables. Descriptive research on public market data; every number is computed from the artifact it cites.",
+ "einleitung": "The thesis asked one question about one election: how much information did Polymarket process during the 2024 US presidential race, compared with FiveThirtyEight and the polls? It answers through three proxies, forecast quality, reaction to public events and the timing of large wallets, and adds a Swiss referendum as a case outside the US. The verdicts below are the thesis's own, with the numbers they rest on.",
+ "thesis": {
+  "titel": "Informational efficiency of decentralised prediction markets: Polymarket against traditional forecast sources",
+  "frage": "To what degree did Polymarket process information during the 2024 US presidential election, compared with traditional forecast sources?",
+  "hochschule": "FHNW School of Business, BSc Business AI, 2026",
+  "repo": "https://github.com/Pablozh123/multi-agent-orchestration-informational-efficiency",
+  "hypothesen": [
+   {
+    "id": "H1",
+    "text": "Forecast quality: the Polymarket price carries a lower Brier loss than traditional forecast sources."
+   },
+   {
+    "id": "H2",
+    "text": "Event reaction: the price moves in the expected direction around curated public events."
+   },
+   {
+    "id": "H3",
+    "text": "Wallet timing: the activity of large wallets leads the price change."
+   }
+  ],
+  "nicht_behauptet": [
+   "No claim of universal efficiency: one election, one market family.",
+   "No intraday speed claim from daily data.",
+   "No causal insider claim from timing correlations.",
+   "No profitability claim of any kind."
+  ]
+ },
+ "stand_utc": "2026-09-04T18:11:48.856199+00:00",
+ "kennzeichnung": "research/thesis",
+ "zaehler": {
+  "gesamt": 4,
+  "ja": 2,
+  "gemischt": 2
+ },
+ "sektionen": [
+  {
+   "id": "h1",
+   "kapitel": "H1 · Forecast quality",
+   "frage": "Was the Polymarket price a better forecast than FiveThirtyEight and the polls?",
+   "verdikt": "Mixed. Lower forecast error than FiveThirtyEight on all 194 overlap days (0.230 vs 0.332) and in 262 of 285 state-date rows, but poll-based models win most state cases in 6 of 9 scopes. A bounded advantage, not general dominance.",
+   "verdikt_art": "gemischt",
+   "analyse": [
+    {
+     "schluessel": "gemessen",
+     "titel": "What was measured",
+     "text": "The daily Brier score of each source against the resolved outcome of the 2024 presidential market, and the same loss on state markets against three poll-based comparators."
+    },
+    {
+     "schluessel": "wie",
+     "titel": "How",
+     "text": "Brier score = (forecast probability minus outcome)^2, averaged per source. Diebold-Mariano compares the two daily loss series. The state-level comparison counts, row by row, which source had the lower loss; calibration bins group forecasts by predicted probability and compare against the realised frequency."
+    },
+    {
+     "schluessel": "daten",
+     "titel": "On which data",
+     "text": "194 overlapping daily rows (2024-03-01 to 2024-09-12); 285 state-date rows in the pre-specified poll scope; 50 state markets for calibration."
+    },
+    {
+     "schluessel": "entscheidung",
+     "titel": "What would have counted as evidence",
+     "text": "A lower mean Brier score with a Diebold-Mariano p-value below 0.05 would support H1 for the daily series. The broad claim required Polymarket to win the majority of cases in every evidence scope, which it did not."
+    }
+   ],
+   "einfach": "On every one of the 194 days where both existed (2024-03-01 to 2024-09-12), the Polymarket price was closer to the outcome than FiveThirtyEight's model: mean Brier score 0.230 against 0.332, where lower is better and a coin flip scores 0.250. A Diebold-Mariano test puts the gap at p = 6.7e-61. That is the easy part. The thesis then asked whether Polymarket beats poll-based sources on the state level too, and the answer is bounded: in the pre-specified scope of 285 state-date comparisons Polymarket had the lower loss in 262 (91.9%), but across all 9 evidence scopes the poll-based comparator wins the majority of cases in 6, so the broad claim that Polymarket is simply better stays unproven. Yesterday's Polymarket price scores the same as today's (0.230, p = 0.982): the market moves slowly on the daily grid.",
+   "interpretation": [
+    {
+     "art": "lesart",
+     "titel": "What it suggests",
+     "text": "On the national daily series the market beat the model by a wide and stable margin. On state markets the picture flips depending on how the poll is turned into a probability, which is exactly why the thesis reports a bounded result."
+    },
+    {
+     "art": "gegenlesart",
+     "titel": "What else fits the same numbers",
+     "text": "One resolved election is one draw. 194 daily rows are repeated looks at the same outcome, not 194 independent tests; the tiny p-value measures consistency across days, not evidence across elections."
+    },
+    {
+     "art": "grenze",
+     "titel": "What this cannot tell you",
+     "text": "Forecast quality on a daily grid says nothing about reaction speed within a day, and nothing about whether any of it was tradable after fees. Both are separate questions on this site."
+    }
+   ],
+   "zahlen": [
+    {
+     "label": "Mean Brier, Polymarket",
+     "wert": 0.2303,
+     "hinweis": "lower is better"
+    },
+    {
+     "label": "Mean Brier, FiveThirtyEight",
+     "wert": 0.3324
+    },
+    {
+     "label": "Mean Brier, always 50%",
+     "wert": 0.25,
+     "hinweis": "the coin-flip baseline"
+    },
+    {
+     "label": "Days Polymarket had the lower loss",
+     "wert": "194 of 194"
+    },
+    {
+     "label": "Diebold-Mariano, Polymarket vs 538",
+     "wert": "p = 6.7e-61",
+     "hinweis": "statistic -24.4"
+    },
+    {
+     "label": "State-date rows favouring Polymarket",
+     "wert": "262 of 285",
+     "hinweis": "91.9% in the pre-specified scope"
+    },
+    {
+     "label": "Evidence scopes where polls win most cases",
+     "wert": "6 of 9",
+     "hinweis": "5 audit rows contradict the strong claim"
+    }
+   ],
+   "diagramme": {
+    "brier_quellen": {
+     "titel": "Mean Brier score by source",
+     "einheit": "lower is better",
+     "punkte": [
+      {
+       "label": "Polymarket",
+       "wert": 0.2303
+      },
+      {
+       "label": "Yesterday's Polymarket price",
+       "wert": 0.2303
+      },
+      {
+       "label": "Always 50%",
+       "wert": 0.25
+      },
+      {
+       "label": "FiveThirtyEight",
+       "wert": 0.3324
+      }
+     ]
+    },
+    "brier_wochen": {
+     "titel": "Weekly mean Brier score",
+     "einheit": "squared forecast error",
+     "hinweis": "194 daily rows, averaged per ISO week",
+     "x": [
+      "2024-03-01",
+      "2024-03-04",
+      "2024-03-11",
+      "2024-03-18",
+      "2024-03-25",
+      "2024-04-01",
+      "2024-04-08",
+      "2024-04-15",
+      "2024-04-22",
+      "2024-04-29",
+      "2024-05-06",
+      "2024-05-13",
+      "2024-05-20",
+      "2024-05-27",
+      "2024-06-03",
+      "2024-06-10",
+      "2024-06-17",
+      "2024-06-24",
+      "2024-07-01",
+      "2024-07-08",
+      "2024-07-15",
+      "2024-07-24",
+      "2024-07-29",
+      "2024-08-05",
+      "2024-08-12",
+      "2024-08-19",
+      "2024-08-26",
+      "2024-09-02",
+      "2024-09-09"
+     ],
+     "serien": [
+      {
+       "name": "Polymarket",
+       "werte": [
+        0.2225,
+        0.2162,
+        0.2352,
+        0.2381,
+        0.2579,
+        0.2757,
+        0.2924,
+        0.3129,
+        0.3225,
+        0.3019,
+        0.2971,
+        0.2577,
+        0.2098,
+        0.202,
+        0.2045,
+        0.1917,
+        0.188,
+        0.1597,
+        0.141,
+        0.1439,
+        0.1127,
+        0.1595,
+        0.1936,
+        0.2549,
+        0.2948,
+        0.2481,
+        0.2505,
+        0.236,
+        0.2375
+       ]
+      },
+      {
+       "name": "FiveThirtyEight",
+       "werte": [
+        0.3368,
+        0.3322,
+        0.3294,
+        0.3287,
+        0.3245,
+        0.3293,
+        0.333,
+        0.3373,
+        0.3418,
+        0.3404,
+        0.3438,
+        0.3443,
+        0.3449,
+        0.3465,
+        0.3479,
+        0.3477,
+        0.3521,
+        0.3463,
+        0.336,
+        0.3337,
+        0.3251,
+        0.3132,
+        0.3175,
+        0.3201,
+        0.3187,
+        0.3171,
+        0.3168,
+        0.313,
+        0.3096
+       ]
+      },
+      {
+       "name": "Always 50%",
+       "werte": [
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25
+       ]
+      }
+     ]
+    },
+    "kalibrierung": {
+     "polymarket_state_final_50": {
+      "label": "Polymarket, state markets",
+      "punkte": [
+       {
+        "vorhergesagt": 0.0423,
+        "realisiert": 0.0,
+        "n": 19,
+        "bin": "0.0-0.2"
+       },
+       {
+        "vorhergesagt": 0.395,
+        "realisiert": 1.0,
+        "n": 1,
+        "bin": "0.2-0.4"
+       },
+       {
+        "vorhergesagt": 0.53,
+        "realisiert": 1.0,
+        "n": 2,
+        "bin": "0.4-0.6"
+       },
+       {
+        "vorhergesagt": 0.6987,
+        "realisiert": 1.0,
+        "n": 4,
+        "bin": "0.6-0.8"
+       },
+       {
+        "vorhergesagt": 0.9735,
+        "realisiert": 1.0,
+        "n": 24,
+        "bin": "0.8-1.0"
+       }
+      ]
+     },
+     "rieke_state_final_50": {
+      "label": "Rieke poll model",
+      "punkte": [
+       {
+        "vorhergesagt": 0.0219,
+        "realisiert": 0.0,
+        "n": 19,
+        "bin": "0.0-0.2"
+       },
+       {
+        "vorhergesagt": 0.4756,
+        "realisiert": 1.0,
+        "n": 4,
+        "bin": "0.4-0.6"
+       },
+       {
+        "vorhergesagt": 0.6758,
+        "realisiert": 1.0,
+        "n": 3,
+        "bin": "0.6-0.8"
+       },
+       {
+        "vorhergesagt": 0.984,
+        "realisiert": 1.0,
+        "n": 24,
+        "bin": "0.8-1.0"
+       }
+      ]
+     },
+     "two_seventy_state_final_50": {
+      "label": "270toWin / JHK",
+      "punkte": [
+       {
+        "vorhergesagt": 0.0285,
+        "realisiert": 0.0,
+        "n": 19,
+        "bin": "0.0-0.2"
+       },
+       {
+        "vorhergesagt": 0.476,
+        "realisiert": 1.0,
+        "n": 4,
+        "bin": "0.4-0.6"
+       },
+       {
+        "vorhergesagt": 0.6593,
+        "realisiert": 1.0,
+        "n": 3,
+        "bin": "0.6-0.8"
+       },
+       {
+        "vorhergesagt": 0.9855,
+        "realisiert": 1.0,
+        "n": 24,
+        "bin": "0.8-1.0"
+       }
+      ]
+     }
+    },
+    "umfragen_scopes": {
+     "titel": "Share of cases where Polymarket had the lower loss, by evidence scope",
+     "einheit": "%",
+     "referenz": 50.0,
+     "referenz_label": "even split",
+     "punkte": [
+      {
+       "label": "Daily 538 overlap (n 194)",
+       "wert": 100.0
+      },
+      {
+       "label": "Final 538 snapshots (n 8)",
+       "wert": 62.5
+      },
+      {
+       "label": "538 state poll transform (n 13)",
+       "wert": 61.5
+      },
+      {
+       "label": "538 state poll panel (n 1,720)",
+       "wert": 20.9
+      },
+      {
+       "label": "538 national popular-vote transform (n 51)",
+       "wert": 41.2
+      },
+      {
+       "label": "Rieke 50-state model (n 50)",
+       "wert": 24.0
+      },
+      {
+       "label": "270toWin state poll transform (n 43)",
+       "wert": 32.6
+      },
+      {
+       "label": "270toWin/JHK 50-state model (n 50)",
+       "wert": 18.0
+      },
+      {
+       "label": "270toWin/JHK exact-state subset (n 22)",
+       "wert": 40.9
+      }
+     ]
+    }
+   },
+   "tabellen": [
+    {
+     "titel": "Every evidence scope of the poll comparison",
+     "spalten": [
+      "Scope",
+      "Comparator",
+      "Cases",
+      "Polymarket lower",
+      "Mean Brier PM",
+      "Mean Brier comparator",
+      "Majority for PM"
+     ],
+     "zeilen": [
+      [
+       "Daily 538 overlap",
+       "FiveThirtyEight",
+       194,
+       194,
+       0.2303,
+       0.3324,
+       "yes"
+      ],
+      [
+       "Final 538 snapshots",
+       "FiveThirtyEight final forecast",
+       8,
+       5,
+       0.0784,
+       0.0933,
+       "yes"
+      ],
+      [
+       "538 state poll transform",
+       "538 poll-derived probability",
+       13,
+       8,
+       0.1336,
+       0.1764,
+       "yes"
+      ],
+      [
+       "538 state poll panel",
+       "538 poll-derived probability panel",
+       1720,
+       360,
+       0.1595,
+       0.1026,
+       "no"
+      ],
+      [
+       "538 national popular-vote transform",
+       "538 poll-derived popular-vote probability",
+       51,
+       21,
+       0.5179,
+       0.4824,
+       "no"
+      ],
+      [
+       "Rieke 50-state model",
+       "Rieke poll-based model",
+       50,
+       12,
+       0.0262,
+       0.0296,
+       "no"
+      ],
+      [
+       "270toWin state poll transform",
+       "270toWin poll-derived probability",
+       43,
+       14,
+       0.0304,
+       0.0416,
+       "no"
+      ],
+      [
+       "270toWin/JHK 50-state model",
+       "270toWin/JHK",
+       50,
+       9,
+       0.0262,
+       0.0306,
+       "no"
+      ],
+      [
+       "270toWin/JHK exact-state subset",
+       "270toWin/JHK exact probabilities",
+       22,
+       9,
+       0.0593,
+       0.0695,
+       "no"
+      ]
+     ],
+     "hinweis": "Cases are daily rows, resolved outcomes or state-date rows depending on the scope; the units differ and the rows are not pooled."
+    },
+    {
+     "titel": "Calibration by source",
+     "spalten": [
+      "Source",
+      "Cases",
+      "Mean Brier",
+      "Expected calibration error",
+      "Skill vs 50%"
+     ],
+     "zeilen": [
+      [
+       "FiveThirtyEight final snapshot",
+       8,
+       0.0933,
+       0.237,
+       0.627
+      ],
+      [
+       "538 poll-derived state probability",
+       13,
+       0.1764,
+       0.337,
+       0.295
+      ],
+      [
+       "Polymarket final snapshot",
+       8,
+       0.0784,
+       0.234,
+       0.686
+      ],
+      [
+       "Polymarket state final",
+       50,
+       0.0262,
+       0.084,
+       0.895
+      ],
+      [
+       "Polymarket state poll snapshot",
+       13,
+       0.1336,
+       0.308,
+       0.466
+      ],
+      [
+       "Rieke poll-model state forecast",
+       50,
+       0.0296,
+       0.077,
+       0.882
+      ],
+      [
+       "270toWin/JHK state forecast",
+       50,
+       0.0306,
+       0.08,
+       0.878
+      ]
+     ],
+     "hinweis": "Expected calibration error is the n-weighted mean gap between predicted probability and realised frequency across bins."
+    }
+   ],
+   "basis": {
+    "tage": 194,
+    "fenster": "2024-03-01 to 2024-09-12",
+    "beobachtungen": 285
+   },
+   "quellen": [
+    "data/results/h1_brier_scores.csv",
+    "data/results/h1_diebold_mariano.json",
+    "data/results/h1_poll_claim_readiness_summary.csv",
+    "data/results/h1_forecast_quality_synthesis.csv",
+    "data/results/h1_calibration_diagnostic_bins.csv"
+   ],
+   "schlagworte": [
+    "brier",
+    "diebold-mariano",
+    "calibration",
+    "polls"
+   ],
+   "breite_behauptung_bewiesen": false
+  },
+  {
+   "id": "h2",
+   "kapitel": "H2 · Event reaction",
+   "frage": "Did the price react to public campaign events, and in the expected direction?",
+   "verdikt": "Supported on daily data. 3 of 3 directional events moved the expected way, the largest +7.2 pp within a day; neutral events stayed within 3.5 pp of zero.",
+   "verdikt_art": "ja",
+   "analyse": [
+    {
+     "schluessel": "gemessen",
+     "titel": "What was measured",
+     "text": "The cumulative abnormal change of the Trump-wins probability in a primary window (event day to the next day) and a secondary window (one day before to three days after)."
+    },
+    {
+     "schluessel": "wie",
+     "titel": "How",
+     "text": "An event study on daily closes. The normal daily drift is estimated from the 13 trading days before each event; abnormal change is the observed change minus that drift, summed over the window."
+    },
+    {
+     "schluessel": "daten",
+     "titel": "On which data",
+     "text": "7 pre-curated events between 2024-05-30 and 2024-09-11, each with a source link and an expected direction fixed before measurement."
+    },
+    {
+     "schluessel": "entscheidung",
+     "titel": "What would have counted as evidence",
+     "text": "Directional events moving in the expected direction, with a magnitude beyond the pre-event drift, count as support; a neutral event moving as much as a directional one would weaken it."
+    }
+   ],
+   "einfach": "Seven public events of the 2024 campaign were fixed in advance, each with the direction a reasonable observer would expect for the Trump-wins market. For each event the thesis measures how much the price moved beyond its normal drift (the abnormal change) from the event day to the next. The largest move belongs to the event 'Trump injured in Butler rally shooting': +7.2 percentage points in one day. All 3 events with an expected direction moved that way (3 of 3); the 4 events without one, the debates and the running-mate picks, scatter within 3.5 points of zero. Daily prices cannot say how fast the move happened, only that it did.",
+   "interpretation": [
+    {
+     "art": "lesart",
+     "titel": "What it suggests",
+     "text": "The price absorbs public news within a day, in the direction the news implies. That is what a semi-strong efficient market is supposed to do."
+    },
+    {
+     "art": "gegenlesart",
+     "titel": "What else fits the same numbers",
+     "text": "Seven events are seven data points, hand-picked because they were obviously important. The abnormal change is measured against a short drift estimate, so a noisy pre-event window changes the number."
+    },
+    {
+     "art": "grenze",
+     "titel": "What this cannot tell you",
+     "text": "Daily closes cannot separate 'reacted in minutes' from 'reacted by the next day'. The seconds-level reaction question is answered on the Mentions latency and Live runs pages, on different markets."
+    }
+   ],
+   "zahlen": [
+    {
+     "label": "Events",
+     "wert": 7,
+     "hinweis": "3 directional, 4 neutral"
+    },
+    {
+     "label": "Directional events moving as expected",
+     "wert": "3 of 3"
+    },
+    {
+     "label": "Largest one-day move",
+     "wert": "+7.2 pp",
+     "hinweis": "Trump injured in Butler rally shooting"
+    },
+    {
+     "label": "Largest neutral-event move",
+     "wert": "3.5 pp",
+     "hinweis": "absolute, primary window"
+    }
+   ],
+   "diagramme": {
+    "fenster": {
+     "titel": "Abnormal change in the Trump-wins probability, event day to next day",
+     "einheit": "percentage points",
+     "referenz": 0.0,
+     "referenz_label": "no abnormal move",
+     "punkte": [
+      {
+       "label": "05-30 Trump convicted in New York hush-money trial",
+       "wert": -4.08,
+       "tip": "Trump convicted in New York hush-money trial · expected trump down · -4.1 pp"
+      },
+      {
+       "label": "06-28 Biden-Trump CNN presidential debate begins",
+       "wert": 2.54,
+       "tip": "Biden-Trump CNN presidential debate begins · expected neutral · +2.5 pp"
+      },
+      {
+       "label": "07-13 Trump injured in Butler rally shooting",
+       "wert": 7.19,
+       "tip": "Trump injured in Butler rally shooting · expected trump up · +7.2 pp"
+      },
+      {
+       "label": "07-15 Trump selects JD Vance as running mate",
+       "wert": 3.46,
+       "tip": "Trump selects JD Vance as running mate · expected neutral · +3.5 pp"
+      },
+      {
+       "label": "07-21 Biden withdraws and backs Harris",
+       "wert": -1.65,
+       "tip": "Biden withdraws and backs Harris · expected harris up · -1.7 pp"
+      },
+      {
+       "label": "08-06 Harris selects Tim Walz as running mate",
+       "wert": 1.31,
+       "tip": "Harris selects Tim Walz as running mate · expected neutral · +1.3 pp"
+      },
+      {
+       "label": "09-11 Harris-Trump ABC presidential debate begins",
+       "wert": -2.93,
+       "tip": "Harris-Trump ABC presidential debate begins · expected neutral · -2.9 pp"
+      }
+     ]
+    },
+    "pfade": {
+     "titel": "Cumulative abnormal change, one day before to three days after",
+     "einheit": "percentage points",
+     "x": [
+      "-1",
+      "0",
+      "+1",
+      "+2",
+      "+3"
+     ],
+     "xWerte": [
+      -1,
+      0,
+      1,
+      2,
+      3
+     ],
+     "serien": [
+      {
+       "name": "Trump convicted in New York hush-money trial",
+       "werte": [
+        0.46,
+        -0.08,
+        -3.62,
+        -3.15,
+        -4.69
+       ]
+      },
+      {
+       "name": "Biden-Trump CNN presidential debate begins",
+       "werte": [
+        -0.23,
+        0.54,
+        2.31,
+        2.08,
+        0.85
+       ]
+      },
+      {
+       "name": "Trump injured in Butler rally shooting",
+       "werte": [
+        -2.65,
+        -3.31,
+        4.54,
+        6.38,
+        7.23
+       ]
+      },
+      {
+       "name": "Trump selects JD Vance as running mate",
+       "werte": [
+        8.23,
+        10.46,
+        11.69,
+        9.92,
+        9.15
+       ]
+      },
+      {
+       "name": "Biden withdraws and backs Harris",
+       "werte": [
+        2.92,
+        2.35,
+        1.27,
+        0.69,
+        -1.38
+       ]
+      },
+      {
+       "name": "Harris selects Tim Walz as running mate",
+       "werte": [
+        -2.35,
+        0.31,
+        -1.04,
+        -3.38,
+        -2.08
+       ]
+      },
+      {
+       "name": "Harris-Trump ABC presidential debate begins",
+       "werte": [
+        0.81,
+        0.37,
+        -2.13,
+        -2.77,
+        -2.91
+       ]
+      }
+     ]
+    }
+   },
+   "ereignisse": [
+    {
+     "id": "evt_2024_05_30_trump_conviction",
+     "datum": "2024-05-30",
+     "titel": "Trump convicted in New York hush-money trial",
+     "art": "legal",
+     "erwartet": "trump_down",
+     "quelle_url": "https://www.cnbc.com/2024/05/30/trump-trial-verdict-hush-money.html",
+     "relevanz": 0.85,
+     "fenster": {
+      "primary_0d_to_1d": -4.08,
+      "secondary_minus_1d_to_3d": -4.69
+     },
+     "gerichtet": true,
+     "treffer": true
+    },
+    {
+     "id": "evt_2024_06_28_biden_trump_debate",
+     "datum": "2024-06-28",
+     "titel": "Biden-Trump CNN presidential debate begins",
+     "art": "debate",
+     "erwartet": "neutral",
+     "quelle_url": "https://cnnpressroom.blogs.cnn.com/2024/05/15/cnn-to-host-2024-election-presidential-debate-between-president-joe-biden-and-former-president-donald-j-trump-on-june-27/",
+     "relevanz": 0.95,
+     "fenster": {
+      "primary_0d_to_1d": 2.54,
+      "secondary_minus_1d_to_3d": 0.85
+     },
+     "gerichtet": false,
+     "treffer": null
+    },
+    {
+     "id": "evt_2024_07_13_trump_shooting",
+     "datum": "2024-07-13",
+     "titel": "Trump injured in Butler rally shooting",
+     "art": "major_news",
+     "erwartet": "trump_up",
+     "quelle_url": "https://www.npr.org/2024/07/19/nx-s1-5041734/trump-shooting-assassination-crooks-bulter-secret-service",
+     "relevanz": 0.95,
+     "fenster": {
+      "primary_0d_to_1d": 7.19,
+      "secondary_minus_1d_to_3d": 7.23
+     },
+     "gerichtet": true,
+     "treffer": true
+    },
+    {
+     "id": "evt_2024_07_15_vance_vp_pick",
+     "datum": "2024-07-15",
+     "titel": "Trump selects JD Vance as running mate",
+     "art": "candidate_change",
+     "erwartet": "neutral",
+     "quelle_url": "https://www.axios.com/2024/07/15/trump-jd-vance-vice-president",
+     "relevanz": 0.7,
+     "fenster": {
+      "primary_0d_to_1d": 3.46,
+      "secondary_minus_1d_to_3d": 9.15
+     },
+     "gerichtet": false,
+     "treffer": null
+    },
+    {
+     "id": "evt_2024_07_21_biden_withdrawal",
+     "datum": "2024-07-21",
+     "titel": "Biden withdraws and backs Harris",
+     "art": "candidate_change",
+     "erwartet": "harris_up",
+     "quelle_url": "https://www.axios.com/2024/07/22/biden-social-media-post-drop-out",
+     "relevanz": 0.98,
+     "fenster": {
+      "primary_0d_to_1d": -1.65,
+      "secondary_minus_1d_to_3d": -1.38
+     },
+     "gerichtet": true,
+     "treffer": true
+    },
+    {
+     "id": "evt_2024_08_06_walz_vp_pick",
+     "datum": "2024-08-06",
+     "titel": "Harris selects Tim Walz as running mate",
+     "art": "candidate_change",
+     "erwartet": "neutral",
+     "quelle_url": "https://www.upi.com/Top_News/US/2024/08/06/kamala-harris-vice-president-tim-walz/3061722952420/",
+     "relevanz": 0.75,
+     "fenster": {
+      "primary_0d_to_1d": 1.31,
+      "secondary_minus_1d_to_3d": -2.08
+     },
+     "gerichtet": false,
+     "treffer": null
+    },
+    {
+     "id": "evt_2024_09_11_harris_trump_debate",
+     "datum": "2024-09-11",
+     "titel": "Harris-Trump ABC presidential debate begins",
+     "art": "debate",
+     "erwartet": "neutral",
+     "quelle_url": "https://www.cbsnews.com/news/trump-harris-debate-rules-2024/",
+     "relevanz": 0.9,
+     "fenster": {
+      "primary_0d_to_1d": -2.93,
+      "secondary_minus_1d_to_3d": -2.91
+     },
+     "gerichtet": false,
+     "treffer": null
+    }
+   ],
+   "tabellen": [
+    {
+     "titel": "Every event and both windows",
+     "spalten": [
+      "Event",
+      "Date",
+      "Expected",
+      "0d to +1d (pp)",
+      "-1d to +3d (pp)",
+      "Moved as expected"
+     ],
+     "zeilen": [
+      [
+       "Trump convicted in New York hush-money trial",
+       "2024-05-30",
+       "trump down",
+       "-4.1",
+       "-4.7",
+       "yes"
+      ],
+      [
+       "Biden-Trump CNN presidential debate begins",
+       "2024-06-28",
+       "neutral",
+       "+2.5",
+       "+0.8",
+       "n/a"
+      ],
+      [
+       "Trump injured in Butler rally shooting",
+       "2024-07-13",
+       "trump up",
+       "+7.2",
+       "+7.2",
+       "yes"
+      ],
+      [
+       "Trump selects JD Vance as running mate",
+       "2024-07-15",
+       "neutral",
+       "+3.5",
+       "+9.2",
+       "n/a"
+      ],
+      [
+       "Biden withdraws and backs Harris",
+       "2024-07-21",
+       "harris up",
+       "-1.6",
+       "-1.4",
+       "yes"
+      ],
+      [
+       "Harris selects Tim Walz as running mate",
+       "2024-08-06",
+       "neutral",
+       "+1.3",
+       "-2.1",
+       "n/a"
+      ],
+      [
+       "Harris-Trump ABC presidential debate begins",
+       "2024-09-11",
+       "neutral",
+       "-2.9",
+       "-2.9",
+       "n/a"
+      ]
+     ],
+     "hinweis": "Positive values favour Trump. Neutral events carry no expectation and are listed as n/a."
+    }
+   ],
+   "basis": {
+    "beobachtungen": 7,
+    "fenster": "2024-05-30 to 2024-09-11"
+   },
+   "quellen": [
+    "data/results/h2_event_window_summary.csv",
+    "data/results/h2_event_window_rows.csv"
+   ],
+   "schlagworte": [
+    "event study",
+    "abnormal return",
+    "reaction"
+   ]
+  },
+  {
+   "id": "h3",
+   "kapitel": "H3 · Wallet timing",
+   "frage": "Did large wallets move before the price moved?",
+   "verdikt": "Supported for one tier and one lag. The top 1% (32 wallets) lead the next day's price change (r +0.186, Granger p 0.0012); the other tiers show no timing signal. A diagnostic of timing, not a causal finding.",
+   "verdikt_art": "ja",
+   "analyse": [
+    {
+     "schluessel": "gemessen",
+     "titel": "What was measured",
+     "text": "Lead-lag correlation between a tier's daily change in buying volume (log scale) and the daily change of the Trump-wins price, plus a Granger causality test per tier and lag."
+    },
+    {
+     "schluessel": "wie",
+     "titel": "How",
+     "text": "Wallets are ranked by cumulative buy volume; the top 1%, 5% and 10% and the remainder form four tiers. For each tier and lag from 0 to 7 days the correlation is computed, and an F-test asks whether the tier's past activity improves the forecast of the price change beyond the price's own past."
+    },
+    {
+     "schluessel": "daten",
+     "titel": "On which data",
+     "text": "3,006 wallets, 1,216 aligned tier-day rows, 304 observations per test, 2024-01-01 to 2024-11-04. Buy-side trades only."
+    },
+    {
+     "schluessel": "entscheidung",
+     "titel": "What would have counted as evidence",
+     "text": "A Granger p-value below 0.05 for a tier would count as a timing signal; with 28 tests, the Bonferroni threshold is what a sceptical reader applies."
+    }
+   ],
+   "einfach": "The thesis sorted 3,006 wallets with at least 10,000 USD of observed buying into tiers by how much they traded, then asked whether a tier's daily buying volume moved before the price did. For the top 1% (32 wallets) the answer is a weak yes: buying on one day correlates with the next day's price change at r = +0.186, and a Granger test at lag 1 gives p = 0.0012. The other three tiers show nothing (smallest p between 0.345 and 0.783). Across 28 tier-lag tests 2 fall below 0.05 and 1 survive a Bonferroni correction (0.0018). One wallet alone accounts for 67.9% of all observed volume, so the top tier is largely one actor.",
+   "interpretation": [
+    {
+     "art": "lesart",
+     "titel": "What it suggests",
+     "text": "The largest wallets buy a day before prices move their way. Whether they cause the move, react to something the price has not seen yet, or simply are the move (their own orders shift the price) cannot be separated on daily data."
+    },
+    {
+     "art": "gegenlesart",
+     "titel": "What else fits the same numbers",
+     "text": "Twenty-eight tests at a 5% threshold produce one or two hits by chance. The lag-1 result survives Bonferroni, the lag-2 result does not. And the top tier is dominated by a single wallet, so this is closer to a case study of one actor than a statement about a class of traders."
+    },
+    {
+     "art": "grenze",
+     "titel": "What this cannot tell you",
+     "text": "Buy-only data, daily alignment, one election. Nothing here says that following these wallets would have paid anything after spreads and fees; the copy-trading forensics on this site say it did not."
+    }
+   ],
+   "zahlen": [
+    {
+     "label": "Wallets in the top 1% tier",
+     "wert": 32,
+     "hinweis": "of 3,006 observed"
+    },
+    {
+     "label": "Top-tier lead correlation, lag 1",
+     "wert": "+0.186",
+     "hinweis": "n 304"
+    },
+    {
+     "label": "Top-tier Granger p, lag 1",
+     "wert": "0.0012",
+     "hinweis": "Bonferroni threshold 0.0018 over 28 tests"
+    },
+    {
+     "label": "Tests below 0.05 / surviving Bonferroni",
+     "wert": "2 / 1",
+     "hinweis": "of 28"
+    },
+    {
+     "label": "Share of volume from the single largest wallet",
+     "wert": "67.9%",
+     "hinweis": "top 10 wallets: 72.4%"
+    }
+   ],
+   "diagramme": {
+    "leadlag": {
+     "titel": "Correlation between tier buying and the next days' price change",
+     "einheit": "Pearson r",
+     "hinweis": "lag in days: activity on day t against price change on day t + lag",
+     "x": [
+      "0",
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7"
+     ],
+     "xWerte": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+     ],
+     "serien": [
+      {
+       "name": "Top 1%",
+       "werte": [
+        -0.0692,
+        0.1858,
+        -0.0139,
+        -0.0458,
+        -0.0187,
+        0.0439,
+        -0.0004,
+        0.0099
+       ]
+      },
+      {
+       "name": "Top 5%",
+       "werte": [
+        -0.0065,
+        0.0425,
+        0.0214,
+        -0.0314,
+        0.0468,
+        -0.0376,
+        0.0287,
+        -0.0297
+       ]
+      },
+      {
+       "name": "Top 10%",
+       "werte": [
+        -0.0402,
+        0.0551,
+        0.0101,
+        -0.0422,
+        -0.0062,
+        0.0228,
+        0.061,
+        -0.0191
+       ]
+      },
+      {
+       "name": "Everyone else",
+       "werte": [
+        0.0159,
+        -0.0016,
+        -0.0004,
+        0.0294,
+        -0.0573,
+        0.0247,
+        -0.0076,
+        -0.0214
+       ]
+      }
+     ]
+    },
+    "granger": {
+     "titel": "Smallest Granger p-value per tier",
+     "einheit": "p-value",
+     "referenz": 0.05,
+     "referenz_label": "p = 0.05",
+     "punkte": [
+      {
+       "label": "Top 1% (lag 1, 32 wallets)",
+       "wert": 0.0012,
+       "farbe": "var(--accent)"
+      },
+      {
+       "label": "Top 5% (lag 1, 120 wallets)",
+       "wert": 0.4625,
+       "farbe": "var(--ink-3)"
+      },
+      {
+       "label": "Top 10% (lag 1, 150 wallets)",
+       "wert": 0.3449,
+       "farbe": "var(--ink-3)"
+      },
+      {
+       "label": "Everyone else (lag 4, 2704 wallets)",
+       "wert": 0.7827,
+       "farbe": "var(--ink-3)"
+      }
+     ]
+    },
+    "tiers": {
+     "titel": "Wallets per tier",
+     "einheit": "wallets",
+     "punkte": [
+      {
+       "label": "Top 1%",
+       "wert": 32
+      },
+      {
+       "label": "Top 5%",
+       "wert": 120
+      },
+      {
+       "label": "Top 10%",
+       "wert": 150
+      },
+      {
+       "label": "Everyone else",
+       "wert": 2704
+      }
+     ]
+    }
+   },
+   "tabellen": [
+    {
+     "titel": "Granger p-values, every tier and lag",
+     "spalten": [
+      "Tier",
+      "Wallets",
+      "lag 1",
+      "lag 2",
+      "lag 3",
+      "lag 4",
+      "lag 5",
+      "lag 6",
+      "lag 7"
+     ],
+     "zeilen": [
+      [
+       "Top 1%",
+       32,
+       "0.0012",
+       "0.007",
+       "0.743",
+       "0.849",
+       "0.904",
+       "0.904",
+       "0.965"
+      ],
+      [
+       "Top 5%",
+       120,
+       "0.463",
+       "0.558",
+       "0.943",
+       "0.867",
+       "0.925",
+       "0.962",
+       "0.959"
+      ],
+      [
+       "Top 10%",
+       150,
+       "0.345",
+       "0.533",
+       "0.689",
+       "0.807",
+       "0.888",
+       "0.700",
+       "0.756"
+      ],
+      [
+       "Everyone else",
+       2704,
+       "0.982",
+       "0.999",
+       "0.921",
+       "0.783",
+       "0.875",
+       "0.882",
+       "0.784"
+      ]
+     ],
+     "hinweis": "Bonferroni threshold for 28 tests: 0.0018."
+    }
+   ],
+   "basis": {
+    "beobachtungen": 1216,
+    "fenster": "2024-01-01 to 2024-11-04"
+   },
+   "quellen": [
+    "data/results/thesis_h3_summary.csv",
+    "data/results/h3_lead_lag_correlations.csv",
+    "data/results/h3_granger_results.csv",
+    "data/results/h3_wallet_distribution_inventory.json"
+   ],
+   "schlagworte": [
+    "granger",
+    "lead-lag",
+    "wallet tiers"
+   ]
+  },
+  {
+   "id": "swiss",
+   "kapitel": "Case study · Swiss referendum, 14 June 2026",
+   "frage": "Outside the US: did the market read a Swiss referendum better than the polls?",
+   "verdikt": "Right side, wrong number. Polymarket priced Yes at 21.5% against an official 45.21%: further from the vote share than every final poll, yet on the correct No side in all 74 live windows. A bounded side case, not a test of efficiency.",
+   "verdikt_art": "gemischt",
+   "analyse": [
+    {
+     "schluessel": "gemessen",
+     "titel": "What was measured",
+     "text": "The Polymarket Yes price for the popular initiative 'No 10-million Switzerland' against seven published polls and the official result, both as a vote-share estimate and as a binary call."
+    },
+    {
+     "schluessel": "wie",
+     "titel": "How",
+     "text": "Hourly price snapshots from the Polymarket price history, matched to the most recent poll at each observation. Vote-share error is |price minus official Yes share|; the binary proxy scores each source's Brier loss against the rejection. Poll releases are followed for 48 hours to see whether the price moved the same way as the poll signal."
+    },
+    {
+     "schluessel": "daten",
+     "titel": "On which data",
+     "text": "504 hourly price rows from 2026-04-28 to 2026-06-05, 74 live comparison windows in the final week, 7 polls from three institutes, the official result from admin.ch."
+    },
+    {
+     "schluessel": "entscheidung",
+     "titel": "What would have counted as evidence",
+     "text": "A lower vote-share error than the final polls would have supported the market as an estimator; a lower binary Brier loss supports it as a probability. The two disagree, which is the finding."
+    }
+   ],
+   "einfach": "The initiative was rejected with 45.21% Yes. Polymarket's last live price before the result put Yes at 21.5%, so as a vote-share estimate the market was 23.7 points off, while the three final polls were 0.2 to 7.2 points off (38%, 47%, 45% Yes). Read as a binary call the picture reverses: in all 74 live comparison windows the market's probability was further on the correct No side than any poll proxy (74 of 74), and on vote share the market beat the matched poll in 0 of 74. Over the 504 hourly history rows since April the market was closer than the poll on vote share 36 times. After 6 poll releases with a direction, the price ended up moving the same way within 48 hours in 3; the responses were slow, small and sometimes opposite. A price is a probability, a poll is a share, and the thesis keeps the two readings apart.",
+   "interpretation": [
+    {
+     "art": "lesart",
+     "titel": "What it suggests",
+     "text": "The market was confident of a No and right about it; the polls tracked the vote share and were right about that. Neither source was wrong on its own terms."
+    },
+    {
+     "art": "gegenlesart",
+     "titel": "What else fits the same numbers",
+     "text": "A thin, US-dollar market on a Swiss vote has few informed participants; a 21.5% price on a 45% outcome may say more about who trades there than about information. The polls all leaned No too, so the direction was not hard."
+    },
+    {
+     "art": "grenze",
+     "titel": "What this cannot tell you",
+     "text": "One referendum. Comparing a probability with a vote share needs a proxy in one direction or the other, and both proxies are documented as proxies. Nothing here measures whether the gap was tradable."
+    }
+   ],
+   "zahlen": [
+    {
+     "label": "Official Yes share",
+     "wert": "45.21%",
+     "hinweis": "rejected"
+    },
+    {
+     "label": "Last live Polymarket Yes price",
+     "wert": "21.5%",
+     "hinweis": "23.7 points from the vote share"
+    },
+    {
+     "label": "Final polls, Yes",
+     "wert": "38%, 47%, 45%",
+     "hinweis": "SRG/gfs.bern, Tamedia/LeeWas, YouGov"
+    },
+    {
+     "label": "Live windows where the market won on vote share",
+     "wert": "0 of 74"
+    },
+    {
+     "label": "Live windows where the market won as a binary call",
+     "wert": "74 of 74"
+    },
+    {
+     "label": "Poll releases followed by a same-direction move within 48 h",
+     "wert": "3 of 6"
+    }
+   ],
+   "diagramme": {
+    "preis": {
+     "titel": "Polymarket Yes price, daily last value",
+     "einheit": "probability",
+     "punkte": [
+      {
+       "t": "2026-04-28",
+       "wert": 0.335
+      },
+      {
+       "t": "2026-04-29",
+       "wert": 0.375
+      },
+      {
+       "t": "2026-04-30",
+       "wert": 0.385
+      },
+      {
+       "t": "2026-05-04",
+       "wert": 0.37
+      },
+      {
+       "t": "2026-05-05",
+       "wert": 0.37
+      },
+      {
+       "t": "2026-05-06",
+       "wert": 0.365
+      },
+      {
+       "t": "2026-05-07",
+       "wert": 0.405
+      },
+      {
+       "t": "2026-05-08",
+       "wert": 0.415
+      },
+      {
+       "t": "2026-05-09",
+       "wert": 0.355
+      },
+      {
+       "t": "2026-05-10",
+       "wert": 0.355
+      },
+      {
+       "t": "2026-05-26",
+       "wert": 0.345
+      },
+      {
+       "t": "2026-05-27",
+       "wert": 0.335
+      },
+      {
+       "t": "2026-05-28",
+       "wert": 0.355
+      },
+      {
+       "t": "2026-06-01",
+       "wert": 0.335
+      },
+      {
+       "t": "2026-06-02",
+       "wert": 0.335
+      },
+      {
+       "t": "2026-06-03",
+       "wert": 0.285
+      },
+      {
+       "t": "2026-06-04",
+       "wert": 0.285
+      },
+      {
+       "t": "2026-06-05",
+       "wert": 0.285
+      }
+     ],
+     "marken": [
+      {
+       "t": "2026-04-29",
+       "wert": 0.52,
+       "label": "Tamedia/20 Minuten/LeeWas 52% Yes"
+      },
+      {
+       "t": "2026-05-05",
+       "wert": 0.45,
+       "label": "YouGov Schweiz 45% Yes"
+      },
+      {
+       "t": "2026-05-08",
+       "wert": 0.47,
+       "label": "SRG/gfs.bern 47% Yes"
+      },
+      {
+       "t": "2026-05-27",
+       "wert": 0.43,
+       "label": "YouGov Schweiz 43% Yes"
+      },
+      {
+       "t": "2026-06-02",
+       "wert": 0.38,
+       "label": "YouGov Schweiz 38% Yes"
+      },
+      {
+       "t": "2026-06-03",
+       "wert": 0.47,
+       "label": "Tamedia/20 Minuten/LeeWas 47% Yes"
+      },
+      {
+       "t": "2026-06-03",
+       "wert": 0.45,
+       "label": "SRG/gfs.bern 45% Yes"
+      }
+     ],
+     "referenz": {
+      "wert": 0.4521,
+      "label": "official Yes 45.21%"
+     }
+    },
+    "quellen_fehler": {
+     "titel": "Distance from the official Yes share, final sources",
+     "einheit": "percentage points",
+     "punkte": [
+      {
+       "label": "Polymarket (21.5% Yes)",
+       "wert": 23.7
+      },
+      {
+       "label": "YouGov Schweiz (38% Yes)",
+       "wert": 7.2
+      },
+      {
+       "label": "Tamedia/20 Minuten/LeeWas (47% Yes)",
+       "wert": 1.8
+      },
+      {
+       "label": "SRG/gfs.bern (45% Yes)",
+       "wert": 0.2
+      }
+     ]
+    },
+    "antwort": {
+     "titel": "Price change after each poll release, by horizon",
+     "einheit": "percentage points",
+     "hinweis": "x: poll release in order of publication; positive = Yes price up",
+     "x": [
+      "04-29 Tamedia",
+      "05-05 YouGov Schweiz",
+      "05-08 SRG",
+      "05-27 YouGov Schweiz",
+      "06-02 YouGov Schweiz",
+      "06-03 Tamedia",
+      "06-03 SRG"
+     ],
+     "serien": [
+      {
+       "name": "after 1 h",
+       "werte": [
+        1.0,
+        0.5,
+        0.0,
+        1.0,
+        3.0,
+        0.0,
+        0.0
+       ]
+      },
+      {
+       "name": "after 6 h",
+       "werte": [
+        2.0,
+        0.5,
+        1.0,
+        1.5,
+        1.5,
+        -3.0,
+        -1.0
+       ]
+      },
+      {
+       "name": "after 24 h",
+       "werte": [
+        4.0,
+        0.0,
+        1.0,
+        -1.0,
+        0.0,
+        -5.0,
+        -4.0
+       ]
+      },
+      {
+       "name": "after 48 h",
+       "werte": [
+        5.0,
+        -0.5,
+        -5.0,
+        1.0,
+        -5.0,
+        -5.0,
+        -5.0
+       ]
+      }
+     ]
+    }
+   },
+   "tabellen": [
+    {
+     "titel": "Every poll against the official result",
+     "spalten": [
+      "Poll",
+      "Published",
+      "Yes",
+      "No",
+      "Undecided",
+      "Yes error (pp)",
+      "Final"
+     ],
+     "zeilen": [
+      [
+       "Tamedia/20 Minuten/LeeWas",
+       "2026-04-29",
+       "52%",
+       "46%",
+       "2%",
+       "+6.8",
+       ""
+      ],
+      [
+       "YouGov Schweiz",
+       "2026-05-05",
+       "45%",
+       "46%",
+       "8%",
+       "-0.2",
+       ""
+      ],
+      [
+       "SRG/gfs.bern",
+       "2026-05-08",
+       "47%",
+       "47%",
+       "6%",
+       "+1.8",
+       ""
+      ],
+      [
+       "YouGov Schweiz",
+       "2026-05-27",
+       "43%",
+       "51%",
+       "6%",
+       "-2.2",
+       ""
+      ],
+      [
+       "YouGov Schweiz",
+       "2026-06-02",
+       "38%",
+       "55%",
+       "7%",
+       "-7.2",
+       "yes"
+      ],
+      [
+       "Tamedia/20 Minuten/LeeWas",
+       "2026-06-03",
+       "47%",
+       "52%",
+       "1%",
+       "+1.8",
+       "yes"
+      ],
+      [
+       "SRG/gfs.bern",
+       "2026-06-03",
+       "45%",
+       "52%",
+       "3%",
+       "-0.2",
+       "yes"
+      ]
+     ],
+     "hinweis": "1 of 7 polls had Yes at or above 50%; every final poll leaned No."
+    },
+    {
+     "titel": "Price response to poll releases",
+     "spalten": [
+      "Poll",
+      "Poll signal",
+      "+1 h",
+      "+6 h",
+      "+24 h",
+      "+48 h",
+      "Classification"
+     ],
+     "zeilen": [
+      [
+       "Tamedia/20 Minuten/LeeWas 2026-04-29",
+       "no_prior_poll",
+       "+1.0",
+       "+2.0",
+       "+4.0",
+       "+5.0",
+       "no prior poll signal"
+      ],
+      [
+       "YouGov Schweiz 2026-05-05",
+       "down",
+       "+0.5",
+       "+0.5",
+       "+0.0",
+       "-0.5",
+       "delayed same direction 48h"
+      ],
+      [
+       "SRG/gfs.bern 2026-05-08",
+       "up",
+       "+0.0",
+       "+1.0",
+       "+1.0",
+       "-5.0",
+       "delayed same direction 6h"
+      ],
+      [
+       "YouGov Schweiz 2026-05-27",
+       "down",
+       "+1.0",
+       "+1.5",
+       "-1.0",
+       "+1.0",
+       "delayed same direction 24h"
+      ],
+      [
+       "YouGov Schweiz 2026-06-02",
+       "down",
+       "+3.0",
+       "+1.5",
+       "+0.0",
+       "-5.0",
+       "delayed same direction 48h"
+      ],
+      [
+       "Tamedia/20 Minuten/LeeWas 2026-06-03",
+       "up",
+       "+0.0",
+       "-3.0",
+       "-5.0",
+       "-5.0",
+       "no same direction within 48h"
+      ],
+      [
+       "SRG/gfs.bern 2026-06-03",
+       "down",
+       "+0.0",
+       "-1.0",
+       "-4.0",
+       "-5.0",
+       "delayed same direction 6h"
+      ]
+     ],
+     "hinweis": "Poll signal is the direction of the decided Yes share against the previous poll; the first poll has no predecessor."
+    }
+   ],
+   "basis": {
+    "beobachtungen": 74,
+    "snapshots": 504,
+    "fenster": "2026-04-28 to 2026-06-05"
+   },
+   "quellen": [
+    "data/results/swiss_referendum_10mio_final_case_study.csv",
+    "data/results/swiss_referendum_10mio_poll_accuracy.csv",
+    "data/results/swiss_referendum_10mio_polymarket_price_history.csv",
+    "data/results/swiss_referendum_10mio_information_response.csv"
+   ],
+   "amtlich": {
+    "titel": "Volksinitiative \"Keine 10-Millionen-Schweiz! (Nachhaltigkeitsinitiative)\"",
+    "datum": "2026-06-14",
+    "ergebnis": "rejected",
+    "ja": 0.4521,
+    "quelle_url": "https://abstimmungen.admin.ch/details/2026-06-14?proposalId=6860"
+   },
+   "schlagworte": [
+    "referendum",
+    "polls",
+    "switzerland"
+   ],
+   "live_zeilen": 74
+  }
+ ],
+ "fehlend": []
+}

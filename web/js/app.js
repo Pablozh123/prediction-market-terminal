@@ -16,6 +16,7 @@ import { renderFed } from './pages/fed_page.js';
 import { renderDetail, renderSearch } from './overlays.js';
 import { mountAmbient } from './ambient.js';
 import { MONO as M } from './ui.js';
+import { previewAn, gesperrt, sperrkarteHtml } from './preview.js';
 
 // Every route stays reachable by hash. The sidebar lists a subset (see
 // renderSidebar): Settings, Tracked, Copy trade, Portfolio and Resolved are
@@ -533,6 +534,13 @@ class Terminal {
     };
   }
 
+  // Vorschau-Schalter (web/js/preview.js): Studien mit preview: true stehen
+  // nur mit ?preview=1 in der Seitenleiste und der Suche; ihre Adresse zeigt
+  // sonst die Sperrkarte, und es wird nichts fuer sie abgerufen.
+  previewAn() { return previewAn(); }
+
+  studieGesperrt(i) { return gesperrt(this.studies[i], this.previewAn()); }
+
   // ---- sidebar / topbar ----
   navItem(id, label, badge, badgeColor) {
     const active = this.state.page === id;
@@ -664,6 +672,14 @@ class Terminal {
         this.navItem('backtester', 'Backtester')
       ] }
     ];
+    // Die Vorschau-Studien nur mit Schalter, als eigene Gruppe hinter dem
+    // Record und vor dem Werkzeug, damit klar ist, was noch nicht frei ist.
+    if (this.previewAn()) {
+      groups.splice(4, 0, {
+        label: 'IN PREPARATION · PREVIEW',
+        items: this.studies.filter((st) => st.preview).map((st) => this.navStudyByTab(st.tab))
+      });
+    }
     // The copy desk is public read-only (the API's write guard decides who
     // may act), so it is listed for everyone. Portfolio stays a local
     // instrument — listed where the site runs next to its own api/server.py
@@ -1005,6 +1021,7 @@ class Terminal {
     } else if (page === 'graph') {
       this.fetchGraph(false);
     } else if (page === 'research') {
+      if (this.studieGesperrt(this.state.researchTab)) return;
       const key = this.studies[this.state.researchTab].tab;
       // Begleiter-Nutzlasten der zusammengelegten Seiten: Live runs fasst das
       // Paper-Log (Pipeline forward) zusammen, Methodology die archivierte
@@ -1437,7 +1454,8 @@ class Terminal {
     document.getElementById('sidebar').innerHTML = this.renderSidebar();
     document.getElementById('topbar').innerHTML = this.renderTopbar();
     const pageFn = PAGES[this.state.page] || renderOverview;
-    document.getElementById('main').innerHTML = pageFn(this);
+    const studieGesperrt = this.state.page === 'research' && this.studieGesperrt(this.state.researchTab);
+    document.getElementById('main').innerHTML = studieGesperrt ? sperrkarteHtml(this.studies[this.state.researchTab]) : pageFn(this);
     document.getElementById('detail').innerHTML = renderDetail(this);
     document.getElementById('search').innerHTML = renderSearch(this);
     // Der Fluss hinter dem Hero und das Band laufen ausserhalb des
