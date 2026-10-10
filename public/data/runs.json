@@ -1,21 +1,21 @@
 {
  "hinweis": "Descriptive post-run review of our own small-stake live runs of the mentions bot. The dollar headlines are the wallet's own numbers, read from the public Polymarket Data API for this address; runs, timing and per-bet detail are reconstructed read-only from the run logs, resolutions from public Gamma data. No trading recommendation, no return forecast.",
- "stand_utc": "2026-10-08T04:34:11+00:00",
+ "stand_utc": "2026-10-10T04:34:44+00:00",
  "kennzeichnung": "live/descriptive",
  "aggregat": {
-  "n_runs": 26,
-  "n_wetten": 28,
+  "n_runs": 27,
+  "n_wetten": 29,
   "gewonnen": 26,
   "verloren": 2,
-  "offen": 0,
-  "einsatz_usd": 1175.98,
+  "offen": 1,
+  "einsatz_usd": 1178.05,
   "aufgeloester_einsatz_usd": 1175.98,
   "realisierter_payout_usd": 1465.07,
   "realisierter_pnl_usd": 289.09,
   "roi_realisiert_pct": 24.6,
-  "offener_einsatz_usd": 0.0,
-  "sichtbare_tiefe_usd": 1518.79,
-  "einsatz_zu_sichtbarer_tiefe_pct": 77.4,
+  "offener_einsatz_usd": 2.07,
+  "sichtbare_tiefe_usd": 1520.86,
+  "einsatz_zu_sichtbarer_tiefe_pct": 77.5,
   "wallet_netto_usd": 175.09,
   "wallet_kaeufe_usd": 492.51,
   "wallet_abgleich_stand": "2026-07-18"
@@ -2874,6 +2874,113 @@
    "repricing": [],
    "sichtbare_tiefe_usd": null,
    "einsatz_zu_sichtbarer_tiefe_pct": null,
+   "wallet_netto_usd": null,
+   "wallet_kaeufe_usd": null,
+   "wallet_verkaeufe_usd": null,
+   "wallet_einloesungen_usd": null
+  },
+  {
+   "profil": "allin_live_1139524",
+   "event_slug": "what-will-be-said-on-the-next-all-in-podcast-october-9-20261005",
+   "episode_titel": "ALLIN-E292 (URL-Prober)",
+   "modus": "LIVE",
+   "drop_quelle": "mp3_url_prober",
+   "pubdate_utc": null,
+   "drop_erkannt_utc": "2026-10-10T02:26:46Z",
+   "erkennungslatenz_s": null,
+   "erste_entscheidung_s": 83.0,
+   "erster_fill_s": 260.0,
+   "n_maerkte": 13,
+   "n_entscheidungen": 23,
+   "zaehler": {
+    "no_action": 22,
+    "live_fill": 1
+   },
+   "eingepreist": 13,
+   "einsatz_usd": 2.07,
+   "realisierter_pnl_usd": null,
+   "wetten": [
+    {
+     "frage": "Will \"SpaceX\" be said 3+ times during the next episode of the All-In Podcast?",
+     "seite": "NO",
+     "entscheidungs_preis": 0.76,
+     "avg_fill_preis": 0.761,
+     "shares": 2.72,
+     "einsatz_usd": 2.07,
+     "sweep_clips": 1,
+     "fill_status": "live_fill",
+     "fill_ts_utc": "2026-10-10T02:31:06Z",
+     "aufgeloest": false,
+     "gewonnen": null,
+     "payout_usd": null,
+     "pnl_usd": null,
+     "roi_pct": null,
+     "aktueller_yes_preis": 0.005,
+     "tape_rang": 2,
+     "fremde_davor": 1,
+     "fremdvolumen_davor_usd": 20.0,
+     "verfolger_s": 5958.0,
+     "preis_nach_fill": {
+      "0": 0.6949842185,
+      "30": 0.6949842185,
+      "60": 0.6949842185,
+      "120": 0.6949842185,
+      "300": 0.6949842185,
+      "900": 0.6949842185
+     },
+     "tiefe_usd_bis_deckel": 2.07,
+     "fill_quelle": "post_antwort",
+     "fill_verifiziert": true,
+     "wallet_shares": 2.72,
+     "wallet_einsatz_usd": 2.07,
+     "wallet_avg_fill_preis": 0.761,
+     "wallet_pnl_usd": null
+    }
+   ],
+   "verpasste_chancen": [],
+   "race": {
+    "quelle": "data-api.polymarket.com/trades (oeffentlich, read-only)",
+    "wetten_mit_tape": 1,
+    "first_on": 0,
+    "fremde_trades_vor_uns": 1,
+    "median_verfolger_s": 5958.0
+   },
+   "repricing": [
+    {
+     "frage": "Will \"SpaceX\" be said 3+ times during the next episode of the All-In Podcast?",
+     "seite": "NO",
+     "time_to_priced_s": 6218.0,
+     "fill_nach_s": 260.0,
+     "punkte": [
+      [
+       25.0,
+       0.6949842185
+      ],
+      [
+       6218.0,
+       0.97
+      ],
+      [
+       6224.0,
+       0.98
+      ],
+      [
+       6227.0,
+       0.99
+      ],
+      [
+       6327.0,
+       0.999
+      ],
+      [
+       6830.0,
+       0.999
+      ]
+     ]
+    }
+   ],
+   "sichtbare_tiefe_usd": 2.07,
+   "einsatz_zu_sichtbarer_tiefe_pct": 100.0,
    "wallet_netto_usd": null,
    "wallet_kaeufe_usd": null,
    "wallet_verkaeufe_usd": null,
