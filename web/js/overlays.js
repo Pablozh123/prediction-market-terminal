@@ -310,8 +310,11 @@ export function renderSearch(T) {
     }));
   // Forschungsstudien: Reitername, Titel und Kurzbeschreibung sind
   // durchsuchbar — "brier", "latency" oder "order books" finden ihre Studie.
+  // Vorschau-Studien (preview: true) nur, wenn der Schalter steht.
+  const vorschau = !!(T.previewAn && T.previewAn());
   const studienTreffer = (q && T.studies ? T.studies : [])
     .map((st, i) => ({ st, i }))
+    .filter(({ st }) => !st.preview || vorschau)
     .filter(({ st }) => trifft((st.tab + ' ' + st.title + ' ' + st.note + ' ' + (st.stamp || '')).toLowerCase(), tokens))
     .slice(0, 3)
     .map(({ st, i }) => ({
