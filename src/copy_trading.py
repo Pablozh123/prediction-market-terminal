@@ -69,6 +69,7 @@ class CopySettings:
     paper_start_cash: float = 1000.0
     copy_scale: float = 0.01
     max_order_equity_pct: float = 0.05
+    realistic_copy_enabled: bool = False
     live_trading_enabled: bool = False
     trade_limit: int = 250
     dynamic_sizing_enabled: bool = True
@@ -185,7 +186,7 @@ def load_copy_settings(
                         base[key] = payload[key]
         except (OSError, json.JSONDecodeError, TypeError, ValueError):
             pass
-    bool_fields = {"live_trading_enabled", "dynamic_sizing_enabled", "dynamic_order_cap_from_tony", "auto_top_up_enabled", "seed_paper_book"}
+    bool_fields = {"realistic_copy_enabled", "live_trading_enabled", "dynamic_sizing_enabled", "dynamic_order_cap_from_tony", "auto_top_up_enabled", "seed_paper_book"}
     int_fields = {"trade_limit", "dynamic_stats_refresh_seconds"}
     cleaned: dict[str, Any] = {}
     for key, value in base.items():
@@ -1138,7 +1139,7 @@ def seed_paper_positions(
     if _get_meta(conn, f"paper_seeded_at:{wallet}") is not None:
         return 0
     settings = settings or CopySettings(target_wallet=wallet)
-    if not getattr(settings, "seed_paper_book", True):
+    if settings.realistic_copy_enabled or not getattr(settings, "seed_paper_book", True):
         return 0
     if positions is None:
         positions = md.get_polymarket_positions(wallet, limit=500)
@@ -1658,7 +1659,7 @@ def decode_rtds_trade(message: Any, target_wallets: Iterable[str]) -> dict[str, 
     if not asset or price <= 0 or size <= 0:
         return None
     timestamp = _timestamp_value(trade)
-    source_time = datetime.fromtimestamp(timestamp, timezone.utc).isoformat() if timestamp else ""
+    source_time = _source_time(trade, timestamp)
     title = str(trade.get("title", "") or "")
     return {
         "platform": "Polymarket",
@@ -2116,7 +2117,7 @@ def apply_paper_trade(
         return PaperOrder(dedup_key=dedup_key, status="duplicate", reason="duplicate_fill", side="", source_notional=0.0)
 
     parsed = parse_source_trade(source_trade, settings.target_wallet)
-    if parsed["price"] <= 0 or parsed["size"] <= 0 or parsed["source_notional"] <= 0 or not parsed["asset"]:
+    if not all(math.isfinite(parsed[k]) and parsed[k] > 0 for k in ("price", "size", "source_notional")) or parsed["price"] > 1 or not parsed["asset"]:
         order = PaperOrder(
             dedup_key=dedup_key,
             status="skipped",
@@ -2127,7 +2128,23 @@ def apply_paper_trade(
         _insert_order(conn, parsed, order, source_trade)
         return order
 
-    if parsed["side"] == "BUY":
+    if settings.realistic_copy_enabled and parsed["side"] in {"BUY", "SELL"}:
+        from src.copy_execution import apply, fetch_book
+        observed_at = utc_now()
+        try:
+            book = fetch_book(parsed["asset"])
+        except (requests.RequestException, ValueError, TypeError):
+            book = {}
+        # The HTTP wait holds no writer lock. Recheck identity under the lock:
+        # the WS and reconciliation paths can observe the same fill together.
+        with conn:
+            conn.execute("BEGIN IMMEDIATE")
+            if conn.execute("SELECT 1 FROM paper_orders WHERE dedup_key=?", (dedup_key,)).fetchone() or _fill_already_recorded(conn, source_trade, settings.target_wallet):
+                return PaperOrder(dedup_key, "duplicate", "duplicate_fill", "", 0.0)
+            order = apply(conn, parsed, settings, book, observed_at)
+            _insert_order(conn, parsed, order, source_trade)
+        return order
+    elif parsed["side"] == "BUY":
         order = _apply_buy(conn, parsed, settings)
     elif parsed["side"] == "SELL":
         order = _apply_sell(conn, parsed)
@@ -3374,7 +3391,7 @@ def _insert_order(conn: sqlite3.Connection, parsed: dict[str, Any], order: Paper
             parsed["size"],
             parsed["source_notional"],
             parsed["side"] if order.status in ("copied", "settled") else "",
-            parsed["price"] if order.status in ("copied", "settled") else 0.0,
+            order.copy_notional / order.copy_size if order.copy_size > 0 else 0.0,
             order.copy_size,
             order.copy_notional,
             order.realized_pnl,
@@ -3418,6 +3435,8 @@ def _increase_source_position(conn: sqlite3.Connection, wallet: str, parsed: dic
     now = utc_now()
     existing = _get_source_position(conn, wallet, parsed["asset"])
     shares = parsed["size"] + (float(existing["shares"]) if existing else 0.0)
+    average = ((float(existing["shares"]) * float(existing["avg_price"] or 0)) if existing else 0) + parsed["source_notional"]
+    average /= shares
     conn.execute(
         """
         INSERT INTO source_positions (wallet, asset, market_key, title, outcome, shares, avg_price, last_price, seeded_at, updated_at)
@@ -3427,10 +3446,11 @@ def _increase_source_position(conn: sqlite3.Connection, wallet: str, parsed: dic
             title = excluded.title,
             outcome = excluded.outcome,
             shares = excluded.shares,
+            avg_price = excluded.avg_price,
             last_price = excluded.last_price,
             updated_at = excluded.updated_at
         """,
-        (wallet, parsed["asset"], parsed["market_key"], parsed["title"], parsed["outcome"], shares, parsed["price"], parsed["price"], now, now),
+        (wallet, parsed["asset"], parsed["market_key"], parsed["title"], parsed["outcome"], shares, average, parsed["price"], now, now),
     )
 
 
@@ -4050,7 +4070,8 @@ def _source_time(source_trade: Mapping[str, Any], timestamp: int) -> str:
         except Exception:
             pass
     if timestamp:
-        return datetime.fromtimestamp(timestamp, tz=timezone.utc).isoformat()
+        precise = _to_float(source_trade.get("timestamp"), float(timestamp))
+        return datetime.fromtimestamp(precise, tz=timezone.utc).isoformat()
     return ""
 
 

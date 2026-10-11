@@ -122,6 +122,7 @@
   --t-lead: 16px;     /* card titles and lead sentences */
   --t-head: 21px;     /* page titles, and the figure of a KPI tile */
   --t-hero: 26px;     /* the one figure a page is about */
+  --t-display: clamp(28px, 2.5vw, 40px); /* overview introduction */
   /* The tracking ladder. Four steps, because the JS carried 260 letter-spacing
      declarations in fourteen values, five of them (.12 .13 .14 .15 .16em)
      inside a span of 0.04em with 167 call sites between them. At --t-micro,
@@ -298,9 +299,9 @@ a:hover { color: var(--accent-bright); }
 
 
 .shell { display: flex; height: 100vh; width: 100%; min-width: 1280px; overflow: hidden; }
-.sidebar { width: 264px; box-sizing: border-box; flex: none; border-right: 1px solid var(--line-2); display: flex; flex-direction: column; padding: var(--sp-6) var(--sp-5) var(--sp-5); overflow-y: auto; }
+.sidebar { width: 232px; box-sizing: border-box; flex: none; border-right: 1px solid var(--line-2); display: flex; flex-direction: column; padding: var(--sp-6) var(--sp-4) var(--sp-5); overflow-y: auto; background: var(--panel); scrollbar-width: thin; }
 .maincol { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.topbar { display: flex; align-items: center; justify-content: space-between; padding: var(--sp-4) var(--sp-6); border-bottom: 1px solid var(--line-2); flex: none; }
+.topbar { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-5); padding: var(--sp-4) var(--sp-6); border-bottom: 1px solid var(--line-2); flex: none; min-height: 28px; }
 .content-wrap { flex: 1; min-height: 0; display: flex; position: relative; }
 .content { flex: 1; min-width: 1010px; overflow-y: auto; }
 
@@ -319,6 +320,38 @@ input { font-family: inherit; }
 
 /* The sidebar entries are links now; they keep the terminal's flat look. */
 .sidebar a, .sidebar a:hover { color: inherit; text-decoration: none; }
+.sidebar > * { flex-shrink: 0; }
+.nav-group { margin-bottom: var(--sp-3); }
+.nav-group-label { font-family: var(--font-mono); font-size: var(--t-micro); letter-spacing:var(--ls-caps); padding: var(--sp-2) var(--sp-4); color: var(--ink-4); }
+.sidebar-footer { overflow-wrap: anywhere; }
+
+/* Overview: an editorial introduction followed by a dense evidence table.
+   Keep the established palette and spacing scale across both themes. */
+.overview-hero { position: relative; overflow: hidden; display: grid; grid-template-columns: minmax(0, 1fr) 272px; gap: var(--sp-7); align-items: center; padding: var(--sp-7) var(--sp-6); border-bottom: 1px solid var(--line-2); }
+.overview-hero > canvas { position: absolute; inset: 0; width: 100%; height: 100%; opacity: .12; pointer-events: none; }
+.overview-intro { position: relative; min-width: 0; max-width: 800px; }
+.overview-eyebrow { font-family: var(--font-mono); font-size: var(--t-micro); letter-spacing:var(--ls-caps); text-transform: uppercase; color: var(--ink-3); }
+.content .overview-intro h1 { font-weight: 600; line-height:var(--lh-tight); margin: var(--sp-5) 0; text-wrap: balance; }
+.overview-intro h1 span { color: var(--accent); }
+.overview-deck { font-size: var(--t-body); color: var(--ink-2); line-height:var(--lh-prose); margin: 0; max-width: 680px; }
+.overview-paths { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-4); margin-top: var(--sp-6); }
+.overview-paths > div:hover { border-color: var(--line-edge) !important; }
+.research-summary { position: relative; padding: var(--sp-6); background: var(--panel); border: 1px solid var(--line-1); border-top: 2px solid var(--accent); border-radius: var(--r-panel); }
+.research-total { display: flex; align-items: center; gap: var(--sp-5); margin: var(--sp-5) 0; }
+.research-total strong { font-family: var(--font-mono); font-size: 48px; line-height:var(--lh-solid); font-weight: 500; }
+.research-total > span { font-size: var(--t-small); color: var(--ink-2); line-height:var(--lh-prose); }
+.research-verdicts { margin: 0; }
+.research-verdicts > div { display: flex; justify-content: space-between; align-items: center; gap: var(--sp-4); padding: var(--sp-4) 0; border-top: 1px solid var(--line-2); }
+.research-verdicts dt, .research-verdicts dd { margin: 0; }
+.research-verdicts dt { font-size: var(--t-small); text-transform: capitalize; }
+.research-verdicts dd { font-family: var(--font-mono); font-size: var(--t-body); font-variant-numeric: tabular-nums; }
+.research-source { margin-top: var(--sp-4); color: var(--ink-3); font-family: var(--font-mono); font-size: var(--t-micro); line-height:var(--lh-prose); }
+.study-row { display: grid; grid-template-columns: 24px minmax(0, 1fr) 136px minmax(160px, 190px) 144px; gap: var(--sp-4); align-items: center; padding: var(--sp-5) var(--sp-6); border-bottom: 1px solid var(--line-2); }
+.study-row > * { min-width: 0; }
+.study-row > :last-child { line-height:var(--lh-prose); overflow-wrap: anywhere; }
+.study-head { padding-top: var(--sp-4); padding-bottom: var(--sp-4); background: var(--panel); }
+.study-number { font-variant-numeric: tabular-nums; }
+.study-unit { display: block; margin-top: var(--sp-1); line-height:var(--lh-snug); }
 
 /* Skip link: the sidebar is 24 tab stops deep and repeats on every route, so
    the first Tab offers a way past it. Off-screen until focused, never hidden
@@ -366,8 +399,8 @@ input { font-family: inherit; }
    number is not a name — nobody can tell those pairs apart on screen, so they
    carried no distinction. Three edge levels, and the text-brightening is its
    own class again, to be combined where it is wanted. */
-.hv-el:hover { background: var(--panel-hover) !important; }
-.hv-panel:hover { background: var(--panel) !important; }
+.hv-el:not([aria-current="page"]):hover { background: var(--panel-hover) !important; }
+.hv-panel:hover { background: var(--panel-hover) !important; }
 .hv-edge:hover { border-color: rgba(var(--ink), .22) !important; }
 .hv-edge-strong:hover { border-color: rgba(var(--ink), .32) !important; color: var(--text) !important; }
 .hv-edge-max:hover { border-color: rgba(var(--ink), .35) !important; }
@@ -375,14 +408,72 @@ input { font-family: inherit; }
 .hv-accent:hover { color: var(--accent) !important; }
 .hv-accentbg:hover { background: var(--accent-bg-hover) !important; }
 
-/* Press feedback. Every control in the app carries data-act (see act() in
-   app.js), so one rule covers the roughly hundred chips, tabs and buttons at
-   once — and covers whatever is added later. Until now the only confirmation
-   a click produced was the re-render, which on the markets page costs ~114 ms:
-   the control looked inert for a tenth of a second. Transform only, so this
-   never triggers layout, and the reduced-motion block above collapses it. */
-[data-act] { transition: transform .12s cubic-bezier(.23, 1, .32, 1); }
-[data-act]:active { transform: scale(.97); }
+/* Shared interaction states. Only compact controls compress on press;
+   tables and navigation stay still so labels remain easy to track. */
+[data-act], button, input, select, textarea, a {
+  transition: background-color .16s ease, border-color .16s ease, color .16s ease, box-shadow .16s ease, transform .16s ease;
+}
+.ui-choice { border: 1px solid transparent; font-weight: 600; user-select: none; }
+.ui-choice[aria-pressed="false"]:is(:hover, :focus-visible),
+.ui-button:not(.ui-button-primary):not([aria-disabled="true"]):is(:hover, :focus-visible),
+:is(.hv-edge, .hv-edge-strong, .hv-edge-max):not([aria-disabled="true"]):is(:hover, :focus-visible) {
+  background: var(--panel-hover) !important; border-color: var(--line-edge) !important; color: var(--text) !important;
+}
+.ui-choice[aria-pressed="true"]:is(:hover, :focus-visible),
+.ui-button-primary:not([aria-disabled="true"]):is(:hover, :focus-visible) { background: var(--accent-bg-hover) !important; }
+:is(.ui-choice, .ui-button, .help-trigger):not([aria-disabled="true"]):active { transform: scale(.98); }
+.ui-button[aria-disabled="true"] { cursor: not-allowed !important; opacity: .6; }
+.ui-button[aria-disabled="true"]:hover { background: none !important; box-shadow: none; }
+[role="switch"]:not([aria-disabled="true"]):hover { box-shadow: 0 0 0 2px var(--line-edge); }
+.nav-group a:not([aria-current="page"]):is(:hover, :focus-visible) { box-shadow: inset 2px 0 var(--accent); }
+.nav-group a:is(:hover, :focus-visible) > span:first-child { color: var(--text) !important; }
+.overview-paths > [data-act]:is(:hover, :focus-visible) { transform: translateY(-2px); border-color: var(--accent) !important; box-shadow: 0 4px 12px var(--shadow-25); }
+.study-row[data-act]:is(:hover, :focus-visible), [role="row"][data-act]:is(:hover, :focus-visible) { background: var(--panel-hover) !important; box-shadow: inset 2px 0 var(--accent); }
+[role="columnheader"][data-act]:is(:hover, :focus-visible) { color: var(--accent) !important; text-decoration: underline; text-underline-offset: 4px; }
+[aria-sort="ascending"]::after { content: ' ↑'; }
+[aria-sort="descending"]::after { content: ' ↓'; }
+.content a[href]:hover, .sidebar-footer a[href]:hover { text-decoration: underline; text-underline-offset: 3px; }
+input:not([type="checkbox"]):not([type="radio"]):focus-visible, textarea:focus-visible, select:focus-visible {
+  border-color: var(--accent) !important; box-shadow: 0 0 0 3px rgba(var(--accent-rgb), .12);
+}
+
+/* Optional context stays near the list without hiding its first rows. */
+.market-context { margin-top: var(--sp-5); border: 1px solid var(--line-2); border-radius: var(--r-panel); }
+.market-context > summary { display: flex; align-items: center; gap: var(--sp-4); padding: var(--sp-4) var(--sp-5); cursor: pointer; list-style: none; font-size: var(--t-small); font-weight: 600; }
+.market-context > summary::-webkit-details-marker { display: none; }
+.market-context > summary::after { content: '+'; margin-left: auto; color: var(--accent); font-family: var(--font-mono); font-size: var(--t-body); }
+.market-context[open] > summary::after { content: '−'; }
+.market-context > summary:is(:hover, :focus-visible) { background: var(--panel-hover); }
+.market-context .context-hint { color: var(--ink-3); font-weight: 400; }
+.market-context-body { padding: 0 var(--sp-5) var(--sp-5); border-top: 1px solid var(--line-2); }
+.context-note { margin: var(--sp-4) 0; color: var(--ink-3); font-size: var(--t-small); line-height:var(--lh-prose); }
+.market-empty { padding: var(--sp-7) var(--sp-6); text-align: center; }
+.market-empty h2 { margin: 0; }
+.market-empty p { margin: var(--sp-3) 0 var(--sp-5); color: var(--ink-3); font-size: var(--t-small); line-height:var(--lh-prose); }
+.empty-actions { display: flex; justify-content: center; gap: var(--sp-3); }
+.ux-button { padding: var(--sp-3) var(--sp-4); background: var(--panel); border: 1px solid var(--line-edge); border-radius: var(--r-control); color: var(--text); font-family: var(--font-ui); font-size: var(--t-small); line-height:var(--lh-snug); cursor: pointer; }
+.ux-button:is(:hover, :focus-visible) { background: var(--panel-hover); border-color: var(--accent); }
+.search-dialog { display: flex; flex-direction: column; max-height: calc(86vh - 24px); }
+.search-dialog > :not(.search-results) { flex-shrink: 0; }
+.search-results { min-height: 0; max-height: 380px; overflow-y: auto; }
+.search-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--sp-5); padding: var(--sp-5) var(--sp-6); border-bottom: 1px solid var(--line-2); }
+.search-heading label { font-size: var(--t-lead); font-weight: 600; }
+.search-heading p { margin: var(--sp-2) 0 0; color: var(--ink-3); font-size: var(--t-small); line-height:var(--lh-prose); }
+
+/* Help is deliberately opt-in: definitions, not a tooltip on every button. */
+.help-trigger { display: inline-flex; align-items: center; justify-content: center; vertical-align: middle; width: 24px; height: 24px; padding: 0; margin: calc(-1 * var(--sp-2)) 0 calc(-1 * var(--sp-2)) var(--sp-2); border: 0; border-radius: var(--r-control); background: transparent; color: var(--ink-3); cursor: help; }
+.help-trigger > span { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; border: 1px solid currentColor; border-radius: 50%; font-family: var(--font-ui); font-size: var(--t-micro); font-weight: 600; line-height:var(--lh-solid); text-transform: none; letter-spacing:var(--ls-flat); }
+.help-trigger > span::before { content: 'i'; }
+.help-trigger:is(:hover, :focus-visible, [aria-expanded="true"]) { color: var(--accent); background: rgba(var(--accent-rgb), .1); }
+.help-popover { position: fixed; inset: auto; margin: 0; box-sizing: border-box; width: 304px; max-width: calc(100vw - 16px); padding: var(--sp-5); background: var(--panel); border: 1px solid var(--line-edge); border-radius: var(--r-panel); box-shadow: 0 8px 24px var(--shadow-35); color: var(--text); font-family: var(--font-ui); font-size: var(--t-small); line-height:var(--lh-prose); letter-spacing:var(--ls-flat); text-transform: none; }
+.help-popover strong { display: block; font-size: var(--t-body); font-weight: 600; }
+.help-popover strong::first-letter { text-transform: uppercase; }
+.help-popover p { color: var(--ink-2); margin: var(--sp-3) 0 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .overview-paths > [data-act]:is(:hover, :focus-visible),
+  :is(.ui-choice, .ui-button, .help-trigger):active { transform: none; }
+}
 
 /* Treemap tiles (wallet page): hover names the tile without moving it — the
    figures come up in the floating card #tip that app.js positions next to
@@ -439,7 +530,7 @@ input { font-family: inherit; }
 }
 :root[data-narrow-override="1"] .shell { display: flex; }
 :root[data-narrow-override="1"] .narrow-fallback { display: none; }
-.narrow-fallback h1 { font-size: 1.4rem; line-height:var(--lh-tight); margin: var(--sp-4) 0 0; font-weight: 600; }
+.narrow-fallback h1 { font-size: 2rem; line-height:var(--lh-tight); margin: var(--sp-5) 0 0; font-weight: 600; text-wrap: balance; }
 .narrow-fallback .kicker { font-family: var(--font-mono); font-size: var(--t-micro); letter-spacing:var(--ls-caps-strong); text-transform: uppercase; color: var(--ink-3); margin: 0; }
 .narrow-fallback p { line-height:var(--lh-prose); color: var(--ink-2); }
 .narrow-fallback .facts { font-family: var(--font-mono); font-size: var(--t-small); color: var(--ink-3); }
@@ -451,13 +542,14 @@ input { font-family: inherit; }
   padding: var(--sp-3) var(--sp-4); text-decoration: none; cursor: pointer;
 }
 .narrow-fallback .note { font-family: var(--font-mono); font-size: var(--t-micro); color: var(--ink-4); line-height:var(--lh-prose); }
+.narrow-fallback .facts { border-left: 2px solid var(--accent); padding-left: var(--sp-4); }
+.narrow-fallback .facts:empty { display: none; }
+.narrow-fallback button { background: var(--accent); color: var(--on-accent); border-color: var(--accent); font-weight: 600; }
 
 @media (min-width: 768px) and (max-width: 1279px) {
   .narrow-note {
-    /* Top, not bottom: a phone lays the shell out at 1316px and zooms out,
-       and a band fixed to the bottom of that layout sat 2.8k px below the
-       first screen. At the top it is the first thing the visitor reads. */
-    display: block; position: fixed; left: 0; right: 0; top: 0; z-index: 80;
+    /* Keep the notice in flow so it cannot cover the status/theme controls. */
+    display: block; position: sticky; left: 0; bottom: 0; z-index: 80;
     box-sizing: border-box; background: rgba(var(--bg-rgb), .97);
     border-bottom: 1px solid var(--line-1); color: var(--ink-2);
     font-family: var(--font-mono); font-size: var(--t-small); line-height:var(--lh-snug);

@@ -45,6 +45,7 @@ DAEMON_STALE_AFTER_S = 180.0
 #: Settings the page may change, with the type they are coerced to. The
 #: engine reads the file on every loop, so a change lands within one pass.
 EDITABLE_SETTINGS: dict[str, type] = {
+    "realistic_copy_enabled": bool,
     "dynamic_sizing_enabled": bool,
     "dynamic_sizing_multiplier": float,
     "dynamic_scale_max": float,
@@ -597,8 +598,23 @@ def desk_state(
 ) -> dict[str, Any]:
     traders = traders_overview(db_path=db_path)
     active = [t for t in traders if t["active"]]
+    from app import copy_intelligence as ci
+    ci.refresh_async(db_path)
+    intelligence = ci.read_state(db_path)
+    for trader in traders:
+        profile = intelligence.get('profiles', {}).get(trader['wallet'], {})
+        if trader['label'] == trader['wallet'] and profile.get('name'):
+            trader['label'] = profile['name']
+    from app.copy_positions import comparison
+    conn = ct.connect(db_path)
+    try:
+        position_comparison = comparison(conn, intelligence.get("profiles", {}))
+    finally:
+        conn.close()
     return {
+        "position_comparison": position_comparison,
         "traders": traders,
+        "intelligence": intelligence,
         "active_count": len(active),
         "settings": settings_view(ct.load_copy_settings(settings_path)),
         "daemon": daemon_status(status_path),

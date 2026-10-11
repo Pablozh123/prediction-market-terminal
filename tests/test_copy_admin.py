@@ -295,7 +295,7 @@ class OverviewTests(unittest.TestCase):
 
     def test_desk_state_bundles_everything(self) -> None:
         state = ca.desk_state(db_path=self.db, settings_path=Path(self.tmp.name) / "s.json", status_path=Path(self.tmp.name) / "none.json")
-        self.assertEqual(set(state), {"traders", "active_count", "settings", "daemon", "sync", "totals"})
+        self.assertEqual(set(state), {"traders", "active_count", "settings", "daemon", "sync", "totals", "intelligence", "position_comparison"})
         self.assertEqual(state["active_count"], 1)  # the seed wallet from the migration
         self.assertIsNone(state["daemon"]["running"])
         self.assertIn("editable", state["settings"])
@@ -409,6 +409,27 @@ class DaemonModuleTests(unittest.TestCase):
             self.assertIsNone(status["last_error"])
         finally:
             tmp.cleanup()
+
+    def test_daemon_reads_settings_beside_its_database(self) -> None:
+        from app import copy_daemon as cd
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            db = root / 'copy_trading.sqlite'
+            ca.ensure_desk(db)
+            (root / 'copy_settings.json').write_text(json.dumps({
+                'realistic_copy_enabled': True, 'seed_paper_book': False,
+                'auto_top_up_enabled': False,
+            }), encoding='utf-8')
+            config = cd.DaemonConfig(once=True, disable_ws=True, disable_fast=True,
+                db=str(db), status_file=str(root / 'status.json'), stop_file=str(root / 'stop'))
+            with patch('src.copy_trading.measure_clock_offset_seconds', return_value=0.0), \
+                    patch('src.copy_trading.sync_active_copy_trades', return_value={}), \
+                    patch('src.copy_trading.sync_active_settlement_activity', return_value={}):
+                self.assertEqual(cd.run(config), 0)
+            status = json.loads((root / 'status.json').read_text())
+            self.assertTrue(status['copy_settings']['realistic_copy_enabled'])
+            self.assertFalse(status['copy_settings']['seed_paper_book'])
 
 
 class DaemonStatusWriteTests(unittest.TestCase):

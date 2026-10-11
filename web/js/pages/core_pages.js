@@ -9,6 +9,7 @@ import { spiegelZeit, kurzGeld, histogramm } from '../charts.js';
 import { studieAnker, basisZeile } from './microstructure_page.js';
 import { renderArbScanAbschnitt } from './arb_scan_page.js';
 import { MONO as M, LABEL_BLOCK, LABEL, NOTIZ, kpi } from '../ui.js';
+import { help } from '../help.js';
 
 const REPO_URL = 'https://github.com/Pablozh123/prediction-market-terminal';
 const ONE_PAGER_URL = REPO_URL + '/blob/main/docs/research/ONE_PAGER.md';
@@ -45,8 +46,8 @@ function sortKopf(T, key, richtung) {
     + ' role="columnheader" aria-sort="' + (T.state.marketSort === key ? richtung : 'none') + '"';
 }
 
-function marketRowHtml(v) {
-  return '<div ' + zeilenAct(v.act) + ' class="hv-panel" style="display:grid; grid-template-columns:' + MARKT_SPALTEN + '; align-items:center; padding:var(--sp-4) var(--sp-6); border-bottom:1px solid var(--line-3); cursor:pointer">'
+function marketRowHtml(v, id) {
+  return '<div data-key="market-row-' + esc(id) + '" ' + zeilenAct(v.act) + ' class="hv-panel" style="display:grid; grid-template-columns:' + MARKT_SPALTEN + '; align-items:center; padding:var(--sp-4) var(--sp-6); border-bottom:1px solid var(--line-3); cursor:pointer">'
     + '<div role="cell" style="padding-right:var(--sp-6)">'
     + '<div style="font-size:var(--t-body); line-height:var(--lh-tight)">' + esc(v.title) + '</div>'
     + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:var(--sp-2)">' + esc(v.meta) + '</div></div>'
@@ -308,21 +309,23 @@ export function renderOverview(T) {
   const counts = verdictCounts(micro);
   let board;
   if (studien.length) {
-    board = '<div style="display:grid; grid-template-columns:36px 1fr 128px 190px 150px; padding:var(--sp-3) var(--sp-6); border-bottom:1px solid var(--line-2); ' + LABEL + '">'
-      + '<div>#</div><div>QUESTION</div><div>VERDICT</div><div style="text-align:right">KEY NUMBER · N</div><div style="text-align:right">WINDOW</div></div>'
+    board = '<div class="study-row study-head" style="' + LABEL + '">'
+      + '<div>#</div><div>QUESTION</div><div>VERDICT</div><div style="text-align:right">KEY NUMBER · N'
+      + help('sample-size', 'sample size', 'n is the number of observations behind a result. The unit varies by study: trades, snapshots, markets or pairs. Observations can be related; a larger n alone does not establish reliability.')
+      + '</div><div style="text-align:right">WINDOW</div></div>'
       + studien.map((st, i) => {
         const kn = keyNumber(st);
         const basis = st.basis || {};
         const nLabel = sampleLabel(basis);
         // Jede Zeile fuehrt direkt zu ihrer Karte auf der Microstructure-Seite,
         // nicht zum Seitenanfang: gleicher Anker wie die Sprungliste dort.
-        return '<div ' + goStudy(microIdx, studieAnker(st, i)) + ' class="hv-panel" style="display:grid; grid-template-columns:36px 1fr 128px 190px 150px; align-items:center; padding:var(--sp-4) var(--sp-6); border-bottom:1px solid var(--line-3); cursor:pointer">'
+        return '<div ' + goStudy(microIdx, studieAnker(st, i)) + ' class="study-row hv-panel" style="cursor:pointer">'
           + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3)">' + String(i + 1).padStart(2, '0') + '</div>'
           + '<div style="padding-right:var(--sp-5); min-width:0"><div style="font-size:var(--t-body); line-height:var(--lh-tight)">' + esc(st.frage || st.id || '—') + '</div>'
           // Truncated lines carry the full text as a tooltip.
           + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:var(--sp-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(String(st.verdikt || '')) + '">' + esc(String(st.verdikt || '').split('. ')[0]) + '</div></div>'
           + '<div>' + verdictTag(st.verdikt_art) + '</div>'
-          + '<div style="text-align:right; min-width:0"><div style="' + M + '; font-size:var(--t-body)">' + esc(kn.value) + (kn.unit ? ' <span style="font-size:var(--t-micro); color:var(--ink-3)">' + esc(kn.unit) + '</span>' : '') + '</div>'
+          + '<div class="study-number" style="text-align:right; min-width:0"><div style="' + M + '; font-size:var(--t-body)">' + esc(kn.value) + (kn.unit ? ' <span class="study-unit" style="font-size:var(--t-micro); color:var(--ink-3)">' + esc(kn.unit) + '</span>' : '') + '</div>'
           + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:var(--sp-1); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(kn.label + (nLabel ? ' · ' + nLabel : '')) + '">' + esc(kn.label) + (nLabel ? ' · ' + esc(nLabel) : '') + '</div></div>'
           + '<div style="' + M + '; font-size:var(--t-micro); text-align:right; color:var(--ink-4)">' + esc(basis.fenster || '—') + '</div></div>';
       }).join('');
@@ -441,28 +444,33 @@ export function renderOverview(T) {
   // links die getestete Strategie (Forschung, echte Laeufe, Bilanz), rechts
   // das Analysewerkzeug (Live-Screens). Wer die Seite oeffnet, sieht zuerst
   // diese Trennung, nicht eine Liste gleichrangiger Bloecke.
-  const pfade = '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:var(--sp-4); margin-top:var(--sp-5); max-width:860px">'
+  const pfade = '<div class="overview-paths">'
     + pfadKarte(goStudy(runsIdx), 'TESTED STRATEGY', 'var(--accent)', 'Researched, then run with real money: every bet, its latency and the on-chain wallet that proves it.')
     + pfadKarte(T.act(() => T.go('markets')), 'ANALYSIS TOOL', 'var(--info)', 'Live screens on Polymarket & Kalshi: markets, tape, whale flow, cross-venue, risk.')
     + '</div>';
-  // Rechts neben dem Titel, sobald der 30-s-Poll Prints liefert: das Band,
-  // wie es gerade laeuft. Ohne lebende Antwort bleibt der Kopf einspaltig.
-  // Hinter dem Kopf treibt der Wahrscheinlichkeits-Fluss die volle Breite
-  // (ambient.js malt in die Canvas; ohne Achsen und Zahlen ist er erkennbar
-  // Zierde, keine Messung). Der Verlauf davor haelt die Headline lesbar.
-  return '<div>'
-    + '<div style="padding:var(--sp-7) var(--sp-6) var(--sp-6); border-bottom:1px solid var(--line-2); position:relative; overflow:hidden; min-height:300px; box-sizing:border-box; display:flex; align-items:center">'
-    + '<canvas id="river-cv" aria-hidden="true" style="position:absolute; inset:0; width:100%; height:100%"></canvas>'
-    + '<div aria-hidden="true" style="position:absolute; inset:0; pointer-events:none; background:linear-gradient(90deg, rgba(var(--bg-rgb),.92) 0%, rgba(var(--bg-rgb),.62) 40%, rgba(var(--bg-rgb),.12) 68%, rgba(var(--bg-rgb),0) 100%)"></div>'
-    + '<div style="position:relative; max-width:640px">'
-    + '<h1 style="font-size:var(--t-hero); line-height:var(--lh-solid); margin:0; font-weight:600; letter-spacing:var(--ls-flat)">Prediction-market microstructure, <em style="color:var(--accent)">measured on self-recorded books.</em></h1>'
-    + '<div style="font-size:var(--t-body); color:var(--ink-3); margin-top:var(--sp-3); max-width:760px">' + esc(subline) + '</div>'
+  // The summary uses the very same payload as the board. Missing data never
+  // turns into zero findings or a staged chart.
+  const summary = studien.length ? '<aside class="research-summary" aria-label="Research snapshot">'
+    + '<div class="overview-eyebrow">Research snapshot'
+    + help('frozen-studies', 'frozen studies', 'These findings describe a fixed historical sample and the setup tested at the time. The snapshot date identifies the published version. They are not a live market signal.') + '</div>'
+    + '<div class="research-total"><strong>' + num(counts.total) + '</strong><span>frozen studies<br>with published findings</span></div>'
+    + '<dl class="research-verdicts">'
+    + [['nein', counts.nein], ['ja', counts.ja], ['offen', counts.offen], ['kontrolle', counts.kontrolle]].map(([art, n]) =>
+      '<div><dt style="color:' + VERDICT_TAG[art].color + '">' + VERDICT_TAG[art].label.toLowerCase() + '</dt><dd>' + num(n) + '</dd></div>').join('')
+    + '</dl><div class="research-source">' + (micro.stand_utc ? 'Snapshot ' + esc(stempel(micro.stand_utc)) : 'From the published study payload') + '</div></aside>' : '';
+  return '<div class="overview-page">'
+    + '<div class="overview-hero">'
+    + '<canvas id="river-cv" aria-hidden="true"></canvas>'
+    + '<div class="overview-intro">'
+    + '<div class="overview-eyebrow">Independent research · Polymarket &amp; Kalshi</div>'
+    + '<h1 style="font-size:var(--t-display)">Prediction-market microstructure,<br><span>measured on self-recorded books.</span></h1>'
+    + '<p class="overview-deck">' + esc(subline) + '</p>'
     + pfade
     + '<div style="display:flex; gap:var(--sp-5); margin-top:var(--sp-5); flex-wrap:wrap; ' + M + '; font-size:var(--t-micro)">'
     + '<a href="' + REPO_URL + '" target="_blank" rel="noopener">GitHub repository →</a>'
-    + '<a href="' + ONE_PAGER_URL + '" target="_blank" rel="noopener">One-pager (docs/research/ONE_PAGER.md) →</a>'
+    + '<a href="' + ONE_PAGER_URL + '" target="_blank" rel="noopener">Research one-pager →</a>'
     + (pilotIdx >= 0 ? '<span ' + goStudy(pilotIdx) + ' class="hv-accent" style="color:var(--ink-4); cursor:pointer; display:inline-block; padding:var(--sp-2) 0">Pre-registered pilot →</span>' : '')
-    + '</div></div>'
+    + '</div></div>' + summary
     + '</div>'
 
     // Das Band mit den groessten Maerkten laeuft direkt unter dem Kopf.
@@ -601,7 +609,7 @@ export function renderMarkets(T) {
     + kpiCell('POLYMARKET VOLUME 24H', money(pmVolSample), 'Kalshi trades in contracts: ' + contracts(ksVolSample), true)
     + kpiCell('BIGGEST 1D MOVE', topMover ? (topMover.chg >= 0 ? '+' : '') + topMover.chg + '¢' : '—',
       topMover ? esc(kurz(topMover.title)) : 'no market in the sample moved', true, topMover ? topMover.chg : null)
-    + kpiCell('MEDIAN SPREAD', spreadMedian != null ? spreadMedian + '¢' : '—',
+    + kpiCell('MEDIAN SPREAD' + help('median-spread', 'median spread', 'The gap between the best bid and ask, in cents. This is the median across markets with a quoted spread in the loaded sample. A tighter spread does not guarantee enough size to trade at those prices.'), spreadMedian != null ? spreadMedian + '¢' : '—',
       spreads.length ? 'n = ' + num(spreads.length) + ' markets with a quoted spread' : 'no spreads in the sample', false)
     + '</div>';
   const einblicke = '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:var(--sp-4); margin-top:var(--sp-4)">'
@@ -683,6 +691,10 @@ export function renderMarkets(T) {
   }, {});
   const badge = mActive.length ? M + '; font-size:var(--t-micro); color:var(--on-accent); background:var(--accent); border-radius:var(--r-control); padding:var(--sp-1) var(--sp-3)' : 'display:none';
   const chevron = M + '; font-size:var(--t-lead); color:var(--ink-4); transition:transform .18s ease; transform:rotate(' + (s.marketFiltersOpen ? '90deg' : '0deg') + ')';
+  const resetFilters = () => {
+    T.setState({ mPlatform: 'all', mStatus: 'active', mProb: 'all', mLiq: 'all', mVol: 'all', mEnds: 'all', mAge: 'all', mExclude: [], marketCat: 'All', marketQuery: '', mQuick: 'trending', marketSort: 'volume' });
+    document.querySelector('[data-key="marketQuery"]')?.focus();
+  };
 
   return '<div>'
     + '<div style="padding:var(--sp-6) var(--sp-6) var(--sp-5); border-bottom:1px solid var(--line-2)">'
@@ -690,19 +702,18 @@ export function renderMarkets(T) {
     + '<div><div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-max); color:var(--accent)">MARKETS</div>'
     + '<h1 style="font-size:var(--t-head); line-height:var(--lh-tight); margin:var(--sp-3) 0 0; font-weight:600; letter-spacing:var(--ls-flat)">Every market, one table</h1></div>'
     + '<div style="display:flex; align-items:center; gap:var(--sp-4)">'
-    + '<input value="' + esc(s.marketQuery) + '" ' + T.inpEntprellt('marketQuery') + ' placeholder="Search markets…" style="background:var(--panel); border:1px solid var(--line-edge); border-radius:var(--r-control); padding:var(--sp-3) var(--sp-4); ' + M + '; font-size:var(--t-small); color:var(--text); width:230px" />'
-    + '<div ' + T.act(() => T.setState({ mPlatform: 'all', mStatus: 'active', mProb: 'all', mLiq: 'all', mVol: 'all', mEnds: 'all', mAge: 'all', mExclude: [], marketCat: 'All', marketQuery: '', mQuick: 'trending', marketSort: 'volume' })) + ' class="hv-edge-strong" style="font-size:var(--t-small); color:var(--ink-3); border:1px solid var(--line-1); border-radius:var(--r-control); padding:var(--sp-3) var(--sp-4); cursor:pointer">Reset filters</div>'
+    + '<input aria-label="Search markets" value="' + esc(s.marketQuery) + '" ' + T.inpEntprellt('marketQuery') + ' placeholder="Search markets…" style="background:var(--panel); border:1px solid var(--line-edge); border-radius:var(--r-control); padding:var(--sp-3) var(--sp-4); ' + M + '; font-size:var(--t-small); color:var(--text); width:230px" />'
+    + '<div ' + T.act(resetFilters) + ' data-key="market-reset" class="hv-edge-strong" style="font-size:var(--t-small); color:var(--ink-3); border:1px solid var(--line-1); border-radius:var(--r-control); padding:var(--sp-3) var(--sp-4); cursor:pointer">Reset filters</div>'
     + '</div></div>'
 
-    // Der Ueberblick zuerst: vier Kennzahlen des Ausschnitts und drei
-    // Einblick-Panels (Movers, naechste Aufloesungen, 40–60¢), jede Zeile
-    // oeffnet ihren Markt. Alles aus den geladenen Zeilen, nichts erfunden.
+    // Keep the market list close to the controls. Optional context still
+    // describes the full loaded sample, independently of the table filters.
     + kpiStrip
-    // Direkt unter der Kachelzeile: die Verteilung, aus der die Kacheln ihre
-    // Kennzahlen ziehen. Ueber dem ganzen geladenen Ausschnitt, nicht ueber
-    // der gefilterten Tabelle, sonst waere es ein Filterergebnis.
+    + '<details class="market-context" data-key="market-context"><summary data-key="market-context-toggle">'
+    + '<span>Market context</span><span class="context-hint">Price distribution, movers and upcoming resolutions</span></summary>'
+    + '<div class="market-context-body"><p class="context-note">Across the full loaded sample. Filters below apply to the market list.</p>'
     + (preisChart ? '<div style="margin-top:var(--sp-4); max-width:700px">' + preisChart + '</div>' : '')
-    + einblicke
+    + einblicke + '</div></details>'
 
     // VIEW (Cards / Calendar) and QUICK Saved / My positions are gone: the
     // first two had no renderer, the last two filtered on flags nothing sets.
@@ -717,7 +728,7 @@ export function renderMarkets(T) {
     + '</div>'
 
     + '<div style="border:1px solid var(--line-2); border-radius:var(--r-panel); margin-top:var(--sp-5); overflow:hidden">'
-    + '<div ' + T.act(() => T.setState({ marketFiltersOpen: !s.marketFiltersOpen })) + ' class="hv-el" style="display:flex; align-items:center; justify-content:space-between; padding:var(--sp-4) var(--sp-5); background:var(--panel); cursor:pointer">'
+    + '<div ' + T.act(() => T.setState({ marketFiltersOpen: !s.marketFiltersOpen })) + ' data-key="market-filters-toggle" aria-expanded="' + s.marketFiltersOpen + '" class="hv-el" style="display:flex; align-items:center; justify-content:space-between; padding:var(--sp-4) var(--sp-5); background:var(--panel); cursor:pointer">'
     + '<div style="display:flex; align-items:center; gap:var(--sp-4)"><div style="font-size:var(--t-body)">All filters</div><div style="' + badge + '">' + mActive.length + '</div></div>'
     + '<div style="' + chevron + '">›</div></div>'
     + (s.marketFiltersOpen ?
@@ -742,9 +753,9 @@ export function renderMarkets(T) {
     + '</div>'
 
     + '<div style="display:flex; align-items:center; gap:var(--sp-3); margin-top:var(--sp-4); flex-wrap:wrap">'
-    + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3)">' + mRows.length + ' of ' + T.markets.length + ' markets</div>'
+    + '<div role="status" style="' + M + '; font-size:var(--t-micro); color:var(--ink-3)">' + mRows.length + ' of ' + T.markets.length + ' markets</div>'
     + mActive.map((c) =>
-      '<div ' + T.act(() => T.setState(c.reset)) + ' class="hv-edge-strong" style="' + M + '; font-size:var(--t-micro); color:var(--ink-2); border:1px solid var(--line-1); background:var(--panel-hover); border-radius:var(--r-control); padding:var(--sp-2) var(--sp-3); cursor:pointer">' + esc(c.label) + ' ✕</div>'
+      '<div ' + T.act(() => T.setState(c.reset)) + ' aria-label="Remove filter: ' + esc(c.label) + '" class="hv-edge-strong" style="' + M + '; font-size:var(--t-micro); color:var(--ink-2); border:1px solid var(--line-1); background:var(--panel-hover); border-radius:var(--r-control); padding:var(--sp-2) var(--sp-3); cursor:pointer">' + esc(c.label) + ' ✕</div>'
     ).join('')
     + '</div></div>'
 
@@ -768,9 +779,18 @@ export function renderMarkets(T) {
       liqLabel: m.liq ? money(m.liq) : '—',
       volShare: (maxVolJeVenue[m.venue] || 0) > 0 && m.vol > 0
         ? Math.max(2, (100 * m.vol) / maxVolJeVenue[m.venue]) : null
-    }))).join('')
+    }), m.id)).join('')
     + '</div>'
-    + (mRows.length === 0 ?'<div style="padding:var(--sp-7); text-align:center; ' + M + '; font-size:var(--t-small); color:var(--ink-4)">No market matches that filter.</div>' : '')
+    + (mRows.length === 0 ? '<div class="market-empty">'
+      + '<h2 style="font-size:var(--t-lead); font-weight:600">No matching markets</h2>'
+      + '<p>No market matches that filter. Try a broader search or remove a filter.</p>'
+      + '<div class="empty-actions">'
+      + (s.marketQuery.trim() ? '<button type="button" ' + T.act(() => {
+        T.setState({ marketQuery: '' });
+        document.querySelector('[data-key="marketQuery"]')?.focus();
+      }, { role: null }) + ' class="ux-button">Clear search</button>' : '')
+      + '<button type="button" ' + T.act(resetFilters, { role: null }) + ' class="ux-button">Reset filters</button>'
+      + '</div></div>' : '')
     + '</div>';
 }
 

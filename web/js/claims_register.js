@@ -72,9 +72,13 @@ export const REGISTER = {
       "de": "Nur lesend. Keine Orders. Oeffentliche Polymarket- & Kalshi-Daten.",
       "en": "Read-only. No orders placed. Public Polymarket & Kalshi data."
     },
+    "copy_shared_flow": {
+      "de": "Beobachteter Handelsfluss belegt weder aktuelle Bestände noch unabhängige Informationen.",
+      "en": "This is observed flow, not proof of current holdings or independent information."
+    },
     "paper_desk_only": {
-      "de": "Papierkonto: jede Order wird lokal zum gedruckten Preis gebucht. Nichts geht an eine Venue.",
-      "en": "Paper desk: every order is booked in a local paper book at the printed price. Nothing is sent to a venue."
+      "de": "Papierkonto: Fills werden lokal simuliert. Keine echten Orders; tatsächliche Börsenfills können abweichen.",
+      "en": "Paper desk: fills are simulated locally. No real orders or guaranteed executions."
     },
     "paper_log_no_return_claim": {
       "de": "Nur Entscheidungen und beste Buchpreise: keine Fills, keine Wallet-Daten, keine Renditebehauptung.",

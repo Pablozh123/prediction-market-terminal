@@ -15,6 +15,7 @@ import { renderGraph } from './pages/graph_page.js';
 import { renderFed } from './pages/fed_page.js';
 import { renderDetail, renderSearch } from './overlays.js';
 import { mountAmbient } from './ambient.js';
+import { mountHelp } from './help.js';
 import { MONO as M } from './ui.js';
 
 // Every route stays reachable by hash. The sidebar lists a subset (see
@@ -81,7 +82,7 @@ class Terminal {
       riskView: 'events',
       // Kein daemonOn mehr: der Schalter im Frontend behauptete RUNNING, ohne
       // dass etwas lief. Der Zustand kommt aus /api/copy oder gar nicht.
-      copyTab: 'traders', copyQuery: '', copySide: 'all', copyStatus2: 'all', copyMin: 'all',
+      copyTab: 'intelligence', copyQuery: '', copySide: 'all', copyStatus2: 'all', copyMin: 'all',
       // Copy desk: trader filter for the order/position/cash/perf tabs, the
       // follow form, inline edit/top-up rows, the pending settings edit
       // (null = showing what is saved), the in-flight action, the last
@@ -285,6 +286,7 @@ class Terminal {
 
   setState(patch) {
     Object.assign(this.state, patch);
+    if (patch && patch.copyTab && this.state.page === 'copy') this.holenCopy();
     this.render();
     // A sub-tab click rewrites the address in place (no history entry: the
     // back button leaves the page, it does not walk through its tabs).
@@ -332,23 +334,23 @@ class Terminal {
     return gueltig;
   }
 
-  // ---- shared UI atoms (styles verbatim from the reference) ----
+  // ---- shared UI atoms ----
   opt(label, active, patch) {
     const style = "font-family:var(--font-mono); font-size:var(--t-micro); border-radius:var(--r-control); padding:var(--sp-2) var(--sp-3); cursor:pointer; " + (active ? 'color:var(--on-accent); background:var(--accent); font-weight:600' : 'color:var(--ink-4); border:1px solid var(--line-1)');
     return '<div ' + this.act(typeof patch === 'function' ? patch : () => this.setState(patch))
-      + ' aria-pressed="' + (active ? 'true' : 'false') + '" style="' + style + '">' + esc(label) + '</div>';
+      + ' class="ui-choice" aria-pressed="' + (active ? 'true' : 'false') + '" style="' + style + '">' + esc(label) + '</div>';
   }
 
   chip(label, active, patch) {
     const style = "font-family:var(--font-mono); font-size:var(--t-micro); letter-spacing:var(--ls-caps); border-radius:var(--r-control); padding:var(--sp-2) var(--sp-4); cursor:pointer; " + (active ? 'color:var(--on-accent); background:var(--accent); font-weight:600' : 'color:var(--ink-4); border:1px solid var(--line-1)');
     return '<div ' + this.act(typeof patch === 'function' ? patch : () => this.setState(patch))
-      + ' aria-pressed="' + (active ? 'true' : 'false') + '" style="' + style + '">' + esc(label) + '</div>';
+      + ' class="ui-choice" aria-pressed="' + (active ? 'true' : 'false') + '" style="' + style + '">' + esc(label) + '</div>';
   }
 
   tab(label, active, patch) {
     const style = 'font-size:var(--t-small); border-radius:var(--r-control); padding:var(--sp-3) var(--sp-4); cursor:pointer; ' + (active ? 'color:var(--on-accent); background:var(--accent); font-weight:600' : 'color:var(--ink-3); border:1px solid var(--line-1)');
     return '<div ' + this.act(typeof patch === 'function' ? patch : () => this.setState(patch))
-      + ' aria-pressed="' + (active ? 'true' : 'false') + '" style="' + style + '">' + esc(label) + '</div>';
+      + ' class="ui-choice" aria-pressed="' + (active ? 'true' : 'false') + '" style="' + style + '">' + esc(label) + '</div>';
   }
 
   toggle(on, patch, label, gesperrt) {
@@ -536,7 +538,7 @@ class Terminal {
   // ---- sidebar / topbar ----
   navItem(id, label, badge, badgeColor) {
     const active = this.state.page === id;
-    const style = 'display:flex; align-items:center; justify-content:space-between; gap:var(--sp-3); padding:var(--sp-3) var(--sp-4); border-radius:var(--r-control); cursor:pointer; margin-bottom:var(--sp-1); border-left:2px solid ' + (active ? 'var(--accent)' : 'transparent') + '; background:' + (active ? 'rgba(var(--accent-rgb),.10)' : 'transparent');
+    const style = 'display:flex; align-items:center; justify-content:space-between; gap:var(--sp-3); min-height:20px; padding:var(--sp-2) var(--sp-4); border-radius:var(--r-control); cursor:pointer; margin-bottom:var(--sp-1); border-left:2px solid ' + (active ? 'var(--accent)' : 'transparent') + '; background:' + (active ? 'rgba(var(--accent-rgb),.10)' : 'transparent');
     const labelStyle = 'font-size:var(--t-body); color:' + (active ? 'var(--text)' : 'var(--ink-3)') + '; font-weight:' + (active ? '600' : '400');
     const badgeStyle = badge ? ("font-family:var(--font-mono); font-size:var(--t-micro); padding:var(--sp-1) var(--sp-3); border-radius:var(--r-control); " + (badgeColor === 'amber' ? 'color:var(--warn); border:1px solid rgba(var(--warn-rgb),.4)' : 'color:var(--on-accent); background:var(--accent)')) : 'display:none';
     // A link, not a div: the router runs on the hash anyway, so the anchor
@@ -555,7 +557,7 @@ class Terminal {
   navStudy(i, label, accent) {
     const active = this.state.page === 'research' && this.state.researchTab === i;
     const farbe = accent || 'var(--info)';
-    const style = 'display:flex; align-items:center; justify-content:space-between; gap:var(--sp-3); padding:var(--sp-3) var(--sp-4); border-radius:var(--r-control); cursor:pointer; margin-bottom:var(--sp-1); border-left:2px solid ' + (active ? farbe : 'transparent') + '; background:' + (active ? 'rgba(var(--info-rgb),.12)' : 'transparent');
+    const style = 'display:flex; align-items:center; justify-content:space-between; gap:var(--sp-3); min-height:20px; padding:var(--sp-2) var(--sp-4); border-radius:var(--r-control); cursor:pointer; margin-bottom:var(--sp-1); border-left:2px solid ' + (active ? farbe : 'transparent') + '; background:' + (active ? 'rgba(var(--info-rgb),.12)' : 'transparent');
     const labelStyle = 'font-size:var(--t-body); color:' + (active ? 'var(--text)' : 'var(--ink-3)') + '; font-weight:' + (active ? '600' : '400');
     const act = this.act((e) => { e.preventDefault(); this.goStudy(i); }, { role: null });
     return '<a href="#research/' + esc(this.studienSlug(i)) + '" ' + act + (active ? ' aria-current="page"' : '')
@@ -675,8 +677,8 @@ class Terminal {
     if (this.paperDeskSichtbar()) deskItems.push(this.navItem('portfolio', 'Portfolio'));
     groups.push({ label: 'PAPER DESK', items: deskItems });
     const groupHtml = groups.map((g) =>
-      '<div style="margin-bottom:var(--sp-5)">'
-      + '<div style="font-family:var(--font-mono); font-size:var(--t-micro); letter-spacing:var(--ls-caps-max); padding:0 var(--sp-3) var(--sp-3); color:var(--ink-4)">' + g.label + '</div>'
+      '<div class="nav-group">'
+      + '<div class="nav-group-label">' + g.label + '</div>'
       + g.items.join('') + '</div>'
     ).join('');
     // Footer: repository, the read-only statement, and the wallet the live
@@ -689,12 +691,12 @@ class Terminal {
       + '<div style="display:flex; align-items:center; gap:var(--sp-3); padding:0 var(--sp-3) var(--sp-5)">'
       + '<div style="width:10px; height:10px; background:var(--accent); transform:rotate(45deg)"></div>'
       + '<div style="font-family:var(--font-mono); font-size:var(--t-body); font-weight:600; letter-spacing:var(--ls-caps); text-transform:uppercase">Market Intel</div></div>'
-      + '<div ' + this.act(() => this.setState({ searchOpen: true })) + ' class="hv-edge" style="display:flex; align-items:center; gap:var(--sp-3); background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-control); padding:var(--sp-3) var(--sp-4); cursor:pointer; margin-bottom:var(--sp-5)">'
-      + '<div style="font-family:var(--font-mono); font-size:var(--t-small); color:var(--ink-3); flex:1">Search</div>'
-      + '<div style="font-family:var(--font-mono); font-size:var(--t-micro); color:var(--ink-4); border:1px solid var(--line-1); border-radius:var(--r-control); padding:0 var(--sp-2)">/</div></div>'
+      + '<div ' + this.act(() => this.setState({ searchOpen: true })) + ' data-key="global-search" aria-label="Search the terminal" aria-keyshortcuts="Control+k Meta+k /" class="hv-edge" style="display:flex; align-items:center; gap:var(--sp-3); background:var(--panel); border:1px solid var(--line-2); border-radius:var(--r-control); padding:var(--sp-3) var(--sp-4); cursor:pointer; margin-bottom:var(--sp-5)">'
+      + '<div style="font-family:var(--font-mono); font-size:var(--t-small); color:var(--ink-3); flex:1">Search anything</div>'
+      + '<div style="font-family:var(--font-mono); font-size:var(--t-micro); color:var(--ink-4); border:1px solid var(--line-1); border-radius:var(--r-control); padding:0 var(--sp-2)">' + (/Mac|iPhone|iPad/.test(navigator.platform) ? '⌘ K' : 'Ctrl K') + '</div></div>'
       + groupHtml
-      + '<div style="margin-top:auto; padding-top:var(--sp-5); border-top:1px solid var(--line-2)">'
-      + '<div style="' + foot + '"><a href="' + REPO_URL + '" target="_blank" rel="noopener">github.com/Pablozh123/prediction-market-terminal</a></div>'
+      + '<div class="sidebar-footer" style="margin-top:auto; padding-top:var(--sp-5); border-top:1px solid var(--line-2)">'
+      + '<div style="' + foot + '"><a href="' + REPO_URL + '" target="_blank" rel="noopener">Source &amp; reports ↗</a></div>'
       + caveatZeile('site_footer_readonly', { stil: foot + '; margin-top:var(--sp-3)' })
       // Die Adresse oeffnet die On-Chain-Ansicht auf Polygonscan; zur Seite
       // mit jeder Wette fuehrt daneben der eigene Live-runs-Link. Vorher
@@ -1269,9 +1271,13 @@ class Terminal {
   // ``leise`` (quiet) keeps the current answer on screen until the new one
   // is in — the periodic refresh must not flash the empty state every 30 s.
   async holenCopy(leise) {
-    if (this.liveData.copy && !leise) return;
+    const research = this.state.page === 'copy' && ['intelligence', 'signals'].includes(this.state.copyTab);
+    const positions = this.state.page === 'copy' && this.state.copyTab === 'positions';
+    if (this.liveData.copy && !!this.liveData.copy.research_only === research && !!this.liveData.copy.positions_only === positions && !leise) return;
+    const request = this._copyRequest = (this._copyRequest || 0) + 1;
     try {
-      const antwort = await apiGetRaw('/api/copy', this.copyHeaders());
+      const antwort = await apiGetRaw(research ? '/api/copy/research' : positions ? '/api/copy/positions' : '/api/copy', this.copyHeaders());
+      if (request !== this._copyRequest) return;
       if (antwort && typeof antwort === 'object') {
         antwort._quelle = 'live';
         this.liveData.copy = antwort;
@@ -1279,6 +1285,7 @@ class Terminal {
         this.liveData.copy = { _quelle: 'leer' };
       }
     } catch (err) {
+      if (request !== this._copyRequest) return;
       // A failed refresh keeps the last books; the error is only worth
       // replacing them when there was nothing on screen.
       if (!leise || !this.liveData.copy) this.liveData.copy = { _quelle: 'fehler', _fehler: String(err && err.message ? err.message : err) };
@@ -1404,12 +1411,18 @@ class Terminal {
 
   // ---- render loop ----
   render() {
+    if (this.closeHelp) this.closeHelp();
     this._acts = [];
     this._inps = [];
     // Any focused element with a data-key survives the render: the text
     // fields, and the theme chip in the topbar. selectionStart is undefined
     // on a div; the restore below only puts a caret back where one was.
     const ae = document.activeElement;
+    const overlayOffen = this.state.searchOpen ? 'search' : (this.state.detail ? 'detail' : '');
+    if (overlayOffen && !this._overlayOffen) {
+      this._overlayReturn = ae && ae.dataset ? ae.dataset.key : null;
+      this._overlayReturnPage = this._renderedPage;
+    }
     if (ae && ae.dataset && ae.dataset.key) {
       this._focus = { key: ae.dataset.key, start: ae.selectionStart, end: ae.selectionEnd };
     } else {
@@ -1468,20 +1481,14 @@ class Terminal {
     }
     this._renderedPage = seiteJetzt;
 
-    // The design has no visible <label> — the placeholder is the label. A
-    // placeholder is not a name, and it disappears the moment someone types,
-    // so mirror it into aria-label. Markup that already carries its own
-    // aria-label wins; this only fills the gaps, including future fields.
+    // Give older placeholder-only fields an accessible name. Explicit names
+    // take precedence, including the command search's visible label.
     document.querySelectorAll('input[placeholder]:not([aria-label])').forEach((el) => {
       el.setAttribute('aria-label', el.getAttribute('placeholder'));
     });
 
-    // Overlays are modal, so the keyboard follows them: into the panel when
-    // it opens, back to the content when it closes. Returning to the exact
-    // control that opened it is not possible here — render() has already
-    // replaced the markup holding it — so <main> takes the focus rather than
-    // the top of the document, which is where it would otherwise land.
-    const overlayOffen = this.state.searchOpen ? 'search' : (this.state.detail ? 'detail' : '');
+    // Stable keys return the keyboard to the opener after the DOM rebuild.
+    // If the opener disappeared or the route changed, main is the fallback.
     if (overlayOffen !== this._overlayOffen) {
       if (overlayOffen === 'search') {
         // autofocus only fires for markup the parser inserts, and this panel
@@ -1495,14 +1502,18 @@ class Terminal {
         const zu = document.querySelector('#detail [data-act][tabindex]');
         if (zu) { zu.focus(); this._focus = null; }
       } else if (!overlayOffen && this._overlayOffen) {
-        const m = document.getElementById('main');
-        if (m) m.focus();
+        const opener = this._overlayReturn && this._overlayReturnPage === seiteJetzt
+          ? document.querySelector('[data-key="' + CSS.escape(this._overlayReturn) + '"]') : null;
+        const target = opener || main;
+        if (target) target.focus({ preventScroll: true });
+        this._overlayReturn = null;
+        this._focus = null;
       }
       this._overlayOffen = overlayOffen;
     }
 
     if (this._focus) {
-      const el = document.querySelector('[data-key="' + this._focus.key + '"]');
+      const el = document.querySelector('[data-key="' + CSS.escape(this._focus.key) + '"]');
       if (el) {
         el.focus();
         // Only a text field has a caret to put back; the theme chip is a
@@ -1515,6 +1526,7 @@ class Terminal {
   }
 
   mount() {
+    this.closeHelp = mountHelp();
     document.addEventListener('click', (e) => {
       const actEl = e.target.closest('[data-act]');
       if (!actEl) return;
@@ -1535,9 +1547,14 @@ class Terminal {
       const aktiv = document.activeElement;
       const tippt = !!(aktiv && /INPUT|TEXTAREA/.test(aktiv.tagName));
       const feld = e.target && e.target.dataset ? e.target.dataset.key : '';
-      if (e.key === 'Escape') {
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        if (!this.state.searchOpen) this.setState({ searchOpen: true });
+        else document.querySelector('#search input')?.focus();
+      } else if (e.key === 'Escape') {
         // Nothing open, nothing to do — no re-render for a stray Escape.
-        if (this.state.searchOpen || this.state.detail) this.setState({ searchOpen: false, detail: null });
+        if (this.state.searchOpen) this.setState({ searchOpen: false });
+        else if (this.state.detail) this.setState({ detail: null });
       } else if (e.key === 'Tab' && (this.state.searchOpen || this.state.detail)) {
         // Both panels say aria-modal, so Tab cycles inside whichever is open.
         // Without this the keyboard wanders into a page the reader cannot see
@@ -1555,7 +1572,7 @@ class Terminal {
       } else if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && this.state.searchOpen) {
         // Down from the field steps into the results and wraps around, so the
         // list is reachable without leaving the keys the typing hand is on.
-        const rows = [...document.querySelectorAll('#search [data-result]')];
+        const rows = [...document.querySelectorAll('#search [data-result][data-act]')];
         if (rows.length) {
           e.preventDefault();
           const hier = document.activeElement && document.activeElement.closest ? document.activeElement.closest('[data-result]') : null;

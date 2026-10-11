@@ -74,14 +74,18 @@ def write_status(path: Path, payload: dict[str, Any], attempts: int = 8) -> None
 
 def run(args: DaemonConfig | Any) -> int:
     """Run the loop until the stop file appears (or once, with ``once``)."""
+    from app import copy_intelligence as ci
+    if not args.once:
+        ci.start_monitor(args.db, args.stop_file)
     interval = max(0.25, float(args.interval))
     api_interval = max(interval, float(args.api_interval))
     settlement_interval = max(api_interval, float(args.settlement_interval))
     db_path = Path(args.db)
+    settings_path = db_path.with_name('copy_settings.json')
     status_path = Path(args.status_file)
     stop_path = Path(args.stop_file)
     base_settings = ct.CopySettings(trade_limit=int(args.limit), min_copy_notional=max(0.0, float(args.min_copy_notional)))
-    settings = ct.load_copy_settings(default=base_settings)
+    settings = ct.load_copy_settings(settings_path, default=base_settings)
     pid = os.getpid()
     next_api_sync = 0.0
     next_settlement_sync = time.monotonic() + min(30.0, settlement_interval)
@@ -122,7 +126,7 @@ def run(args: DaemonConfig | Any) -> int:
         ws_worker = ct.WsApplyWorker(
             ws_listener,
             db_path=db_path,
-            settings_loader=lambda: ct.load_copy_settings(default=base_settings),
+            settings_loader=lambda: ct.load_copy_settings(settings_path, default=base_settings),
             clock_offset_provider=lambda: clock_offset_holder["value"],
         )
         ws_worker.start()
@@ -164,7 +168,7 @@ def run(args: DaemonConfig | Any) -> int:
     )
 
     while True:
-        settings = ct.load_copy_settings(default=base_settings)
+        settings = ct.load_copy_settings(settings_path, default=base_settings)
         fast_result = None
         api_result = None
         settlement_result = None

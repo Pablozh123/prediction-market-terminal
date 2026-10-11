@@ -834,6 +834,17 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertNotIn("studies (", leer)
         self.assertEqual(json.loads(self.ausgabe["leer"]["_verdict_counts"])["total"], 0)
 
+    def test_research_snapshot_verwendet_die_board_zaehlung(self) -> None:
+        html = self.ausgabe["live"]["overview"]
+        summary = re.search(r'<aside class="research-summary".*?</aside>', html, re.S)
+        self.assertIsNotNone(summary)
+        text = _sichtbarer_text(summary.group(0))
+        for expected in ("4 frozen studies", "refuted 2", "confirmed 1",
+                         "not identified 0", "control 1", "2026-08-16 23:32 UTC"):
+            self.assertIn(expected, text)
+        # A missing payload must not appear as a measured zero-study result.
+        self.assertNotIn('class="research-summary"', self.ausgabe["leer"]["overview"])
+
     def test_river_canvas_und_wire_band_auf_der_landung(self) -> None:
         # Der Fluss ist Zierde (Canvas ohne Achsen, immer da); das Band traegt
         # echte Marktzeilen und existiert darum nur, wenn der Poll geliefert
