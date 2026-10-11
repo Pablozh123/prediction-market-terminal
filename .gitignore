@@ -107,3 +107,5 @@ GOAL.md
 # Kuratierte Forschungsentscheidung, kein Laufzeitartefakt: welche
 # Cross-Venue-Paare beide Recorder fest mitschreiben.
 !data/cross_venue_watchlist.json
+
+graphify-out/

@@ -2240,6 +2240,7 @@ def backup_dateien() -> list[Path]:
 
     kandidaten = [
         COPY_DB_PATH, COPY_SETTINGS_PATH, COPY_STATUS_PATH,
+        COPY_DB_PATH.with_suffix('.intelligence.sqlite'),
         Path(os.environ.get("ENTITY_GRAPH_PATH", "").strip() or eg.DEFAULT_GRAPH_PATH),
         risk_log.log_path(),
     ]
@@ -2307,6 +2308,44 @@ def admin_backup():
         background=BackgroundTask(lambda: ziel.unlink(missing_ok=True)))
 
 
+@app.get("/api/copy/research")
+def copy_research(request: Request) -> dict[str, Any]:
+    """Small source-wallet read, independent of the full paper-order ledger."""
+    from app import copy_intelligence as ci
+    access = _copy_write_access(request)
+    if COPY_DESK_PRIVATE and not access.allowed:
+        raise HTTPException(status_code=403, detail="this desk is private")
+    if not COPY_DB_PATH.exists():
+        raise HTTPException(status_code=503, detail="no paper copy desk on this host")
+    conn = sqlite3.connect(COPY_DB_PATH)
+    conn.row_factory = sqlite3.Row
+    try:
+        traders = [dict(r) for r in conn.execute('SELECT wallet,label,active,note FROM traders ORDER BY added_at')]
+    finally:
+        conn.close()
+    ci.refresh_async(COPY_DB_PATH)
+    intelligence = ci.read_state(COPY_DB_PATH)
+    for trader in traders:
+        profile = intelligence.get('profiles', {}).get(trader['wallet'], {})
+        if trader['label'] == trader['wallet'] and profile.get('name'):
+            trader['label'] = profile['name']
+    return {'traders': traders, 'intelligence': intelligence,
+            'write_access': access.as_dict(), 'research_only': True}
+
+
+@app.get("/api/copy/positions")
+def copy_position_state(request: Request) -> dict[str, Any]:
+    """Open books without loading the historical paper ledger."""
+    from app.copy_positions import comparison
+    payload = copy_research(request)
+    with sqlite3.connect(COPY_DB_PATH) as conn:
+        conn.row_factory = sqlite3.Row
+        payload["position_comparison"] = comparison(conn, payload["intelligence"].get("profiles", {}))
+    payload["research_only"] = False
+    payload["positions_only"] = True
+    return payload
+
+
 @app.get("/api/copy")
 def copy_state(request: Request) -> dict[str, Any]:
     from app import copy_admin as ca
@@ -2361,7 +2400,7 @@ def copy_state(request: Request) -> dict[str, Any]:
         payload["status"]["source"] = source_label
         payload["status"]["running"] = desk["daemon"].get("running")
         payload["status"]["auto_topup"] = bool(desk["settings"].get("auto_top_up_enabled"))
-        payload.update({k: desk[k] for k in ("traders", "active_count", "settings", "daemon", "totals")})
+        payload.update({k: desk[k] for k in ("traders", "active_count", "settings", "daemon", "totals", "intelligence", "position_comparison")})
         payload["sync"] = desk["sync"]
         # The source PnL overlay follows the first active trader (one curve
         # per wallet lives in each trader row's equity_curve for the paper side).
