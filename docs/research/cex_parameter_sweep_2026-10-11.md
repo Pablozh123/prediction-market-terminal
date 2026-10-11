@@ -169,4 +169,3 @@ Zusätzlicher Reproduktionsschritt vor diesem Bericht:
 ```powershell
 python -X utf8 outputs/cex_parameter_sweep/20261011/completed_hour.py
 ```
-
