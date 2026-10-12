@@ -1,6 +1,6 @@
 {
  "hinweis": "Run timestamp, backend mode, and principles of the daily analysis run.",
- "stand_utc": "2026-10-11T04:30:21+00:00",
+ "stand_utc": "2026-10-12T04:30:14+00:00",
  "backend": "mock",
  "schritte": {
   "collector": "ok (samples=2/2, alerts=112, baseline=diagnostic_scores_available)",
