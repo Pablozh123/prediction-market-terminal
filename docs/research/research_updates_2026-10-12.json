@@ -1,0 +1,243 @@
+{
+  "schema": "research-updates/1",
+  "sources": {
+    "cex_forward": {
+      "project": "prediction-market-terminal",
+      "path": "outputs/cex_regimes/forward/aggregation.json",
+      "sha256": "77be73a51b1c9babc48fabff6e5b624044cc83ded21837ba2129fc7b74c3810f"
+    },
+    "cex_execution": {
+      "project": "prediction-market-terminal",
+      "path": "outputs/cex_regimes/execution_latency_2026-10-11/aggregation.json",
+      "sha256": "b4f4f6b7ed14dae9c8a113b11f97ea8c5fc9f2dcc11505ab2e8162faef4e54da"
+    },
+    "cex_execution_report": {
+      "project": "prediction-market-terminal",
+      "path": "docs/research/cex_execution_latency_2026-10-11.md",
+      "sha256": "028712466e4f8d910bbb31056bbbac368b6fa17f744b9a74fec09075daaf1999"
+    },
+    "mm_queue": {
+      "project": "pmt-mm-research",
+      "path": "docs/research/mm_assessment_2026-09-19.md",
+      "sha256": "efb7ba5be896bb87933d0144b2b68720ccc6013d8c51b29509c78d5804b0a1fc"
+    },
+    "source_speed": {
+      "project": "multi-agent-orchestration-informational-efficiency",
+      "path": "docs/project/ISW_DEEPSTATE_SPEED_2026-10-11.md",
+      "sha256": "53ad36d5e07e7169971d1468ab0cac0c2d1774bc3f46b20c7c775382a174953b"
+    },
+    "arb_funnel": {
+      "project": "prediction-alpha-bot",
+      "path": "docs/reports/daily-telegram-report-2026-09-26.md",
+      "sha256": "184421e4088d60d12fb9cce614e7d3cb6011f1fb3f3e775a7c5c481e05f515f3"
+    },
+    "fed": {
+      "project": "prediction-market-terminal",
+      "path": "public/data/fed_comparison.json",
+      "sha256": "46743395548b1f9c189ff1a89b61957121fb46abce2b052230e40204a1add51f"
+    }
+  },
+  "cex_forward": {
+    "checked_utc": "2026-10-12T10:28:17.30766+00:00",
+    "window": "2026-10-11 14:36:44 to 2026-10-12 12:24:15 Europe/Zurich",
+    "completed_hour_blocks": 21,
+    "qualified_impulses": 46,
+    "baseline": {
+      "100": {
+        "assessable_blocks": 21,
+        "executed_trades": 285,
+        "closed_trades": 278,
+        "open_positions": 7,
+        "net_pnl": 89.46586,
+        "fees_paid": 63.97852,
+        "open_cost": 3.03907,
+        "floor_pnl": 86.42679
+      },
+      "250": {
+        "assessable_blocks": 21,
+        "executed_trades": 199,
+        "closed_trades": 193,
+        "open_positions": 6,
+        "net_pnl": 32.27246,
+        "fees_paid": 42.10049,
+        "open_cost": 1.65374,
+        "floor_pnl": 30.61872
+      },
+      "500": {
+        "assessable_blocks": 21,
+        "executed_trades": 147,
+        "closed_trades": 142,
+        "open_positions": 5,
+        "net_pnl": -9.71918,
+        "fees_paid": 28.81488,
+        "open_cost": 2.74599,
+        "floor_pnl": -12.46517
+      },
+      "1000": {
+        "assessable_blocks": 21,
+        "executed_trades": 133,
+        "closed_trades": 125,
+        "open_positions": 8,
+        "net_pnl": -29.24675,
+        "fees_paid": 24.86186,
+        "open_cost": 3.3804,
+        "floor_pnl": -32.62715
+      }
+    },
+    "limitations": [
+      "Je Block und Arm separat 100 USD Paper-Kapital und 10 Anteile",
+      "Feste Verzögerungen sind angenommene Szenarien; tatsächliche Order- und Fill-Zeiten fehlen",
+      "Offene Positionen sind im realisierten Netto nicht bewertet"
+    ]
+  },
+  "cex_execution": {
+    "window": "2026-10-11 14:36:44 to 20:43:02 Europe/Zurich",
+    "completed_hour_blocks": 6,
+    "baseline": {
+      "350": {
+        "assessable_blocks": 6.0,
+        "executed_trades": 60.0,
+        "closed_trades": 59.0,
+        "open_positions": 1.0,
+        "realized_pnl": 5.17888,
+        "fees_paid": 12.46659,
+        "entry_cost_open": 0.08556,
+        "floor_pnl": 5.09332
+      },
+      "500": {
+        "assessable_blocks": 6.0,
+        "executed_trades": 50.0,
+        "closed_trades": 47.0,
+        "open_positions": 3.0,
+        "realized_pnl": -5.53763,
+        "fees_paid": 9.50345,
+        "entry_cost_open": 2.18121,
+        "floor_pnl": -7.71884
+      },
+      "1000": {
+        "assessable_blocks": 6.0,
+        "executed_trades": 49.0,
+        "closed_trades": 46.0,
+        "open_positions": 3.0,
+        "realized_pnl": -16.08475,
+        "fees_paid": 9.17712,
+        "entry_cost_open": 1.99336,
+        "floor_pnl": -18.07811
+      }
+    },
+    "qualified_impulses_250ms": 23,
+    "limitations": [
+      "Bereits gesehene Stunden, keine unabhängige Bestätigung",
+      "Ein- und Ausstiegsverzögerung sind angenommene Szenarien",
+      "Je Block und Arm separates 100-USD-Paper-Kapital"
+    ]
+  },
+  "mm_queue": {
+    "window": "2026-09-04 to 2026-09-17",
+    "days_with_data": 14,
+    "queue_back": {
+      "0": {
+        "sum_usd": 36794.77,
+        "without_rebates_usd": 33620.32,
+        "fills": 20385,
+        "daily_ci_usd": [
+          1683.52,
+          3553.93
+        ]
+      },
+      "250": {
+        "sum_usd": -39705.31,
+        "without_rebates_usd": -44852.79,
+        "fills": 33658,
+        "daily_ci_usd": [
+          -3671.53,
+          -1833.46
+        ]
+      }
+    },
+    "queue_front": {
+      "0": {
+        "sum_usd": 38472.3,
+        "without_rebates_usd": 35175.06,
+        "fills": 22366,
+        "daily_ci_usd": [
+          1782.85,
+          3705.33
+        ]
+      },
+      "250": {
+        "sum_usd": -39219.07,
+        "without_rebates_usd": -44537.35,
+        "fills": 36435,
+        "daily_ci_usd": [
+          -3572.2,
+          -1839.65
+        ]
+      }
+    },
+    "gap_hours": 29.746,
+    "limitations": [
+      "Kein gemeinsames Kapitalbudget, täglicher Inventarreset",
+      "Restinventar zum letzten Mid bewertet",
+      "Queue-Position und Fills nicht live verifiziert"
+    ]
+  },
+  "source_speed": {
+    "window": "2026-09-27 to 2026-10-11",
+    "rows": 39,
+    "rows_with_book": 20,
+    "bilytske_lead_seconds": 2836,
+    "best_ask_usd": 2.7,
+    "best_ask_shares": 5,
+    "simulated_100usd_pnl_24h": -4.51,
+    "limitations": [
+      "Ortsnennung kein neuer binärer Berührungstreffer",
+      "Angezeigte Tiefe belegt keinen eigenen Fill",
+      "Kausalität zwischen Quelle und späterem Kauf unbelegt"
+    ]
+  },
+  "arb_funnel": {
+    "window": "2026-09-25 to 2026-09-26 (24 h)",
+    "scan_ok": 278,
+    "scan_total": 335,
+    "scan_failed": 57,
+    "cross_raw": 2505,
+    "neg_risk_raw": 838,
+    "within_raw": 23,
+    "validated": 0,
+    "paper": 0,
+    "limitations": [
+      "Rohkandidaten sind wiederholte Scans, keine unabhängigen Chancen",
+      "Quote-Replay ist kein realisierter PnL",
+      "57 fehlerhafte Scanzyklen begrenzen die Abdeckung"
+    ]
+  },
+  "fed": {
+    "window": "2026-03-18 to 2026-09-16 (FOMC decisions)",
+    "published_at_utc": "2026-09-24T04:36:10.604206+00:00",
+    "n_meetings": 5,
+    "evaluation": {
+      "30": {
+        "n": 5,
+        "polymarket_brier": 0.2407,
+        "fedwatch_brier": 0.21693
+      },
+      "7": {
+        "n": 5,
+        "polymarket_brier": 0.09561,
+        "fedwatch_brier": 0.09249
+      },
+      "1": {
+        "n": 5,
+        "polymarket_brier": 0.03672,
+        "fedwatch_brier": 0.05456
+      }
+    },
+    "limitations": [
+      "Fünf Sitzungen sind zu wenig für einen pauschalen Sieger",
+      "CME-Archiv mit konservativer Tagesend-Zeitgrenze; Polymarket-Stundenpreise sind keine ausführbaren Quotes",
+      "Brier-Werte hängen vom Prognosehorizont ab"
+    ]
+  },
+  "published_at_utc": "2026-10-12T17:24:36Z"
+}

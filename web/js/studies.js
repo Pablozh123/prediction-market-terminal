@@ -67,9 +67,9 @@ export const STUDIEN = [
   },
   {
     tab: 'Microstructure',
-    title: 'Order books, recorded',
-    stamp: 'rolling',
-    note: 'A rolling read on the collected books plus the frozen studies: imbalance, order flow net of costs, and market-maker PnL decomposition.'
+    title: 'Research across the projects',
+    stamp: 'versioned research · updated 2026-10-12',
+    note: 'Recent CEX, market-making, source-speed, arbitrage and Fed research, followed by the historical studies. Each card shows its actual data window, assumptions and source. Follow-up questions are planned tests.'
   },
   // Das Handelsfenster endete per Protokoll am 2026-08-01 — der Pilot ist ein
   // fertiges Beweisstueck, kein laufender Test.

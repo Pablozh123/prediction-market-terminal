@@ -1,6 +1,6 @@
 """Baut die Microstructure-Studien zu einer Website-Nutzlast zusammen.
 
-Die zwoelf Studien liegen als Report (`.md`), Rohwerte (`.json`) und teils
+Die historischen Studien liegen als Report (`.md`), Rohwerte (`.json`) und teils
 als Bild in `docs/research/`. Fuer die Website braucht es daraus eine
 einzige Datei, die pro Studie vier Dinge traegt:
 
@@ -32,6 +32,7 @@ from typing import Any, Callable
 
 from app import study_datasets as sds
 from app import venue_fees as vf
+from app.research_updates import build_updates
 
 REPORT_DIR = Path("docs/research")
 
@@ -235,7 +236,7 @@ def _extrakt_imbalance(d: dict[str, Any]) -> dict[str, Any]:
             _zahl("Hit rate", round(o["hit_rate"] * 100, 1), "%",
                   "share of firings where the book moved the predicted way"),
             _zahl("Wilson lower bound (95%)", round(o["wilson_lb95"] * 100, 1), "%",
-                  "even the pessimistic end of the interval sits above the coin flip"),
+                  "descriptive bound assuming independent firings; clustered uncertainty remains untested"),
             _zahl("Firings", o["n"], "observations"),
             _zahl("Of those, price actually moved", round(o["moved_share"] * 100, 1), "%"),
         ],
@@ -339,7 +340,7 @@ def _extrakt_takeable(d: dict[str, Any]) -> dict[str, Any]:
         ],
         "diagramm": {
             "art": DIA_KOSTEN,
-            "titel": "The edge is real and still too small to take",
+            "titel": "Historical gross edge versus taker costs",
             "einheit": "cents per firing",
             "punkte": [
                 {"label": "Gross edge", "wert": _cents(o["mean_gross_cents"]), "art": "gewinn"},
@@ -871,46 +872,6 @@ def _extrakt_resolution(d: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _extrakt_reconcile(d: dict[str, Any]) -> dict[str, Any]:
-    s = d["summary"]
-    return {
-        "basis": _basis(d, beobachtungen=s["comparisons"]),
-        "kennzahlen": {
-            "quote": s["match_rate"], "mittel": s["mean_diff_ticks"],
-            "max": s["max_diff_ticks"], "n": s["comparisons"],
-            "abweichend": s["drift"], "unbrauchbar": s["unusable"],
-            "runden": d.get("rounds_connected"), "tokens": d.get("tokens"),
-        },
-        "zahlen": [
-            _zahl("Agreement with the venue", round(s["match_rate"] * 100, 1), "%"),
-            _zahl("Mean divergence", s["mean_diff_ticks"], "ticks"),
-            _zahl("Largest divergence", s["max_diff_ticks"], "ticks"),
-            _zahl("Comparisons", s["comparisons"], ""),
-        ],
-        "diagramm": {
-            "art": DIA_QUOTE,
-            "titel": "Does our recorded book match the venue",
-            "einheit": "%",
-            "referenz": 100.0,
-            "referenz_label": "perfect agreement",
-            "punkte": [
-                {"label": "Agreement", "wert": round(s["match_rate"] * 100, 1)},
-            ],
-        },
-        "details": _tabelle(
-            "The comparison in full",
-            ["Outcome", "Count", "What it means"],
-            [
-                ["Match", _n(s["match"]), "our book and the venue agree within tolerance"],
-                ["Drift", _n(s["drift"]), "a difference above tolerance appeared"],
-                ["Unusable", _n(s["unusable"]), "no comparison possible at that moment"],
-            ],
-            f"{d.get('rounds_connected', '')} rounds of {d.get('seconds_per_round', '')} seconds over "
-            f"{d.get('tokens', '')} tokens, tolerance {d.get('tolerance_ticks', '')} tick.",
-        ),
-    }
-
-
 # --------------------------------------------------------------------------
 # Kuratierte Studienliste. Reihenfolge ist die Erzaehlreihenfolge der Seite.
 # --------------------------------------------------------------------------
@@ -920,26 +881,27 @@ STUDIEN: tuple[Studie, ...] = (
         id="imbalance-direction",
         frage="Does book imbalance predict which way the price moves?",
         verdikt=lambda k: (
-            f"Yes. {_pz(k['hit'])}% hit rate at a five-minute horizon with no decision delay, "
-            f"and the pessimistic end of the interval ({_pz(k['lb'])}%) is still above the coin flip."
+            f"In this historical sample: {_pz(k['hit'])}% directional hit rate at five minutes, "
+            f"with a descriptive Wilson lower bound of {_pz(k['lb'])}%."
         ),
-        verdikt_art=VERDIKT_JA,
+        verdikt_art=VERDIKT_OFFEN,
         analyse={
             "gemessen": "How often the mid price, five minutes later, had moved in the direction the order book was leaning.",
             "wie": "Each recorded snapshot is checked for an imbalance past a fixed threshold. When it fires, the side it leans to is written down, and compared against where the mid actually sat 300 seconds later, with no decision delay between the firing and the entry price. Firings where nothing moved at all are counted separately so they cannot pad the score. The study also runs four other horizon and delay cells; they are reported in the table below, never pooled, because every snapshot feeds each of them.",
             "daten": "Order books this project recorded itself on a 120 second grid, both venues, across eleven days.",
-            "entscheidung": "A signal only counts as real if the pessimistic end of a 95 percent Wilson interval still sits above 50 percent. A point estimate above the coin flip would not have been enough, because with enough observations noise alone clears that bar.",
+            "entscheidung": "The original Wilson threshold treats firings as independent. A generalisable signal now requires uncertainty clustered by day and event, followed by a locked test on fresh events. The historical hit rate alone does not settle that question.",
         },
         einfach=lambda k: (
             f"Out of {_n(k['n'])} firings the book pointed the right way {_pz(k['hit'])} percent of the time, "
             f"against the {_pz(0.5, 0)} percent a coin flip would give. Even the cautious end of the interval "
-            f"sits at {_pz(k['lb'])} percent, so this is not a sampling accident. "
+            f"sits at {_pz(k['lb'])} percent under the interval's independence assumption. "
+            "Repeated and overlapping observations limit that assumption. "
             f"In {_pz(k['moved'])} percent of firings the price actually moved at all; the rest sat still."
         ),
         interpretation=(
-            (LESART, "The order book carries genuine information about the next few minutes. When one side is far heavier, that pressure tends to resolve in its own direction."),
+            (LESART, "Book imbalance aligns with the direction of later moves in this sample. Clustered uncertainty and fresh events are needed to test how reliably that association generalises."),
             (GEGENLESART, "A hit rate says nothing about size. Being right often on tiny moves and wrong occasionally on large ones produces exactly this number and still loses money. That is the next study."),
-            (GRENZE, "The grid is 120 seconds, so anything that happens and reverses faster than that is invisible here. A faster recorder might find a stronger or a weaker effect."),
+            (GRENZE, "The grid is 120 seconds and repeated firings share markets and events. The Wilson interval treats trials as independent; it is descriptive here and does not replace day- or event-clustered uncertainty. Faster data and new events are separate tests."),
         ),
         quelle="orderflow_rest-2026-07",
         report="docs/research/orderflow_rest-2026-07.md",
@@ -1089,25 +1051,25 @@ STUDIEN: tuple[Studie, ...] = (
         id="mm-staleness",
         frage="Is the binding constraint spread width or quote staleness?",
         verdikt=lambda k: (
-            f"Staleness. On seconds data the loss per fill falls from {abs(k['markout_langsam']):.0f} to "
+            f"Consistent with staleness: on seconds data the loss per fill falls from {abs(k['markout_langsam']):.0f} to "
             f"{abs(k['markout_schnell']):.0f} cents while the spread earned barely moves."
         ),
-        verdikt_art=VERDIKT_JA,
+        verdikt_art=VERDIKT_OFFEN,
         analyse={
             "gemessen": "The same two quantities as study 5 (market making at a 120-second requote), spread earned and adverse selection, recomputed on seconds-resolution data.",
             "wie": "Identical code, identical parameters, identical fill model. What differs is how fresh the book is when the quote is placed. It is not a controlled experiment: the two runs also cover different days and a different set of tokens, so the data frequency is the main difference rather than the only one.",
             "daten": "5,413,998 streamed snapshots over five days and 468 tokens from the WebSocket recorders, against twelve days and 4,519 tokens on the 120 second grid. The two windows do not overlap.",
-            "entscheidung": "Whichever of the two quantities moves is the binding constraint. If the spread earned had jumped, width would have been the answer; if the losses collapse, staleness is.",
+            "entscheidung": "Lower markout loss with similar spread earned is evidence consistent with staleness. Different days and market universes prevent this comparison from isolating a causal effect of recording frequency.",
         },
         einfach=lambda k: (
             f"Adverse selection falls from {abs(k['markout_langsam']):.0f} cents per fill to "
             f"{abs(k['markout_schnell']):.0f}, which is {_pz(k['anteil_weg'], 0)} percent of the loss gone. "
             f"Meanwhile the spread earned barely moves, from {k['spread_langsam']:.0f} to {k['spread_schnell']:.0f} cents. "
-            "One number collapses and the other stays put, which is what isolates the cause: "
-            "the problem was never how much spread there is to earn, it was quoting on a picture of the book that had already expired."
+            "This pattern is consistent with stale quotes contributing to losses. "
+            "Different days, markets and fill composition remain alternative explanations; this comparison does not isolate the cause."
         ),
         interpretation=(
-            (LESART, "Staleness is the binding constraint, and unlike a thin spread that is an infrastructure problem. Faster data is something you can buy."),
+            (LESART, "The pattern supports testing quote freshness directly. A matched latency sweep on the same events can distinguish an execution effect from a change in the market sample."),
             (GEGENLESART, "The two runs are not perfectly matched. Seconds data also produces a different set of fills, across different moments and a shorter window, so part of the improvement could be the changed mix rather than the freshness."),
             (GRENZE, "Even at seconds resolution there is still no queue position, so this says the loss shrinks, not that the strategy pays. The next study is about exactly that gap."),
         ),
@@ -1137,8 +1099,8 @@ STUDIEN: tuple[Studie, ...] = (
             "The difference is not noise, it is the assumption, and the assumption cannot be checked from outside the exchange."
         ),
         interpretation=(
-            (LESART, "The honest answer is that this is unknown. The two models bracket reality rather than measure it, and saying so is worth more than picking the flattering one."),
-            (GEGENLESART, "The truth almost certainly sits between the two, since real fills need a real counterparty but not every print would have hit our quote. Where between depends on queue position."),
+            (LESART, "Profitability is unresolved. The two fill models produce conflicting scenario results; neither measures actual own-order execution."),
+            (GEGENLESART, "Actual results need not lie between these scenarios. Queue priority, partial fills, cancels, funding and exit timing can change both the fill set and its economics."),
             (GRENZE, "More days would not settle this. It is an identification problem, not a sample size problem, and only order-level queue data would resolve it."),
         ),
         quelle="mm_pnl_stream-5tage",
@@ -1150,13 +1112,13 @@ STUDIEN: tuple[Studie, ...] = (
     Studie(
         id="cross-venue",
         frage="Are price gaps between the two venues arbitrage?",
-        verdikt="No, carry. The gaps that survive settle in 2027 or 2028, worth 0.5 to 1.8 percent annualised.",
+        verdikt="Executable arbitrage is not established. Surviving quoted gaps settle in 2027 or 2028, worth 0.5 to 1.8 percent annualised under the stated assumptions.",
         verdikt_art=VERDIKT_NEIN,
         analyse={
             "gemessen": "The net gap per share between the two venues on the same event, after both fee curves, and what that is worth per year.",
             "wie": "Markets are matched by what the question actually asks rather than by wording overlap. For each surviving pair both books are priced, each venue's own fee curve is subtracted, and the remainder is annualised over the days until settlement.",
             "daten": "300 Polymarket markets against 600 Kalshi markets, matched down to a handful of confirmed pairs.",
-            "entscheidung": "Arbitrage would mean a net gap that clears both fee curves and can be closed soon. A gap that only pays out years later is a financing trade, not an arbitrage.",
+            "entscheidung": "A quoted gap is a candidate. Executable arbitrage additionally requires equivalent settlement, simultaneously available depth for both legs and a positive result after fees, execution risk and the opportunity cost of committed capital.",
         },
         einfach=lambda k: (
             f"{k['pm']} markets on one venue were matched against {k['kalshi']} on the other, giving {k['paare']} pairs. "
@@ -1165,8 +1127,8 @@ STUDIEN: tuple[Studie, ...] = (
             "But those all settle in 2027 or 2028, so the money is locked up for years and the return per year is tiny."
         ),
         interpretation=(
-            (LESART, "This is carry, not arbitrage. You are being paid a small amount to tie capital up for a long time and to carry the risk that the two venues settle differently."),
-            (GEGENLESART, "At size, one to two percent annualised on capital that would otherwise sit idle is a real business. It is a bad headline and a defensible trade, depending on what else the money would be doing."),
+            (LESART, "Long settlement horizons make capital commitment central to the result. The measured gaps are consistent with carry, but this snapshot does not establish their economic cause or an executable profit."),
+            (GEGENLESART, "A small annualised quoted return may or may not cover financing and settlement risk. The answer depends on available capital, equivalent payouts and executable size, which this snapshot does not jointly measure."),
             (GRENZE, "Three of the eight pairs were rejected as mismatched. The matcher is the weak point of this study, which is why the rejected pairs stay in the table instead of being quietly dropped."),
         ),
         quelle="cross_venue_gaps_2026-07-31",
@@ -1182,17 +1144,17 @@ STUDIEN: tuple[Studie, ...] = (
         verdikt_art=VERDIKT_NEIN,
         analyse={
             "gemessen": "The share of observed time each gap was actually open, meaning both legs cleared their fee curve at the same moment.",
-            "wie": "Both stream recorders run against the same pairs over one window. At every paired moment the two books are compared, and the gap is marked open or closed. A real mispricing should spend most of its time closed.",
+            "wie": "Both stream recorders cover the same pairs over one window. At paired recorded observations the two books are compared and the gap is marked open or closed. Gaps in coverage cannot establish continuous availability.",
             "daten": "Five confirmed pairs watched across roughly 11.6 hours of simultaneous recording on both venues.",
-            "entscheidung": "A mispricing closes once it is noticed. A gap that never closes is evidence that it is not a mispricing at all.",
+            "entscheidung": "Report persistence within joint recorded coverage. Persistence alone does not identify a fair price, the reason for a gap or whether both legs could have been executed throughout the interval.",
         },
         einfach=lambda k: (
             f"Of {k['paare']} pairs watched over {k['stunden']:.1f} hours, {k['dauerhaft']} were open at every single "
             f"moment observed and {k['nie_offen']} never opened at all. Nothing in between converged. "
-            "A genuine error closes when somebody notices it; these did not close because there is nothing to notice."
+            "This describes the recorded observations. It does not prove continuous execution availability or explain why the gaps persisted."
         ),
         interpretation=(
-            (LESART, "The gaps persist because they are the fair price of tying money up until settlement, not because the market has missed them."),
+            (LESART, "Persistent quoted gaps are consistent with capital commitment and settlement risk. The observations do not identify those mechanisms causally or prove that the quotes represent fair value."),
             (GEGENLESART, "Eleven hours is a short window. A gap that closes weekly would look permanently open here, and this study could not tell the difference."),
             (GRENZE, "Five pairs is a very small sample. This supports the carry reading of study 8 (cross-venue gaps) rather than standing on its own."),
         ),
@@ -1258,51 +1220,36 @@ STUDIEN: tuple[Studie, ...] = (
         extrakt=_extrakt_resolution,
         schlagworte=("cross venue", "settlement risk"),
     ),
-    Studie(
-        id="book-reconcile",
-        frage="Does our own recorded book drift against the venue?",
-        verdikt=lambda k: (
-            f"No drift found. {_pz(k['quote'])}% agreement, mean divergence {k['mittel']:.2f} ticks."
-        ),
-        verdikt_art=VERDIKT_KONTROLLE,
-        analyse={
-            "gemessen": "How closely the book this project recorded matches the venue's own snapshot at the same moment.",
-            "wie": "For the same token at the same instant, the streamed top of book is compared against a fresh REST snapshot, and the difference is expressed in ticks so it can be judged against the smallest price step that exists.",
-            "daten": "24 tokens over three rounds of 120 seconds, giving 72 direct comparisons.",
-            "entscheidung": "This is a control, not a finding. Every other number on this page is only worth as much as this one, so it had to be run and it had to be reported whatever it said.",
-        },
-        einfach=lambda k: (
-            f"Across {_n(k['n'])} comparisons our book agreed with the venue {_pz(k['quote'])} percent of the time. "
-            f"The average difference is {k['mittel']} ticks and the worst single case {k['max']} ticks, "
-            "a fraction of one price step. "
-            f"{k['abweichend']} comparison drifted beyond tolerance and {k['unbrauchbar']} were unusable."
-        ),
-        interpretation=(
-            (LESART, "The recorder can be trusted at tick level, which is what the other eleven studies rest on. Without this they would all be assertions."),
-            (GEGENLESART, "Agreement in calm conditions says little about behaviour under a burst, and bursts are exactly when a market maker gets hurt. This measures the easy case."),
-            (GRENZE, "Three short rounds over 24 tokens is a spot check, not continuous monitoring. It shows no systematic drift; it cannot rule out rare gaps."),
-        ),
-        quelle="book_reconcile_tick-2026-07-31",
-        report="docs/research/book_reconcile_tick-2026-07-31.md",
-        modul="src/book_reconcile.py",
-        extrakt=_extrakt_reconcile,
-        schlagworte=("data quality", "control"),
-    ),
+
 )
 
 HINWEIS = (
-    "Descriptive microstructure research on data this project recorded itself. "
-    "Every figure is produced by a tested module in this repository. "
-    "No profitability claim is made anywhere in this work."
+    "Versioned research from project recordings and archived public sources. "
+    "Each study names its actual observation window, method and limitations. "
+    "Paper fills, marked inventory and quoted prices are not realised account returns."
 )
 
 EINLEITUNG = (
-    "Four recorders run continuously across both venues: REST pollers on a 120 second grid "
-    "and event driven WebSocket recorders that write on every change at the top of the book. "
-    "The studies below ask, in order, whether anything in that data can be turned into money. "
-    "Most of the answers are no, and the reasoning behind each no is the point. "
-    "Each study states what it measured, what the numbers say, and how else they could be read."
+    "Recent September and October studies examine execution latency, market-making queues, "
+    "source speed, arbitrage validation and paired forecasts. Historical studies retain their "
+    "original samples and now name the next question to test. Page export dates do not extend "
+    "an observation window. Planned follow-ups are proposals, not new results."
 )
+
+RENEWAL_REPORT = "docs/research/research_renewal_2026-10-12.md"
+FOLLOW_UP_QUESTIONS = {
+    "imbalance-direction": "Does a frozen imbalance rule improve prediction on new events after latency, with uncertainty clustered by day and event?",
+    "imbalance-takeable": "Does the same rule retain executable net value after category-specific fees, available depth, entry and exit latency, and capital use?",
+    "signed-flow": "Does independently validated aggressor labelling add predictive value on new events after accounting for trade-clock and coverage errors?",
+    "edge-segments": "Does one development-selected segment retain net value on untouched events, with multiplicity and event-clustered uncertainty reported?",
+    "mm-120s": "Can a continuously financed portfolio earn positive conservative exit PnL after partial fills, queue position, quote and cancellation latency?",
+    "mm-staleness": "How does quote latency change markout on the same events and books when the market universe, fill rules and capital budget stay fixed?",
+    "mm-identified": "Do conservative queue and execution scenarios agree on net portfolio PnL in prospective event holdouts with capital and inventory carried forward?",
+    "cross-venue": "Which rule-equivalent pairs retain executable net value at simultaneous depth after both fees, leg risk, financing and settlement?",
+    "gap-lifetime": "How long does executable net value persist inside verified joint coverage, with stale quotes and observation gaps explicitly censored?",
+    "rewards": "Do verified reward payouts exceed fill losses, inventory risk, capital cost and conservative exits in a continuously funded portfolio?",
+    "resolution-rules": "What share of a preselected, price-blind pair sample has equivalent settlement across relevant outcomes, with all rejected and uncertain pairs counted?",
+}
 
 ANALYSE_TITEL = {
     "gemessen": "What was measured",
@@ -1372,6 +1319,9 @@ def build_payload(root: Path | str = ".", *, jetzt: datetime | None = None) -> d
             "modul": studie.modul,
             "schlagworte": list(studie.schlagworte),
             "gebuehrenmodell": daten.get("fee_model_version"),
+            "status": "historical",
+            "follow_up": {"status": "planned", "question": FOLLOW_UP_QUESTIONS[studie.id],
+                          "report": RENEWAL_REPORT},
         }
         if studie.bild:
             eintrag["bild"] = f"docs/research/{studie.bild}"
@@ -1383,6 +1333,11 @@ def build_payload(root: Path | str = ".", *, jetzt: datetime | None = None) -> d
             eintrag["daten"] = daten_links
         eintrag.update(teil)
         studien.append(eintrag)
+
+    try:
+        studien.extend(build_updates(wurzel))
+    except FileNotFoundError:
+        fehlend.append("research_updates_2026-10-12")
 
     # Die Kontrollstudie zaehlt nicht als bestaetigte Hypothese: sie prueft die
     # Messkette, nicht den Markt. Sie unter "confirmed" zu fuehren waere ein

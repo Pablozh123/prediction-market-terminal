@@ -1,4 +1,4 @@
-// Microstructure — the twelve recorded-book studies, one card each.
+// Versioned research, with recent updates before the historical studies.
 //
 // Feeds off public/data/microstructure.json (built by
 // app/microstructure_report.py). Every number in here comes from that file;
@@ -142,7 +142,8 @@ function quelleLinks(s) {
   // (app/study_datasets.py), also entsteht hier kein toter Link.
   const daten = Array.isArray(s.daten) ? s.daten : [];
   return '<div style="display:flex; gap:var(--sp-3); flex-wrap:wrap; align-items:center">'
-    + link(s.report, 'FULL REPORT') + link(s.modul, 'SOURCE MODULE')
+    + link(s.report, s.status === 'recent' ? 'REPORT' : 'FULL REPORT')
+    + link(s.modul, s.module_role === 'publication' ? 'PUBLICATION MODULE' : 'SOURCE MODULE')
     + daten.map((d) => link(d.path, 'DATA · ' + String(d.format || ''))).join('')
     + '</div>';
 }
@@ -183,7 +184,7 @@ export function studieAnker(s, i) {
 // Kurzlabel fuer die Sprungliste: die Studien-ID in Worten ("mm-staleness"
 // → "MM staleness"); ohne ID die Frage, auf wenige Woerter gekuerzt.
 function kurzLabel(s, i) {
-  const nr = String(i + 1).padStart(2, '0') + ' ';
+  const nr = s.status === 'recent' ? 'NEW · ' : String(i + 1).padStart(2, '0') + ' ';
   const id = String((s && s.id) || '').trim();
   if (id) {
     const worte = id.split(/[-_]+/).filter(Boolean).map((w) => (w === 'mm' ? 'MM' : w));
@@ -217,10 +218,16 @@ function verdiktZeile(studien) {
     + ' <span style="color:var(--ink-4)">· ' + z.gesamt + ' studies</span></div>';
 }
 
+function orderedStudies(studien) {
+  const indexed = studien.map((s, i) => ({ s, i }));
+  return indexed.filter(({ s }) => s.status === 'recent')
+    .concat(indexed.filter(({ s }) => s.status !== 'recent'));
+}
+
 function sprungliste(studien) {
   if (!Array.isArray(studien) || !studien.length) return '';
   return '<div style="display:flex; gap:var(--sp-3); flex-wrap:wrap; margin-top:var(--sp-4)">'
-    + studien.map((s, i) => {
+    + orderedStudies(studien).map(({ s, i }) => {
       const farbe = VERDIKT_FARBE[s.verdikt_art] || 'var(--muted)';
       return '<a href="#' + esc(studieAnker(s, i)) + '" style="' + M + '; font-size:var(--t-micro); color:var(--ink-2); text-decoration:none; '
         + 'border:1px solid var(--line-1); border-left:2px solid ' + farbe + '; border-radius:var(--r-control); padding:var(--sp-2) var(--sp-3); white-space:nowrap">'
@@ -229,18 +236,28 @@ function sprungliste(studien) {
     + '</div>';
 }
 
+function followUpBlock(s) {
+  const next = s.follow_up;
+  if (!next || next.status !== 'planned' || !next.question) return '';
+  return '<div style="' + HR + '">'
+    + '<div style="' + M + '; font-size:var(--t-micro); color:var(--info)">NEXT TEST · PLANNED</div>'
+    + '<p style="font-size:var(--t-small); color:var(--ink-2); line-height:var(--lh-prose)">' + esc(next.question) + '</p>'
+    + '<a href="https://github.com/Pablozh123/prediction-market-terminal/blob/main/' + esc(next.report)
+    + '" target="_blank" rel="noopener" style="font-size:var(--t-small); color:var(--info)">Research renewal plan ↗</a></div>';
+}
+
 function studieKarte(s, i) {
   const farbe = VERDIKT_FARBE[s.verdikt_art] || 'var(--muted)';
   const marke = VERDIKT_TEXT[s.verdikt_art] || 'RESULT';
 
-  const zahlenUndDiagramm = '<div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:var(--sp-4); margin-top:var(--sp-5)">'
+  const zahlenUndDiagramm = '<div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr)); gap:var(--sp-4); margin-top:var(--sp-5)">'
     + diagramm(s.diagramm) + zahlenBlock(s.zahlen) + '</div>';
 
   return '<div id="' + esc(studieAnker(s, i)) + '" style="' + KARTE + '; padding:var(--sp-6); margin-bottom:var(--sp-5); scroll-margin-top:16px">'
     + '<div style="display:flex; align-items:flex-start; justify-content:space-between; gap:var(--sp-5); flex-wrap:wrap">'
-    + '<div style="flex:1; min-width:260px">'
-    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-4)">STUDY '
-    + String(i + 1).padStart(2, '0') + '</div>'
+    + '<div style="flex:1; min-width:min(100%,260px)">'
+    + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:var(--ink-4)">'
+    + (s.status === 'recent' ? 'RESEARCH UPDATE' : 'HISTORICAL · STUDY ' + String(i + 1).padStart(2, '0')) + '</div>'
     + '<h3 style="font-size:var(--t-head); font-weight:600; margin-top:var(--sp-3); line-height:var(--lh-tight)">' + esc(s.frage) + '</h3>'
     + '</div>'
     + '<div style="' + M + '; font-size:var(--t-micro); letter-spacing:var(--ls-caps-strong); color:' + farbe
@@ -252,6 +269,7 @@ function studieKarte(s, i) {
     // Befund zuerst: Diagramm und Kennzahlen direkt unter dem Verdikt.
     + zahlenUndDiagramm
     + methodeBlock(s)
+    + followUpBlock(s)
 
     + '<div style="' + HR + '; display:flex; align-items:center; justify-content:space-between; gap:var(--sp-5); flex-wrap:wrap">'
     + basisZeile(s.basis) + quelleLinks(s) + '</div>'
@@ -269,13 +287,14 @@ function kopf(payload, study) {
   return '<div style="padding:var(--sp-1) 0 0">'
     + '<div style="display:flex; align-items:flex-start; justify-content:space-between; gap:var(--sp-6); flex-wrap:wrap">'
     + '<div style="max-width:760px">'
-    + '<h2 style="font-size:var(--t-head); font-weight:600; margin:0">Order books, recorded by this project</h2>'
+    + '<h2 style="font-size:var(--t-head); font-weight:600; margin:0">Research across the projects</h2>'
     + '<div style="font-size:var(--t-body); ' + MUTED + '; margin-top:var(--sp-3); line-height:var(--lh-prose)">'
     + esc(payload.einleitung || '') + '</div></div>'
     + stempelBlock(study, payload) + '</div>'
     // Verdiktzeile aus den Karten gezaehlt und die Sprungliste zu den Ankern.
     + verdiktZeile(payload.studien)
     + sprungliste(payload.studien)
+    + '<p style="font-size:var(--t-small); color:var(--ink-3); line-height:var(--lh-prose)">Page export dates do not extend a study’s observation period. Each card shows its own data window.</p>'
     + '<div style="display:flex; gap:var(--sp-4); margin-top:var(--sp-5); flex-wrap:wrap">'
     + kachel(z.gesamt || 0, 'STUDIES', 'var(--text)')
     + kachel(z.nein || 0, 'REFUTED', 'var(--neg-soft)')
@@ -307,6 +326,12 @@ export function renderMicrostructure(payload, study) {
   return '<div style="padding:var(--sp-6) var(--sp-6) var(--sp-7)">'
     + kopf(payload, study)
     + fehlend
-    + payload.studien.map(studieKarte).join('')
+    + ['recent', 'historical'].map((status) => {
+      const entries = orderedStudies(payload.studien).filter(({ s }) => (s.status === 'recent') === (status === 'recent'));
+      if (!entries.length) return '';
+      return '<h2 style="font-size:var(--t-head); margin:var(--sp-6) 0 var(--sp-5)">'
+        + (status === 'recent' ? 'Recent research' : 'Historical studies') + '</h2>'
+        + entries.map(({ s, i }) => studieKarte(s, i)).join('');
+    }).join('')
     + '</div>';
 }

@@ -1,7 +1,26 @@
 # Handoff — Prediction Market Terminal
 
 Single entry point for continuing this project from another machine.
-Last updated 2026-10-11.
+Last updated 2026-10-12.
+
+## Research refresh release (2026-10-12)
+
+Six versioned additions cover CEX forward execution, entry/exit delay, MM
+queues, source speed and depth, arbitrage validation and paired Fed forecasts.
+Eleven historical cards retain their IDs and actual data windows, each with a
+labelled planned next test. The old book-reconciliation control is removed
+from the public study list; its reports and data remain available.
+
+The snapshot records seven original source hashes. CEX publication links name
+the display adapter explicitly; local replay engines and raw archives are not
+part of this release. The renewal agenda is
+`docs/research/research_renewal_2026-10-12.md`. It prioritises rule-equivalent,
+depth- and cost-aware arbitrage and funded MM with continuous inventory,
+queue/latency sensitivity, conservative exits and protected event holdouts.
+
+Publication branch is based on current main. Prior local research verification:
+200 focused tests, Ruff, static build and desktop/mobile browser checks passed.
+Release verification: 200 focused tests, Ruff, claims lint and the production static build pass. Desktop dark/light and mobile summary/static-page browser checks pass. Full Python 3.12/3.13 CI must pass before merge; live deployment is checked after merge.
 
 ## Release integration (2026-10-11)
 

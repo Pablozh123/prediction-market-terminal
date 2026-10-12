@@ -24,12 +24,31 @@ class PayloadTests(unittest.TestCase):
     def test_baut_alle_studien(self):
         p = mr.build_payload(PROJEKT)
         self.assertEqual(p["fehlend"], [])
-        self.assertEqual(len(p["studien"]), len(mr.STUDIEN))
+        self.assertEqual(len(p["studien"]), len(mr.STUDIEN) + 6)
         self.assertEqual(p["zaehler"]["gesamt"], len(p["studien"]))
 
     def test_ids_sind_eindeutig(self):
-        ids = [s.id for s in mr.STUDIEN]
+        ids = [s["id"] for s in mr.build_payload(PROJEKT)["studien"]]
         self.assertEqual(len(ids), len(set(ids)))
+
+    def test_control_removed_and_recent_research_published(self):
+        p = mr.build_payload(PROJEKT)
+        by_id = {s["id"]: s for s in p["studien"]}
+        self.assertNotIn("book-reconcile", by_id)
+        self.assertEqual(p["zaehler"]["kontrolle"], 0)
+        for study_id in ("cex-leadlag-forward", "cex-execution-latency", "mm-queue-forward",
+                         "source-speed-depth", "arb-validation-funnel", "fed-forecast-comparison"):
+            self.assertEqual(by_id[study_id]["status"], "recent")
+            self.assertTrue(by_id[study_id]["basis"]["fenster"])
+
+    def test_historical_questions_are_planned_not_new_findings(self):
+        for study in mr.build_payload(PROJEKT)["studien"]:
+            if study["id"] not in {s.id for s in mr.STUDIEN}:
+                continue
+            self.assertEqual(study["status"], "historical")
+            self.assertEqual(study["follow_up"]["status"], "planned")
+            self.assertGreater(len(study["follow_up"]["question"]), 60)
+            self.assertTrue((PROJEKT / study["follow_up"]["report"]).is_file())
 
     def test_jede_studie_hat_pflichtfelder(self):
         for s in mr.build_payload(PROJEKT)["studien"]:
@@ -131,10 +150,15 @@ class StichprobeTests(unittest.TestCase):
 
 
 class VerdiktTests(unittest.TestCase):
+    def test_unresolved_dependence_and_staleness_are_not_confirmed(self):
+        cards = {s["id"]: s for s in mr.build_payload(PROJEKT)["studien"]}
+        for study_id in ("imbalance-direction", "mm-staleness"):
+            self.assertEqual(cards[study_id]["verdikt_art"], mr.VERDIKT_OFFEN)
+
     def test_kontrollstudie_zaehlt_nicht_als_bestaetigt(self):
         p = mr.build_payload(PROJEKT)
         kontrolle = [s for s in p["studien"] if s["verdikt_art"] == mr.VERDIKT_KONTROLLE]
-        self.assertTrue(kontrolle, "keine Kontrollstudie ausgewiesen")
+        self.assertEqual(kontrolle, [], "Messkettenkontrolle gehört nicht in die Studienliste")
         self.assertEqual(p["zaehler"]["kontrolle"], len(kontrolle))
         for s in kontrolle:
             self.assertNotIn(s["id"], [x["id"] for x in p["studien"] if x["verdikt_art"] == mr.VERDIKT_JA])

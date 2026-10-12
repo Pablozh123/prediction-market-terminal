@@ -628,7 +628,7 @@ class WebLeerzustandTest(unittest.TestCase):
         for modus in ("leer", "live"):
             text = _sichtbarer_text(self.ausgabe[modus]["overview"])
             with self.subTest(modus=modus):
-                self.assertIn("Prediction-market microstructure, measured on self-recorded books.", text)
+                self.assertIn("Prediction-market research, from recorded books and archived public sources.", text)
                 self.assertIn("no profitability claim", text)
                 self.assertIn("VERDICT BOARD", text)
                 self.assertIn("TESTED STRATEGY · LIVE RUNS, REAL MONEY", text)
@@ -2583,7 +2583,7 @@ class WebLeerzustandTest(unittest.TestCase):
             "research_mentions_latency": "frozen 2026-08-07",
             "research_pipeline_forward": "archived",
             "research_methodology": "version 4.2",
-            "research_microstructure": "rolling",
+            "research_microstructure": "versioned research · updated 2026-10-12",
             "runs_runs": "concluded 2026-08-07",
             # Post-mortems hatte bis zu diesem PR keinen Kopf, in den ein
             # Stempel gepasst haette, und damit als einzige Studienseite
@@ -2680,7 +2680,7 @@ class WebUeberschriftenTest(unittest.TestCase):
         self.assertNotIn("<h2 style=\"' + M + '; font-size:11px", quelle)
         stufen = [s for s, _ in self._headings(self.ausgabe["live"]["research_microstructure"])]
         self.assertEqual(stufen.count("1"), 1)
-        self.assertEqual(stufen.count("2"), 1)
+        self.assertEqual(stufen.count("2"), 2)  # Page title and historical group in the fixture.
         self.assertGreaterEqual(stufen.count("3"), 1)
         self.assertGreaterEqual(stufen.count("4"), 1)
 
