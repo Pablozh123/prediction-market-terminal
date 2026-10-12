@@ -313,14 +313,14 @@ export function renderOverview(T) {
       + '<div>#</div><div>QUESTION</div><div>VERDICT</div><div style="text-align:right">KEY NUMBER · N'
       + help('sample-size', 'sample size', 'n is the number of observations behind a result. The unit varies by study: trades, snapshots, markets or pairs. Observations can be related; a larger n alone does not establish reliability.')
       + '</div><div style="text-align:right">WINDOW</div></div>'
-      + studien.map((st, i) => {
+      + studien.map((st, i) => ({ st, i })).sort((a, b) => Number(b.st.status === 'recent') - Number(a.st.status === 'recent')).map(({ st, i }) => {
         const kn = keyNumber(st);
         const basis = st.basis || {};
         const nLabel = sampleLabel(basis);
         // Jede Zeile fuehrt direkt zu ihrer Karte auf der Microstructure-Seite,
         // nicht zum Seitenanfang: gleicher Anker wie die Sprungliste dort.
         return '<div ' + goStudy(microIdx, studieAnker(st, i)) + ' class="study-row hv-panel" style="cursor:pointer">'
-          + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3)">' + String(i + 1).padStart(2, '0') + '</div>'
+          + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3)">' + (st.status === 'recent' ? 'NEW' : String(i + 1).padStart(2, '0')) + '</div>'
           + '<div style="padding-right:var(--sp-5); min-width:0"><div style="font-size:var(--t-body); line-height:var(--lh-tight)">' + esc(st.frage || st.id || '—') + '</div>'
           // Truncated lines carry the full text as a tooltip.
           + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:var(--sp-2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis" title="' + esc(String(st.verdikt || '')) + '">' + esc(String(st.verdikt || '').split('. ')[0]) + '</div></div>'
@@ -457,13 +457,13 @@ export function renderOverview(T) {
     + '<dl class="research-verdicts">'
     + [['nein', counts.nein], ['ja', counts.ja], ['offen', counts.offen], ['kontrolle', counts.kontrolle]].map(([art, n]) =>
       '<div><dt style="color:' + VERDICT_TAG[art].color + '">' + VERDICT_TAG[art].label.toLowerCase() + '</dt><dd>' + num(n) + '</dd></div>').join('')
-    + '</dl><div class="research-source">' + (micro.stand_utc ? 'Snapshot ' + esc(stempel(micro.stand_utc)) : 'From the published study payload') + '</div></aside>' : '';
+    + '</dl><div class="research-source">' + (micro.stand_utc ? 'Page export ' + esc(stempel(micro.stand_utc)) : 'From the published study payload') + '. Data periods are listed per study.</div></aside>' : '';
   return '<div class="overview-page">'
     + '<div class="overview-hero">'
     + '<canvas id="river-cv" aria-hidden="true"></canvas>'
     + '<div class="overview-intro">'
     + '<div class="overview-eyebrow">Independent research · Polymarket &amp; Kalshi</div>'
-    + '<h1 style="font-size:var(--t-display)">Prediction-market microstructure,<br><span>measured on self-recorded books.</span></h1>'
+    + '<h1 style="font-size:var(--t-display)">Prediction-market research,<br><span>from recorded books and archived public sources.</span></h1>'
     + '<p class="overview-deck">' + esc(subline) + '</p>'
     + pfade
     + '<div style="display:flex; gap:var(--sp-5); margin-top:var(--sp-5); flex-wrap:wrap; ' + M + '; font-size:var(--t-micro)">'

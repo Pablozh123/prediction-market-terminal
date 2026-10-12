@@ -1,21 +1,21 @@
 {
- "hinweis": "Descriptive microstructure research on data this project recorded itself. Every figure is produced by a tested module in this repository. No profitability claim is made anywhere in this work.",
- "einleitung": "Four recorders run continuously across both venues: REST pollers on a 120 second grid and event driven WebSocket recorders that write on every change at the top of the book. The studies below ask, in order, whether anything in that data can be turned into money. Most of the answers are no, and the reasoning behind each no is the point. Each study states what it measured, what the numbers say, and how else they could be read.",
- "stand_utc": "2026-08-17T18:38:23.065928+00:00",
+ "hinweis": "Versioned research from project recordings and archived public sources. Each study names its actual observation window, method and limitations. Paper fills, marked inventory and quoted prices are not realised account returns.",
+ "einleitung": "Recent September and October studies examine execution latency, market-making queues, source speed, arbitrage validation and paired forecasts. Historical studies retain their original samples and now name the next question to test. Page export dates do not extend an observation window. Planned follow-ups are proposals, not new results.",
+ "stand_utc": "2026-10-12T18:59:46.172285+00:00",
  "kennzeichnung": "research/frozen",
  "zaehler": {
-  "gesamt": 12,
-  "nein": 8,
-  "ja": 2,
-  "offen": 1,
-  "kontrolle": 1
+  "gesamt": 17,
+  "nein": 11,
+  "ja": 0,
+  "offen": 6,
+  "kontrolle": 0
  },
  "studien": [
   {
    "id": "imbalance-direction",
    "frage": "Does book imbalance predict which way the price moves?",
-   "verdikt": "Yes. 55.5% hit rate at a five-minute horizon with no decision delay, and the pessimistic end of the interval (55.2%) is still above the coin flip.",
-   "verdikt_art": "ja",
+   "verdikt": "In this historical sample: 55.5% directional hit rate at five minutes, with a descriptive Wilson lower bound of 55.2%.",
+   "verdikt_art": "offen",
    "analyse": [
     {
      "schluessel": "gemessen",
@@ -35,15 +35,15 @@
     {
      "schluessel": "entscheidung",
      "titel": "What would have counted as a yes",
-     "text": "A signal only counts as real if the pessimistic end of a 95 percent Wilson interval still sits above 50 percent. A point estimate above the coin flip would not have been enough, because with enough observations noise alone clears that bar."
+     "text": "The original Wilson threshold treats firings as independent. A generalisable signal now requires uncertainty clustered by day and event, followed by a locked test on fresh events. The historical hit rate alone does not settle that question."
     }
    ],
-   "einfach": "Out of 205,835 firings the book pointed the right way 55.5 percent of the time, against the 50 percent a coin flip would give. Even the cautious end of the interval sits at 55.2 percent, so this is not a sampling accident. In 35.4 percent of firings the price actually moved at all; the rest sat still.",
+   "einfach": "Out of 205,835 firings the book pointed the right way 55.5 percent of the time, against the 50 percent a coin flip would give. Even the cautious end of the interval sits at 55.2 percent under the interval's independence assumption. Repeated and overlapping observations limit that assumption. In 35.4 percent of firings the price actually moved at all; the rest sat still.",
    "interpretation": [
     {
      "art": "lesart",
      "titel": "What it suggests",
-     "text": "The order book carries genuine information about the next few minutes. When one side is far heavier, that pressure tends to resolve in its own direction."
+     "text": "Book imbalance aligns with the direction of later moves in this sample. Clustered uncertainty and fresh events are needed to test how reliably that association generalises."
     },
     {
      "art": "gegenlesart",
@@ -53,7 +53,7 @@
     {
      "art": "grenze",
      "titel": "What this cannot tell you",
-     "text": "The grid is 120 seconds, so anything that happens and reverses faster than that is invisible here. A faster recorder might find a stronger or a weaker effect."
+     "text": "The grid is 120 seconds and repeated firings share markets and events. The Wilson interval treats trials as independent; it is descriptive here and does not replace day- or event-clustered uncertainty. Faster data and new events are separate tests."
     }
    ],
    "report": "docs/research/orderflow_rest-2026-07.md",
@@ -63,7 +63,23 @@
     "order book"
    ],
    "gebuehrenmodell": "2026-07-30",
+   "status": "historical",
+   "follow_up": {
+    "status": "planned",
+    "question": "Does a frozen imbalance rule improve prediction on new events after latency, with uncertainty clustered by day and event?",
+    "report": "docs/research/research_renewal_2026-10-12.md"
+   },
    "bild": "docs/research/orderflow_rest-2026-07.png",
+   "daten": [
+    {
+     "format": "CSV",
+     "path": "docs/research/orderflow_rest-2026-07.csv"
+    },
+    {
+     "format": "JSON",
+     "path": "docs/research/orderflow_rest-2026-07.json"
+    }
+   ],
    "basis": {
     "beobachtungen": 205835,
     "snapshots": 370423,
@@ -82,7 +98,7 @@
      "label": "Wilson lower bound (95%)",
      "wert": 55.2,
      "einheit": "%",
-     "hinweis": "even the pessimistic end of the interval sits above the coin flip"
+     "hinweis": "descriptive bound assuming independent firings; clustered uncertainty remains untested"
     },
     {
      "label": "Firings",
@@ -213,10 +229,10 @@
     {
      "schluessel": "entscheidung",
      "titel": "What would have counted as a yes",
-     "text": "Takeable means the net stays above zero. Costs come from the venue fee model in the repository, not from a round-number assumption."
+     "text": "Takeable means the net stays above zero. Costs come from the venue fee model in the repository, not from a round-number assumption. The rate that model is fed is the one input that is not settled: the venue documentation puts the general taker rate at 5 percent and secondary sources from the same period at 3 percent, so every fee figure is carried across both."
     }
    ],
-   "einfach": "The signal is worth +0.09 cents per firing before costs. Crossing the spread costs 0.938 cents and the venue fee another 1.646, so the round trip takes 2.58 cents, roughly 30 times what the signal produces. The net is -2.50 cents, and only 3.8 percent of firings end positive. Even the best cut of the signal only reaches +0.21 cents gross, nowhere near the wall.",
+   "einfach": "The signal is worth +0.09 cents per firing before costs. Crossing the spread costs 0.938 cents and the venue fee another 1.646, so the round trip takes 2.58 cents, roughly 30 times what the signal produces. The net is -2.50 cents, and only 3.8 percent of firings end positive. The fee rate is disputed; at the lower published rate the fee falls to 0.988 cents and the net only improves to -1.84, still 22 times the signal. Even the best cut of the signal only reaches +0.21 cents gross, nowhere near the wall.",
    "interpretation": [
     {
      "art": "lesart",
@@ -231,7 +247,7 @@
     {
      "art": "grenze",
      "titel": "What this cannot tell you",
-     "text": "It assumes taking at the touch. A patient limit order would pay less, but then the fill is no longer certain, and an unfilled order earns nothing at all."
+     "text": "It assumes taking at the touch. A patient limit order would pay less, but then the fill is no longer certain, and an unfilled order earns nothing at all. And the fee rate is not settled: documentation and secondary sources disagree by a factor that moves every fee figure here by 40 percent. The verdict survives both ends, but a narrower gross edge would not have."
     }
    ],
    "report": "docs/research/orderflow_rest-2026-07.md",
@@ -242,6 +258,22 @@
     "key result"
    ],
    "gebuehrenmodell": "2026-07-30",
+   "status": "historical",
+   "follow_up": {
+    "status": "planned",
+    "question": "Does the same rule retain executable net value after category-specific fees, available depth, entry and exit latency, and capital use?",
+    "report": "docs/research/research_renewal_2026-10-12.md"
+   },
+   "daten": [
+    {
+     "format": "CSV",
+     "path": "docs/research/orderflow_rest-2026-07.csv"
+    },
+    {
+     "format": "JSON",
+     "path": "docs/research/orderflow_rest-2026-07.json"
+    }
+   ],
    "basis": {
     "beobachtungen": 205835,
     "snapshots": 370423,
@@ -268,7 +300,8 @@
     {
      "label": "Fee cost",
      "wert": 1.6458,
-     "einheit": "cents"
+     "einheit": "cents",
+     "hinweis": "at the documented rate; the disputed lower rate puts the same firings at 0.9875 cents"
     },
     {
      "label": "Round trip total",
@@ -279,7 +312,7 @@
      "label": "Net result",
      "wert": -2.4985,
      "einheit": "cents",
-     "hinweis": "what is left after both cost legs"
+     "hinweis": "what is left after both cost legs; -2.4985 to -1.8402 across the fee-rate dispute"
     },
     {
      "label": "Firings that end net positive",
@@ -289,7 +322,7 @@
    ],
    "diagramm": {
     "art": "kosten",
-    "titel": "The edge is real and still too small to take",
+    "titel": "Historical gross edge versus taker costs",
     "einheit": "cents per firing",
     "punkte": [
      {
@@ -334,16 +367,16 @@
      ],
      [
       "Fee cost",
-      "-1.6458",
+      "-1.6458 to -0.9875",
       "the venue fee for this market category"
      ],
      [
       "Net",
-      "-2.4985",
+      "-2.4985 to -1.8402",
       "what a taker actually keeps"
      ]
     ],
-    "hinweis": "Costs come from the venue fee model in app/venue_fees.py, not from an assumption."
+    "hinweis": "Costs come from the venue fee model in app/venue_fees.py. The fee rate itself is the one input this study cannot pin down: the venue documentation says 5 percent, secondary sources from the same period say 3 percent, and the fee is linear in the rate, so both ends are carried on every fee figure above."
    }
   },
   {
@@ -398,6 +431,22 @@
     "negative result"
    ],
    "gebuehrenmodell": "2026-07-30",
+   "status": "historical",
+   "follow_up": {
+    "status": "planned",
+    "question": "Does independently validated aggressor labelling add predictive value on new events after accounting for trade-clock and coverage errors?",
+    "report": "docs/research/research_renewal_2026-10-12.md"
+   },
+   "daten": [
+    {
+     "format": "CSV",
+     "path": "docs/research/orderflow_rest-2026-07.csv"
+    },
+    {
+     "format": "JSON",
+     "path": "docs/research/orderflow_rest-2026-07.json"
+    }
+   ],
    "basis": {
     "beobachtungen": 93868,
     "snapshots": 370423,
@@ -532,7 +581,23 @@
     "negative result"
    ],
    "gebuehrenmodell": "2026-07-30",
+   "status": "historical",
+   "follow_up": {
+    "status": "planned",
+    "question": "Does one development-selected segment retain net value on untouched events, with multiplicity and event-clustered uncertainty reported?",
+    "report": "docs/research/research_renewal_2026-10-12.md"
+   },
    "bild": "docs/research/edge_segments_july-2026.png",
+   "daten": [
+    {
+     "format": "CSV",
+     "path": "docs/research/edge_segments_july-2026.csv"
+    },
+    {
+     "format": "JSON",
+     "path": "docs/research/edge_segments_july-2026.json"
+    }
+   ],
    "basis": {
     "beobachtungen": 205835,
     "tage": 11,
@@ -818,7 +883,23 @@
     "adverse selection"
    ],
    "gebuehrenmodell": "2026-07-30",
+   "status": "historical",
+   "follow_up": {
+    "status": "planned",
+    "question": "Can a continuously financed portfolio earn positive conservative exit PnL after partial fills, queue position, quote and cancellation latency?",
+    "report": "docs/research/research_renewal_2026-10-12.md"
+   },
    "bild": "docs/research/mm_pnl_july-2026.png",
+   "daten": [
+    {
+     "format": "CSV",
+     "path": "docs/research/mm_pnl_july-2026.csv"
+    },
+    {
+     "format": "JSON",
+     "path": "docs/research/mm_pnl_july-2026.json"
+    }
+   ],
    "basis": {
     "snapshots": 370903,
     "tokens": 4519,
@@ -909,8 +990,8 @@
   {
    "id": "mm-staleness",
    "frage": "Is the binding constraint spread width or quote staleness?",
-   "verdikt": "Staleness. On seconds data the loss per fill falls from 362 to 70 cents while the spread earned barely moves.",
-   "verdikt_art": "ja",
+   "verdikt": "Consistent with staleness: on seconds data the loss per fill falls from 362 to 70 cents while the spread earned barely moves.",
+   "verdikt_art": "offen",
    "analyse": [
     {
      "schluessel": "gemessen",
@@ -930,15 +1011,15 @@
     {
      "schluessel": "entscheidung",
      "titel": "What would have counted as a yes",
-     "text": "Whichever of the two quantities moves is the binding constraint. If the spread earned had jumped, width would have been the answer; if the losses collapse, staleness is."
+     "text": "Lower markout loss with similar spread earned is evidence consistent with staleness. Different days and market universes prevent this comparison from isolating a causal effect of recording frequency."
     }
    ],
-   "einfach": "Adverse selection falls from 362 cents per fill to 70, which is 81 percent of the loss gone. Meanwhile the spread earned barely moves, from 148 to 138 cents. One number collapses and the other stays put, which is what isolates the cause: the problem was never how much spread there is to earn, it was quoting on a picture of the book that had already expired.",
+   "einfach": "Adverse selection falls from 362 cents per fill to 70, which is 81 percent of the loss gone. Meanwhile the spread earned barely moves, from 148 to 138 cents. This pattern is consistent with stale quotes contributing to losses. Different days, markets and fill composition remain alternative explanations; this comparison does not isolate the cause.",
    "interpretation": [
     {
      "art": "lesart",
      "titel": "What it suggests",
-     "text": "Staleness is the binding constraint, and unlike a thin spread that is an infrastructure problem. Faster data is something you can buy."
+     "text": "The pattern supports testing quote freshness directly. A matched latency sweep on the same events can distinguish an execution effect from a change in the market sample."
     },
     {
      "art": "gegenlesart",
@@ -958,7 +1039,23 @@
     "key result"
    ],
    "gebuehrenmodell": "2026-07-30",
+   "status": "historical",
+   "follow_up": {
+    "status": "planned",
+    "question": "How does quote latency change markout on the same events and books when the market universe, fill rules and capital budget stay fixed?",
+    "report": "docs/research/research_renewal_2026-10-12.md"
+   },
    "bild": "docs/research/mm_pnl_stream-5tage.png",
+   "daten": [
+    {
+     "format": "CSV",
+     "path": "docs/research/mm_pnl_stream-5tage.csv"
+    },
+    {
+     "format": "JSON",
+     "path": "docs/research/mm_pnl_stream-5tage.json"
+    }
+   ],
    "basis": {
     "snapshots": 5413998,
     "tokens": 468,
@@ -1083,12 +1180,12 @@
     {
      "art": "lesart",
      "titel": "What it suggests",
-     "text": "The honest answer is that this is unknown. The two models bracket reality rather than measure it, and saying so is worth more than picking the flattering one."
+     "text": "Profitability is unresolved. The two fill models produce conflicting scenario results; neither measures actual own-order execution."
     },
     {
      "art": "gegenlesart",
      "titel": "What else fits the same numbers",
-     "text": "The truth almost certainly sits between the two, since real fills need a real counterparty but not every print would have hit our quote. Where between depends on queue position."
+     "text": "Actual results need not lie between these scenarios. Queue priority, partial fills, cancels, funding and exit timing can change both the fill set and its economics."
     },
     {
      "art": "grenze",
@@ -1104,6 +1201,22 @@
     "key result"
    ],
    "gebuehrenmodell": "2026-07-30",
+   "status": "historical",
+   "follow_up": {
+    "status": "planned",
+    "question": "Do conservative queue and execution scenarios agree on net portfolio PnL in prospective event holdouts with capital and inventory carried forward?",
+    "report": "docs/research/research_renewal_2026-10-12.md"
+   },
+   "daten": [
+    {
+     "format": "CSV",
+     "path": "docs/research/mm_pnl_stream-5tage.csv"
+    },
+    {
+     "format": "JSON",
+     "path": "docs/research/mm_pnl_stream-5tage.json"
+    }
+   ],
    "basis": {
     "snapshots": 5413998,
     "tokens": 468,
@@ -1199,7 +1312,7 @@
   {
    "id": "cross-venue",
    "frage": "Are price gaps between the two venues arbitrage?",
-   "verdikt": "No, carry. The gaps that survive settle in 2027 or 2028, worth 0.5 to 1.8 percent annualised.",
+   "verdikt": "Executable arbitrage is not established. Surviving quoted gaps settle in 2027 or 2028, worth 0.5 to 1.8 percent annualised under the stated assumptions.",
    "verdikt_art": "nein",
    "analyse": [
     {
@@ -1220,7 +1333,7 @@
     {
      "schluessel": "entscheidung",
      "titel": "What would have counted as a yes",
-     "text": "Arbitrage would mean a net gap that clears both fee curves and can be closed soon. A gap that only pays out years later is a financing trade, not an arbitrage."
+     "text": "A quoted gap is a candidate. Executable arbitrage additionally requires equivalent settlement, simultaneously available depth for both legs and a positive result after fees, execution risk and the opportunity cost of committed capital."
     }
    ],
    "einfach": "300 markets on one venue were matched against 600 on the other, giving 8 pairs. 3 were thrown out as mismatched questions, leaving 5 usable, of which 3 clear both fee curves. The best is 3.07 cents per share. But those all settle in 2027 or 2028, so the money is locked up for years and the return per year is tiny.",
@@ -1228,12 +1341,12 @@
     {
      "art": "lesart",
      "titel": "What it suggests",
-     "text": "This is carry, not arbitrage. You are being paid a small amount to tie capital up for a long time and to carry the risk that the two venues settle differently."
+     "text": "Long settlement horizons make capital commitment central to the result. The measured gaps are consistent with carry, but this snapshot does not establish their economic cause or an executable profit."
     },
     {
      "art": "gegenlesart",
      "titel": "What else fits the same numbers",
-     "text": "At size, one to two percent annualised on capital that would otherwise sit idle is a real business. It is a bad headline and a defensible trade, depending on what else the money would be doing."
+     "text": "A small annualised quoted return may or may not cover financing and settlement risk. The answer depends on available capital, equivalent payouts and executable size, which this snapshot does not jointly measure."
     },
     {
      "art": "grenze",
@@ -1248,6 +1361,22 @@
     "arbitrage"
    ],
    "gebuehrenmodell": "2026-07-30",
+   "status": "historical",
+   "follow_up": {
+    "status": "planned",
+    "question": "Which rule-equivalent pairs retain executable net value at simultaneous depth after both fees, leg risk, financing and settlement?",
+    "report": "docs/research/research_renewal_2026-10-12.md"
+   },
+   "daten": [
+    {
+     "format": "CSV",
+     "path": "docs/research/cross_venue_gaps_2026-07-31.csv"
+    },
+    {
+     "format": "JSON",
+     "path": "docs/research/cross_venue_gaps_2026-07-31.json"
+    }
+   ],
    "basis": {
     "fenster": "2026-07-30",
     "maerkte": 900,
@@ -1393,7 +1522,7 @@
     {
      "schluessel": "wie",
      "titel": "How",
-     "text": "Both stream recorders run against the same pairs over one window. At every paired moment the two books are compared, and the gap is marked open or closed. A real mispricing should spend most of its time closed."
+     "text": "Both stream recorders cover the same pairs over one window. At paired recorded observations the two books are compared and the gap is marked open or closed. Gaps in coverage cannot establish continuous availability."
     },
     {
      "schluessel": "daten",
@@ -1403,15 +1532,15 @@
     {
      "schluessel": "entscheidung",
      "titel": "What would have counted as a yes",
-     "text": "A mispricing closes once it is noticed. A gap that never closes is evidence that it is not a mispricing at all."
+     "text": "Report persistence within joint recorded coverage. Persistence alone does not identify a fair price, the reason for a gap or whether both legs could have been executed throughout the interval."
     }
    ],
-   "einfach": "Of 5 pairs watched over 11.6 hours, 3 were open at every single moment observed and 1 never opened at all. Nothing in between converged. A genuine error closes when somebody notices it; these did not close because there is nothing to notice.",
+   "einfach": "Of 5 pairs watched over 11.6 hours, 3 were open at every single moment observed and 1 never opened at all. Nothing in between converged. This describes the recorded observations. It does not prove continuous execution availability or explain why the gaps persisted.",
    "interpretation": [
     {
      "art": "lesart",
      "titel": "What it suggests",
-     "text": "The gaps persist because they are the fair price of tying money up until settlement, not because the market has missed them."
+     "text": "Persistent quoted gaps are consistent with capital commitment and settlement risk. The observations do not identify those mechanisms causally or prove that the quotes represent fair value."
     },
     {
      "art": "gegenlesart",
@@ -1430,6 +1559,22 @@
     "cross venue"
    ],
    "gebuehrenmodell": "2026-07-30",
+   "status": "historical",
+   "follow_up": {
+    "status": "planned",
+    "question": "How long does executable net value persist inside verified joint coverage, with stale quotes and observation gaps explicitly censored?",
+    "report": "docs/research/research_renewal_2026-10-12.md"
+   },
+   "daten": [
+    {
+     "format": "CSV",
+     "path": "docs/research/gap_lifetime_2026-07-31.csv"
+    },
+    {
+     "format": "JSON",
+     "path": "docs/research/gap_lifetime_2026-07-31.json"
+    }
+   ],
    "basis": {
     "paare": 5,
     "fenster": "2026-07-31"
@@ -1577,6 +1722,22 @@
     "negative result"
    ],
    "gebuehrenmodell": null,
+   "status": "historical",
+   "follow_up": {
+    "status": "planned",
+    "question": "Do verified reward payouts exceed fill losses, inventory risk, capital cost and conservative exits in a continuously funded portfolio?",
+    "report": "docs/research/research_renewal_2026-10-12.md"
+   },
+   "daten": [
+    {
+     "format": "CSV",
+     "path": "docs/research/reward_selection_2026-07-31.csv"
+    },
+    {
+     "format": "JSON",
+     "path": "docs/research/reward_selection_2026-07-31.json"
+    }
+   ],
    "basis": {
     "fenster": "2026-07-31",
     "maerkte": 9900
@@ -1781,6 +1942,18 @@
     "settlement risk"
    ],
    "gebuehrenmodell": null,
+   "status": "historical",
+   "follow_up": {
+    "status": "planned",
+    "question": "What share of a preselected, price-blind pair sample has equivalent settlement across relevant outcomes, with all rejected and uncertain pairs counted?",
+    "report": "docs/research/research_renewal_2026-10-12.md"
+   },
+   "daten": [
+    {
+     "format": "JSON",
+     "path": "docs/research/resolution_rules_2026-07-31.json"
+    }
+   ],
    "basis": {
     "paare": 5,
     "fenster": "2026-07-31"
@@ -1854,122 +2027,868 @@
    }
   },
   {
-   "id": "book-reconcile",
-   "frage": "Does our own recorded book drift against the venue?",
-   "verdikt": "No drift found. 98.6% agreement, mean divergence 0.07 ticks.",
-   "verdikt_art": "kontrolle",
+   "id": "cex-leadlag-forward",
+   "frage": "Does a CEX impulse survive execution delay in a fresh paper window?",
+   "verdikt": "Open. The 250 ms replay is positive, but 500 ms and 1,000 ms replays are negative under assumed execution delays.",
+   "verdikt_art": "offen",
    "analyse": [
     {
      "schluessel": "gemessen",
      "titel": "What was measured",
-     "text": "How closely the book this project recorded matches the venue's own snapshot at the same moment."
+     "text": "The unchanged CEX lead and lag paper rule was replayed across completed hourly blocks at several assumed entry delays."
     },
     {
      "schluessel": "wie",
      "titel": "How",
-     "text": "For the same token at the same instant, the streamed top of book is compared against a fresh REST snapshot, and the difference is expressed in ticks so it can be judged against the smallest price step that exists."
+     "text": "Each block and variant restarts with 100 USD and 10 shares. Closed-trade net includes fees; the floor subtracts open-entry costs."
     },
     {
      "schluessel": "daten",
      "titel": "On what data",
-     "text": "24 tokens over three rounds of 120 seconds, giving 72 direct comparisons."
+     "text": "The frozen forward snapshot covers 21 full hourly blocks and 46 time-separated qualifying impulses."
     },
     {
      "schluessel": "entscheidung",
-     "titel": "What would have counted as a yes",
-     "text": "This is a control, not a finding. Every other number on this page is only worth as much as this one, so it had to be run and it had to be reported whatever it said."
+     "titel": "What would change the decision",
+     "text": "A practical yes needs independently measured order and fill timing and a further untouched window that survives those delays and open-position risk."
     }
    ],
-   "einfach": "Across 72 comparisons our book agreed with the venue 98.6 percent of the time. The average difference is 0.069 ticks and the worst single case 2.0 ticks, a fraction of one price step. 1 comparison drifted beyond tolerance and 0 were unusable.",
+   "einfach": "Across 21 hourly blocks and 46 qualifying impulses, the 250 ms baseline closed 193 trades for +32.27 USD net. Its open-position loss floor is +30.62 USD. At 500 and 1,000 ms, closed-trade net falls to -9.72 and -29.25 USD. These are separate paper scenarios, not one portfolio.",
    "interpretation": [
     {
      "art": "lesart",
      "titel": "What it suggests",
-     "text": "The recorder can be trusted at tick level, which is what the other eleven studies rest on. Without this they would all be assertions."
+     "text": "The sign change across the assumed delays makes execution speed central to this signal's practical value."
     },
     {
      "art": "gegenlesart",
      "titel": "What else fits the same numbers",
-     "text": "Agreement in calm conditions says little about behaviour under a burst, and bursts are exactly when a market maker gets hurt. This measures the easy case."
+     "text": "The positive 250 ms sum can still reflect optimistic fill assumptions and an unusually favourable short market window."
     },
     {
      "art": "grenze",
      "titel": "What this cannot tell you",
-     "text": "Three short rounds over 24 tokens is a spot check, not continuous monitoring. It shows no systematic drift; it cannot rule out rare gaps."
+     "text": "No real order or fill times were observed, and open positions can change the eventual result after this snapshot."
     }
    ],
-   "report": "docs/research/book_reconcile_tick-2026-07-31.md",
-   "modul": "src/book_reconcile.py",
-   "schlagworte": [
-    "data quality",
-    "control"
-   ],
-   "gebuehrenmodell": null,
+   "report": "docs/research/update_cex_leadlag_forward_2026-10-12.md",
+   "modul": "app/research_updates.py",
+   "module_role": "publication",
    "basis": {
-    "beobachtungen": 72,
-    "tokens": 24,
-    "fenster": "2026-07-31"
+    "fenster": "2026-10-11 14:36:44 to 2026-10-12 12:24:15 Europe/Zurich",
+    "stundenbloecke": 21,
+    "impulse": 46
    },
    "zahlen": [
     {
-     "label": "Agreement with the venue",
-     "wert": 98.6,
-     "einheit": "%"
+     "label": "250 ms closed-trade net",
+     "wert": 32.27246,
+     "einheit": "USD",
+     "hinweis": "Paper replay; closed trades after fees"
     },
     {
-     "label": "Mean divergence",
-     "wert": 0.069,
-     "einheit": "ticks"
+     "label": "250 ms open-risk floor",
+     "wert": 30.61872,
+     "einheit": "USD",
+     "hinweis": "Subtracts open entry costs"
     },
     {
-     "label": "Largest divergence",
-     "wert": 2.0,
-     "einheit": "ticks"
-    },
-    {
-     "label": "Comparisons",
-     "wert": 72
+     "label": "Qualifying impulses",
+     "wert": 46,
+     "einheit": "signals",
+     "hinweis": "At least 60 seconds apart"
     }
    ],
    "diagramm": {
-    "art": "quote",
-    "titel": "Does our recorded book match the venue",
-    "einheit": "%",
-    "referenz": 100.0,
-    "referenz_label": "perfect agreement",
+    "art": "vergleich",
+    "titel": "Baseline closed-trade net by assumed entry delay",
+    "einheit": "USD",
     "punkte": [
      {
-      "label": "Agreement",
-      "wert": 98.6
+      "label": "100 ms",
+      "wert": 89.46586
+     },
+     {
+      "label": "250 ms",
+      "wert": 32.27246
+     },
+     {
+      "label": "500 ms",
+      "wert": -9.71918
+     },
+     {
+      "label": "1000 ms",
+      "wert": -29.24675
      }
     ]
    },
    "details": {
-    "titel": "The comparison in full",
+    "titel": "Independent baseline replay scenarios",
     "spalten": [
-     "Outcome",
-     "Count",
-     "What it means"
+     "Delay",
+     "Blocks",
+     "Closed",
+     "Open",
+     "Net USD",
+     "Floor USD"
     ],
     "zeilen": [
      [
-      "Match",
-      "71",
-      "our book and the venue agree within tolerance"
+      "100 ms",
+      21,
+      278,
+      7,
+      "+89.47",
+      "+86.43"
      ],
      [
-      "Drift",
-      "1",
-      "a difference above tolerance appeared"
+      "250 ms",
+      21,
+      193,
+      6,
+      "+32.27",
+      "+30.62"
      ],
      [
-      "Unusable",
-      "0",
-      "no comparison possible at that moment"
+      "500 ms",
+      21,
+      142,
+      5,
+      "-9.72",
+      "-12.47"
+     ],
+     [
+      "1000 ms",
+      21,
+      125,
+      8,
+      "-29.25",
+      "-32.63"
      ]
     ],
-    "hinweis": "3 rounds of 120.0 seconds over 24 tokens, tolerance 1.0 tick."
-   }
+    "hinweis": "Each block and delay starts with separate 100 USD paper capital. No measured fills."
+   },
+   "schlagworte": [
+    "CEX",
+    "lead-lag",
+    "paper replay",
+    "latency"
+   ],
+   "daten": [
+    {
+     "format": "JSON",
+     "path": "docs/research/research_updates_2026-10-12.json"
+    }
+   ],
+   "status": "recent",
+   "published_at_utc": "2026-10-12T17:24:36Z"
+  },
+  {
+   "id": "cex-execution-latency",
+   "frage": "What happens when both entry and exit are delayed?",
+   "verdikt": "Open. The six-block baseline changes from positive at 350/350 ms to negative at 500/500 and 1,000/1,000 ms.",
+   "verdikt_art": "offen",
+   "analyse": [
+    {
+     "schluessel": "gemessen",
+     "titel": "What was measured",
+     "text": "A separate sensitivity replay delayed both the simulated entry and the intended exit of the existing CEX rules."
+    },
+    {
+     "schluessel": "wie",
+     "titel": "How",
+     "text": "The original six completed hours were replayed with fixed 350/350, 500/500 and 1,000/1,000 ms scenarios; rules and budgets stayed fixed."
+    },
+    {
+     "schluessel": "daten",
+     "titel": "On what data",
+     "text": "These 6 hours were already seen, and the unchanged 250 ms arm had only 23 qualifying impulses."
+    },
+    {
+     "schluessel": "entscheidung",
+     "titel": "What would change the decision",
+     "text": "An independent test with measured order and fill times, enough qualifying impulses and accounted open positions would be needed for a practical claim."
+    }
+   ],
+   "einfach": "With entry and exit each delayed 350 ms, the baseline earned +5.18 USD on closed trades across six blocks. At 500/500 ms it returned -5.54 USD; at 1,000/1,000 ms it returned -16.08 USD. All three are assumptions on previously seen data, with separate 100 USD resets per block.",
+   "interpretation": [
+    {
+     "art": "lesart",
+     "titel": "What it suggests",
+     "text": "Adding exit latency can erase a paper advantage even when the entry rule and recorded books are unchanged."
+    },
+    {
+     "art": "gegenlesart",
+     "titel": "What else fits the same numbers",
+     "text": "Different delays also alter which later signals remain executable, so the change is not solely the exit price of identical trades."
+    },
+    {
+     "art": "grenze",
+     "titel": "What this cannot tell you",
+     "text": "Fixed delays are not measured order times; the six reused hours and open positions do not establish live profitability."
+    }
+   ],
+   "report": "docs/research/update_cex_execution_latency_2026-10-12.md",
+   "modul": "app/research_updates.py",
+   "module_role": "publication",
+   "basis": {
+    "fenster": "2026-10-11 14:36:44 to 20:43:02 Europe/Zurich",
+    "stundenbloecke": 6,
+    "impulse": 23
+   },
+   "zahlen": [
+    {
+     "label": "350/350 ms closed-trade net",
+     "wert": 5.17888,
+     "einheit": "USD",
+     "hinweis": "Six reused paper blocks"
+    },
+    {
+     "label": "500/500 ms closed-trade net",
+     "wert": -5.53763,
+     "einheit": "USD",
+     "hinweis": "Six reused paper blocks"
+    },
+    {
+     "label": "1000/1000 ms closed-trade net",
+     "wert": -16.08475,
+     "einheit": "USD",
+     "hinweis": "Six reused paper blocks"
+    }
+   ],
+   "diagramm": {
+    "art": "vergleich",
+    "titel": "Baseline net with assumed entry and exit delay",
+    "einheit": "USD",
+    "punkte": [
+     {
+      "label": "350/350 ms",
+      "wert": 5.17888
+     },
+     {
+      "label": "500/500 ms",
+      "wert": -5.53763
+     },
+     {
+      "label": "1000/1000 ms",
+      "wert": -16.08475
+     }
+    ]
+   },
+   "details": {
+    "titel": "Baseline replay with delayed exit",
+    "spalten": [
+     "Entry/exit",
+     "Closed",
+     "Open",
+     "Net USD",
+     "Floor USD"
+    ],
+    "zeilen": [
+     [
+      "350/350 ms",
+      59.0,
+      1.0,
+      "+5.18",
+      "+5.09"
+     ],
+     [
+      "500/500 ms",
+      47.0,
+      3.0,
+      "-5.54",
+      "-7.72"
+     ],
+     [
+      "1000/1000 ms",
+      46.0,
+      3.0,
+      "-16.08",
+      "-18.08"
+     ]
+    ],
+    "hinweis": "Already seen hours; delays are scenarios, not observed fills."
+   },
+   "schlagworte": [
+    "CEX",
+    "execution",
+    "exit delay",
+    "paper replay"
+   ],
+   "daten": [
+    {
+     "format": "JSON",
+     "path": "docs/research/research_updates_2026-10-12.json"
+    }
+   ],
+   "status": "recent",
+   "published_at_utc": "2026-10-12T17:24:36Z"
+  },
+  {
+   "id": "mm-queue-forward",
+   "frage": "Does the market-making quote rule survive queue and refresh delay in the September test window?",
+   "verdikt": "No for practical execution: the registered zero-delay simulation is positive, while both 250 ms queue scenarios are strongly negative.",
+   "verdikt_art": "nein",
+   "analyse": [
+    {
+     "schluessel": "gemessen",
+     "titel": "What was measured",
+     "text": "A frozen quote rule was tested on fourteen days under queue-front and queue-back fill models, with zero and 250 ms refresh delay."
+    },
+    {
+     "schluessel": "wie",
+     "titel": "How",
+     "text": "The original market-making study simulated daily inventories and reported sums, fill counts and bootstrap intervals for the daily mean."
+    },
+    {
+     "schluessel": "daten",
+     "titel": "On what data",
+     "text": "The 14 dates from the separate market-making project include a 29.746-hour recording gap."
+    },
+    {
+     "schluessel": "entscheidung",
+     "titel": "What would change the decision",
+     "text": "The zero-delay primary threshold was met internally, but a practical yes would require funded limits and verified latency, queue position and fills."
+    }
+   ],
+   "einfach": "In the conservative queue-back model, zero delay gave +36794.77 USD over 20385 simulated fills. At 250 ms, it gave -39705.31 USD over 33658 simulated fills. The front-of-queue model also flips sign. These are model sums with daily inventory resets and no shared capital budget, not account returns.",
+   "interpretation": [
+    {
+     "art": "lesart",
+     "titel": "What it suggests",
+     "text": "The large sign reversal is consistent with stale quotes being selected after the market moves."
+    },
+    {
+     "art": "gegenlesart",
+     "titel": "What else fits the same numbers",
+     "text": "The zero-delay result may be inflated by unverified queue priority, assumed rebates and marking leftover inventory at the mid."
+    },
+    {
+     "art": "grenze",
+     "titel": "What this cannot tell you",
+     "text": "A 29.746-hour data gap and no hard portfolio budget limit prevent treating the sums as an executable return."
+    }
+   ],
+   "report": "docs/research/update_mm_queue_forward_2026-10-12.md",
+   "modul": "app/research_updates.py",
+   "module_role": "publication",
+   "basis": {
+    "fenster": "2026-09-04 to 2026-09-17",
+    "tage": 14,
+    "datenluecke_stunden": 29.746
+   },
+   "zahlen": [
+    {
+     "label": "Queue back, 0 ms",
+     "wert": 36794.77,
+     "einheit": "USD",
+     "hinweis": "Simulated sum including assumed rebates"
+    },
+    {
+     "label": "Queue back, 250 ms",
+     "wert": -39705.31,
+     "einheit": "USD",
+     "hinweis": "Simulated sum including assumed rebates"
+    },
+    {
+     "label": "Largest between-file gap",
+     "wert": 29.746,
+     "einheit": "hours",
+     "hinweis": "Recorded book coverage gap"
+    }
+   ],
+   "diagramm": {
+    "art": "vergleich",
+    "titel": "Queue-back simulated sums by refresh delay",
+    "einheit": "USD",
+    "punkte": [
+     {
+      "label": "0 ms",
+      "wert": 36794.77
+     },
+     {
+      "label": "250 ms",
+      "wert": -39705.31
+     }
+    ]
+   },
+   "details": {
+    "titel": "Frozen quote rule across queue and delay models",
+    "spalten": [
+     "Queue",
+     "Delay",
+     "Fills",
+     "Sum incl. rebates USD",
+     "Without rebates USD",
+     "95% daily-mean CI USD"
+    ],
+    "zeilen": [
+     [
+      "queue_back",
+      "0 ms",
+      20385,
+      "+36794.77",
+      "+33620.32",
+      "+1683.52 to +3553.93"
+     ],
+     [
+      "queue_back",
+      "250 ms",
+      33658,
+      "-39705.31",
+      "-44852.79",
+      "-3671.53 to -1833.46"
+     ],
+     [
+      "queue_front",
+      "0 ms",
+      22366,
+      "+38472.30",
+      "+35175.06",
+      "+1782.85 to +3705.33"
+     ],
+     [
+      "queue_front",
+      "250 ms",
+      36435,
+      "-39219.07",
+      "-44537.35",
+      "-3572.20 to -1839.65"
+     ]
+    ],
+    "hinweis": "Independent daily resets, midpoint marks and no common portfolio budget. The module link is this publication adapter, not the original simulator."
+   },
+   "schlagworte": [
+    "market making",
+    "queue",
+    "latency",
+    "simulation"
+   ],
+   "daten": [
+    {
+     "format": "JSON",
+     "path": "docs/research/research_updates_2026-10-12.json"
+    }
+   ],
+   "status": "recent",
+   "published_at_utc": "2026-10-12T17:24:36Z"
+  },
+  {
+   "id": "source-speed-depth",
+   "frage": "Did faster ISW or DeepState detection reveal a tradeable information edge?",
+   "verdikt": "No verified speed edge. One Bilytske quote was tiny, and the 100 USD depth simulation was negative.",
+   "verdikt_art": "nein",
+   "analyse": [
+    {
+     "schluessel": "gemessen",
+     "titel": "What was measured",
+     "text": "The source study compared detection times, public trades and recorded bid-ask depth for matched Ukraine event markets."
+    },
+    {
+     "schluessel": "wie",
+     "titel": "How",
+     "text": "Historical books were aligned with each signal and later trades; a size-aware 100 USD entry and observed exit were simulated."
+    },
+    {
+     "schluessel": "daten",
+     "titel": "On what data",
+     "text": "Of 39 event-market rows, 20 had a usable book at detection between late September and 11 October."
+    },
+    {
+     "schluessel": "entscheidung",
+     "titel": "What would change the decision",
+     "text": "A yes needs repeated qualifying market events, depth for realistic size and observed fills before a later public reaction."
+    }
+   ],
+   "einfach": "The Bilytske source was detected 2836 seconds before a related Telegram post, but its best ask showed only 5 shares costing 2.70 USD. A 100 USD depth-aware entry would have returned -4.51 USD after 24 hours. Only 20 of 39 event-market rows had a usable initial book.",
+   "interpretation": [
+    {
+     "art": "lesart",
+     "titel": "What it suggests",
+     "text": "A faster source timestamp did not translate into enough displayed depth for the tested 100 USD size."
+    },
+    {
+     "art": "gegenlesart",
+     "titel": "What else fits the same numbers",
+     "text": "The later buy could have unrelated causes, and the same small ask had appeared earlier; timing alone does not prove causation."
+    },
+    {
+     "art": "grenze",
+     "titel": "What this cannot tell you",
+     "text": "Displayed book depth is not an own fill, and an event matched by place name may fail the market's actual resolution rule."
+    }
+   ],
+   "report": "docs/research/update_source_speed_depth_2026-10-12.md",
+   "modul": "app/research_updates.py",
+   "module_role": "publication",
+   "basis": {
+    "fenster": "2026-09-27 to 2026-10-11",
+    "ereignis_markt_zeilen": 39,
+    "mit_buch": 20
+   },
+   "zahlen": [
+    {
+     "label": "Lead over Telegram",
+     "wert": 2836,
+     "einheit": "seconds",
+     "hinweis": "One Bilytske case"
+    },
+    {
+     "label": "Displayed best-ask cost",
+     "wert": 2.7,
+     "einheit": "USD",
+     "hinweis": "Only five shares"
+    },
+    {
+     "label": "100 USD simulated 24h result",
+     "wert": -4.51,
+     "einheit": "USD",
+     "hinweis": "Depth-aware, not a filled trade"
+    }
+   ],
+   "diagramm": {
+    "art": "vergleich",
+    "titel": "Rows with an initial usable book",
+    "einheit": "event-market rows",
+    "punkte": [
+     {
+      "label": "All rows",
+      "wert": 39
+     },
+     {
+      "label": "Usable book",
+      "wert": 20
+     }
+    ]
+   },
+   "details": {
+    "titel": "Bilytske case and coverage",
+    "spalten": [
+     "Measure",
+     "Value",
+     "Meaning"
+    ],
+    "zeilen": [
+     [
+      "Source lead",
+      "2836 s",
+      "Against related Telegram post"
+     ],
+     [
+      "Best ask",
+      "5 shares / 2.70 USD",
+      "Displayed depth, not own fill"
+     ],
+     [
+      "100 USD after 24 h",
+      "-4.51 USD",
+      "Depth-aware simulation"
+     ]
+    ],
+    "hinweis": "The module link is this publication adapter; the original source research was run in another project."
+   },
+   "schlagworte": [
+    "source speed",
+    "order book",
+    "market depth",
+    "Ukraine"
+   ],
+   "daten": [
+    {
+     "format": "JSON",
+     "path": "docs/research/research_updates_2026-10-12.json"
+    }
+   ],
+   "status": "recent",
+   "published_at_utc": "2026-10-12T17:24:36Z"
+  },
+  {
+   "id": "arb-validation-funnel",
+   "frage": "How many raw arbitrage scans survived validation and reached paper trading?",
+   "verdikt": "No validated opportunity reached paper trading in this 24-hour scan window.",
+   "verdikt_art": "nein",
+   "analyse": [
+    {
+     "schluessel": "gemessen",
+     "titel": "What was measured",
+     "text": "A daily bot report counted scan cycles, raw scanner candidates, validation outcomes and paper fires for three arbitrage families."
+    },
+    {
+     "schluessel": "wie",
+     "titel": "How",
+     "text": "The scanner's raw counts were compared with its validated and paper stages; counts are repeated scan occurrences, not independent trades."
+    },
+    {
+     "schluessel": "daten",
+     "titel": "On what data",
+     "text": "The 24-hour report records 278 successful cycles of 335 attempted, with 57 failed cycles."
+    },
+    {
+     "schluessel": "entscheidung",
+     "titel": "What would change the decision",
+     "text": "A tradeable claim would require a validated, rules-equivalent candidate, executable quotes and a controlled paper fill before any PnL statement."
+    }
+   ],
+   "einfach": "The bot completed 278 of 335 scan cycles; 57 failed. It saw 2505 raw cross-venue, 838 raw negative-risk and 23 raw within-market candidates. Zero passed validation and zero became a paper trade. These are repeated scan counts, not separate available opportunities or realised profit.",
+   "interpretation": [
+    {
+     "art": "lesart",
+     "titel": "What it suggests",
+     "text": "The validation funnel rejected every raw candidate, so the observed scan output does not support an executable arbitrage claim."
+    },
+    {
+     "art": "gegenlesart",
+     "titel": "What else fits the same numbers",
+     "text": "The high raw count can mostly reflect repeated quotes and rule mismatches; it is not a count of unique chances."
+    },
+    {
+     "art": "grenze",
+     "titel": "What this cannot tell you",
+     "text": "Failed scan cycles limit coverage, and forward quote replay does not establish realised PnL or actual fills."
+    }
+   ],
+   "report": "docs/research/update_arb_validation_funnel_2026-10-12.md",
+   "modul": "app/research_updates.py",
+   "module_role": "publication",
+   "basis": {
+    "fenster": "2026-09-25 to 2026-09-26 (24 h)",
+    "scanzyklen": 335,
+    "erfolgreich": 278
+   },
+   "zahlen": [
+    {
+     "label": "Cross-venue raw",
+     "wert": 2505,
+     "einheit": "scan hits",
+     "hinweis": "Repeated scanner occurrences"
+    },
+    {
+     "label": "Negative-risk raw",
+     "wert": 838,
+     "einheit": "scan hits",
+     "hinweis": "Repeated scanner occurrences"
+    },
+    {
+     "label": "Validated",
+     "wert": 0,
+     "einheit": "candidates",
+     "hinweis": "Across the three listed families"
+    }
+   ],
+   "diagramm": {
+    "art": "vergleich",
+    "titel": "Raw scanner hits and validated output",
+    "einheit": "scan occurrences",
+    "punkte": [
+     {
+      "label": "Cross raw",
+      "wert": 2505
+     },
+     {
+      "label": "Neg-risk raw",
+      "wert": 838
+     },
+     {
+      "label": "Within raw",
+      "wert": 23
+     },
+     {
+      "label": "Validated",
+      "wert": 0
+     }
+    ]
+   },
+   "details": {
+    "titel": "Daily validation funnel",
+    "spalten": [
+     "Family",
+     "Raw scan hits",
+     "Validated",
+     "Paper"
+    ],
+    "zeilen": [
+     [
+      "Cross venue",
+      2505,
+      0,
+      0
+     ],
+     [
+      "Negative risk",
+      838,
+      0,
+      0
+     ],
+     [
+      "Within market",
+      23,
+      0,
+      0
+     ]
+    ],
+    "hinweis": "Raw hits are scan occurrences; the module link is this publication adapter, not the original bot."
+   },
+   "schlagworte": [
+    "arbitrage",
+    "validation",
+    "paper trading"
+   ],
+   "daten": [
+    {
+     "format": "JSON",
+     "path": "docs/research/research_updates_2026-10-12.json"
+    }
+   ],
+   "status": "recent",
+   "published_at_utc": "2026-10-12T17:24:36Z"
+  },
+  {
+   "id": "fed-forecast-comparison",
+   "frage": "Did Polymarket or FedWatch forecast FOMC decisions more accurately at fixed horizons?",
+   "verdikt": "Open. The lower Brier score switches by horizon across only five meetings, so there is no overall winner.",
+   "verdikt_art": "offen",
+   "analyse": [
+    {
+     "schluessel": "gemessen",
+     "titel": "What was measured",
+     "text": "Polymarket and archived FedWatch probability distributions were compared with the realised FOMC decision at three fixed horizons."
+    },
+    {
+     "schluessel": "wie",
+     "titel": "How",
+     "text": "For each meeting and horizon, the published comparison calculates multiclass Brier scores from the stored probabilities."
+    },
+    {
+     "schluessel": "daten",
+     "titel": "On what data",
+     "text": "The checked-in dataset contains 5 meetings, from 18 March through 16 September 2026."
+    },
+    {
+     "schluessel": "entscheidung",
+     "titel": "What would change the decision",
+     "text": "A broad ranking needs more settled meetings and aligned observation times and execution-aware market prices across horizons."
+    }
+   ],
+   "einfach": "Across 5 meetings, mean Brier scores at T-30 were 0.241 for Polymarket and 0.217 for FedWatch. At T-7 they were 0.096 and 0.092; at T-1, 0.037 and 0.055. Lower is better, and the ordering changes with the horizon.",
+   "interpretation": [
+    {
+     "art": "lesart",
+     "titel": "What it suggests",
+     "text": "FedWatch scores lower at the earlier horizons in this sample, while Polymarket scores lower one day before the decision."
+    },
+    {
+     "art": "gegenlesart",
+     "titel": "What else fits the same numbers",
+     "text": "A single September rate hike and different timestamp conventions can materially shift a five-meeting average."
+    },
+    {
+     "art": "grenze",
+     "titel": "What this cannot tell you",
+     "text": "Polymarket observations are hourly market prices rather than executable bid-ask quotes, and five meetings cannot settle a general ranking."
+    }
+   ],
+   "report": "docs/research/fed_comparison_2026-09-24.md",
+   "modul": "app/fed_comparison.py",
+   "module_role": "analysis",
+   "basis": {
+    "fenster": "2026-03-18 to 2026-09-16 (FOMC decisions)",
+    "sitzungen": 5
+   },
+   "zahlen": [
+    {
+     "label": "Polymarket Brier, T-30",
+     "wert": 0.2407,
+     "einheit": "score",
+     "hinweis": "Lower is better"
+    },
+    {
+     "label": "FedWatch Brier, T-30",
+     "wert": 0.21693,
+     "einheit": "score",
+     "hinweis": "Lower is better"
+    },
+    {
+     "label": "Meetings",
+     "wert": 5,
+     "einheit": "decisions",
+     "hinweis": "Same five at each horizon"
+    }
+   ],
+   "diagramm": {
+    "art": "vergleich",
+    "titel": "Mean Brier score by horizon and source",
+    "einheit": "Brier score",
+    "punkte": [
+     {
+      "label": "T-30 Polymarket",
+      "wert": 0.2407
+     },
+     {
+      "label": "T-7 Polymarket",
+      "wert": 0.09561
+     },
+     {
+      "label": "T-1 Polymarket",
+      "wert": 0.03672
+     },
+     {
+      "label": "T-30 FedWatch",
+      "wert": 0.21693
+     },
+     {
+      "label": "T-7 FedWatch",
+      "wert": 0.09249
+     },
+     {
+      "label": "T-1 FedWatch",
+      "wert": 0.05456
+     }
+    ]
+   },
+   "details": {
+    "titel": "Same five meetings at three horizons",
+    "spalten": [
+     "Horizon",
+     "Meetings",
+     "Polymarket Brier",
+     "FedWatch Brier"
+    ],
+    "zeilen": [
+     [
+      "T-30",
+      5,
+      "0.24070",
+      "0.21693"
+     ],
+     [
+      "T-7",
+      5,
+      "0.09561",
+      "0.09249"
+     ],
+     [
+      "T-1",
+      5,
+      "0.03672",
+      "0.05456"
+     ]
+    ],
+    "hinweis": "Lower is better. The source dataset is public/data/fed_comparison.json; neither series is a realised trading return."
+   },
+   "schlagworte": [
+    "Federal Reserve",
+    "forecast",
+    "calibration",
+    "Brier score"
+   ],
+   "daten": [
+    {
+     "format": "JSON",
+     "path": "docs/research/research_updates_2026-10-12.json"
+    }
+   ],
+   "status": "recent",
+   "published_at_utc": "2026-10-12T17:24:36Z"
   }
  ],
  "fehlend": []

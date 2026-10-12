@@ -1,8 +1,29 @@
 # Microstructure research — Polymarket and Kalshi
 
-Own recorders, own tooling, read-only. Every number below was produced by a module
-in this repository with unit tests behind it, from data this project recorded
-itself. Nothing here is a backtest over someone else's dataset.
+## Aktualisierung vom 12.10.2026
+
+Der Studienbereich zeigt sechs neuere Auswertungen zu CEX-Vorlauf,
+Ausführungsverzögerung, MM-Queue, Quellengeschwindigkeit, Arb-Validierung und
+Fed-Prognosen. Die versionierten Zahlen und Quellprüfsummen stehen in
+[research_updates_2026-10-12.json](research_updates_2026-10-12.json).
+Die [Forschungsagenda](research_renewal_2026-10-12.md) beurteilt die bisherigen
+Studien 1–11 einzeln und priorisiert ausführbare Arbitrage und finanziertes MM.
+Die Buchabgleich-Kontrolle, bisher Studie 12, ist aus der Website entfernt;
+ihre Berichte bleiben als technische Prüfung erhalten.
+
+Die folgende Übersicht beschreibt den historischen Forschungsstrang. Ihre
+alten Datenfenster bleiben unverändert. Die bisherigen Wilson-Intervalle
+berücksichtigen abhängige Firings nicht. Unterschiede zwischen REST- und
+Stream-Stichproben isolieren keinen Staleness-Effekt; persistente Preisabstände
+beweisen weder Carry als Ursache noch ausführbare Arbitrage. Die aktuellen
+Website-Texte und die Forschungsagenda berücksichtigen diese Grenzen.
+
+## Historischer Forschungsstrang
+
+Die Juli-Auswertungen nutzen eigene Recorder und Analysewerkzeuge. Die neueren
+Karten ergänzen Ergebnisse aus den benachbarten Forschungsprojekten und
+archivierte öffentliche Quellen. Datenherkunft, Zeitraum und Modellannahmen
+sind je Auswertung ausgewiesen. Die Website bleibt lesend.
 
 **Read this first:** [ONE_PAGER.md](ONE_PAGER.md) — the whole strand on one page,
 written for someone who has not seen the repo.

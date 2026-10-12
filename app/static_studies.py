@@ -3,7 +3,7 @@
 Die Weboberflaeche ist hash-geroutet: jede Studie liegt unter
 ``/#research/microstructure/<id>`` und damit fuer einen Crawler auf derselben
 URL wie alles andere. ``web/sitemap.xml`` sagt das ausdruecklich und listet nur
-die echten Dokumente. Fuer eine oeffentliche Seite ist das zu wenig: die zwoelf
+die echten Dokumente. Fuer eine oeffentliche Seite ist das zu wenig: die
 Befunde sind der Inhalt, und keiner davon hat eine Adresse.
 
 Dieses Modul baut je Studie ein kleines, in sich geschlossenes Dokument mit
@@ -138,12 +138,26 @@ def _zahlen_liste(study: Any) -> str:
 def _quellen(study: Any) -> str:
     links = []
     for feld, wort in (("report", "Full report"), ("modul", "Source module")):
+        if feld == "modul" and (study or {}).get("module_role") == "publication":
+            wort = "Publication module"
+        elif feld == "report" and (study or {}).get("status") == "recent":
+            wort = "Report"
         pfad = _text((study or {}).get(feld))
         if pfad:
             links.append(f'<a href="{REPO_URL}/blob/main/{_esc(pfad)}">{wort} ({_esc(pfad)})</a>')
     if not links:
         return ""
     return '<p class="sources">' + " · ".join(links) + "</p>\n"
+
+
+def _follow_up(study: Any) -> str:
+    next_test = (study or {}).get("follow_up") or {}
+    if next_test.get("status") != "planned" or not next_test.get("question"):
+        return ""
+    return ('<section><h2>Next test · planned</h2>\n'
+            f'<p>{_esc(next_test["question"])}</p>\n'
+            f'<a href="{REPO_URL}/blob/main/{_esc(next_test.get("report"))}">'
+            'Research renewal plan</a></section>\n')
 
 
 #: Das Stylesheet der Seiten. Bewusst klein und ohne Abhaengigkeit: ein
@@ -216,15 +230,18 @@ def study_page_html(study: Any, stand_utc: str = "", site_url: str = SITE_URL) -
     )
     rumpf = (
         "<body>\n<main>\n"
-        '<p class="eyebrow">Frozen study</p>\n'
+        '<p class="eyebrow">' + ("Research update" if (study or {}).get("status") == "recent"
+                                 else "Historical study") + '</p>\n'
         f"<h1>{_esc(frage)}</h1>\n"
         f'<p class="verdict">{_esc(verdikt)}</p>\n'
         + (f'<p class="plain">{_esc(einfach)}</p>\n' if einfach else "")
         + (f'<p class="basis">Data · {_esc(basis)}</p>\n' if basis else "")
         + _zahlen_liste(study)
+        + _follow_up(study)
         + "\n<hr>\n"
         + (f'<p class="stamp">Payload snapshot {_esc(stand)}. These figures are frozen; '
            "the interactive page reads the same file.</p>\n" if stand else "")
+        + '<p class="stamp">Page export dates do not extend the observation period shown above.</p>\n'
         + _quellen(study)
         + "<nav>\n"
         f'<a href="../../#research/microstructure/{_esc(slug)}">Open in the terminal</a>\n'

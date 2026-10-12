@@ -110,6 +110,16 @@ class SeitenInhaltTests(unittest.TestCase):
         self.assertNotIn("<script>alert(1)</script>", boes)
         self.assertIn("&lt;script&gt;", boes)
 
+    def test_planned_follow_up_is_labelled_and_escaped(self) -> None:
+        html = st.study_page_html(_studie(follow_up={
+            "status": "planned", "question": "Can <unsafe> orders earn net value?",
+            "report": "docs/research/research_renewal_2026-10-12.md",
+        }))
+        self.assertIn("Next test · planned", html)
+        self.assertIn("Can &lt;unsafe&gt; orders earn net value?", html)
+        self.assertNotIn("<unsafe>", html)
+        self.assertIn("research_renewal_2026-10-12.md", html)
+
     def test_fehlende_felder_erfinden_nichts(self) -> None:
         duenn = st.study_page_html({"id": "x", "frage": "Q?", "verdikt": "V."}, "")
         self.assertIn("Q?", duenn)
@@ -133,7 +143,7 @@ class SeitenMengeTests(unittest.TestCase):
         self.assertEqual(st.study_pages({"studien": [{"frage": "no id"}]}), {})
 
     @unittest.skipUnless(NUTZLAST.exists(), "microstructure.json ist nicht publiziert")
-    def test_die_echte_nutzlast_ergibt_zwoelf_seiten_mit_verdikt(self) -> None:
+    def test_die_echte_nutzlast_ergibt_eine_seite_pro_studie(self) -> None:
         payload = json.loads(NUTZLAST.read_text(encoding="utf-8"))
         seiten = st.study_pages(payload)
         self.assertEqual(len(seiten), len(payload["studien"]))
@@ -141,7 +151,9 @@ class SeitenMengeTests(unittest.TestCase):
             with self.subTest(slug=slug):
                 self.assertIn("<title>", seite)
                 self.assertIn('rel="canonical"', seite)
-                self.assertIn("Frozen study", seite)
+                studie = next(s for s in payload["studien"] if s["id"] == slug)
+                label = "Research update" if studie.get("status") == "recent" else "Historical study"
+                self.assertIn(label, seite)
 
 
 class CspTests(unittest.TestCase):

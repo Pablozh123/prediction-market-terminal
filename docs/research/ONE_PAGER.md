@@ -1,5 +1,12 @@
 # Prediction-market microstructure: what I measured, and what I threw away
 
+**Historical summary, July 2026.** The website was extended on 12 October with
+six newer studies, each with its own data window and paper-execution limits.
+See the [research update](README.md) and [renewal agenda](research_renewal_2026-10-12.md).
+The old directional Wilson interval assumes independent observations. The
+REST/stream comparison does not isolate staleness, and persistent gaps do not
+identify carry as their cause. Read the historical claims below with these limits.
+
 Own data, own tooling, read-only. Polymarket and Kalshi, July 2026. Every number
 below comes from code in this repository with unit tests; the detailed reports
 sit next to this file. Written in English because it exists to be read quickly
