@@ -23,6 +23,9 @@ import { healthStand, verdiktSatz, teileChancen } from '../web/js/pages/arb_scan
 // so the harness never depends on what public/data happens to hold. Parsed
 // once; every use below takes its own copy.
 const ARB_FIXTURE = JSON.parse(readFileSync(new URL('./fixtures/arb_scan_example.json', import.meta.url), 'utf8'));
+// The four preview research payloads as published (scripts/publish_research_pages.py),
+// copied under tests/fixtures so the harness renders the real shapes.
+const FIXTURE = (name) => JSON.parse(readFileSync(new URL('./fixtures/' + name + '_example.json', import.meta.url), 'utf8'));
 const arbNutzlast = () => Object.assign({ _quelle: 'live' }, JSON.parse(JSON.stringify(ARB_FIXTURE)));
 // Our resolution pass over the same journal (schema arb_resolutions/1),
 // joined onto the paper book by trade_id.
@@ -142,6 +145,9 @@ function neuesT() {
     }),
     go: () => {},
     goStudy: () => {},
+    // The harness renders the preview studies as if the switch were on; the
+    // gate itself lives in app.js and web/js/preview.js.
+    previewAn: () => true,
     openWallet: () => {},
     openMarket: () => {},
     fetchRiskBook: () => {},
@@ -881,6 +887,11 @@ function mitDaten(T) {
   T.state.walletInput = WALLET_HARNESS_ADDR;
   T.state.walletRecent = [WALLET_HARNESS_ADDR];
   T.liveData.wallet[WALLET_HARNESS_ADDR] = { herkunft: 'live', data: walletNutzlast() };
+  // Preview research pages, each with its published payload.
+  T.liveData.research['Thesis'] = Object.assign({ _quelle: 'live' }, FIXTURE('thesis_results'));
+  T.liveData.research['Reddit sentiment'] = Object.assign({ _quelle: 'live' }, FIXTURE('reddit_sentiment'));
+  T.liveData.research['Pre-registrations'] = Object.assign({ _quelle: 'live' }, FIXTURE('preregistrations'));
+  T.liveData.research['Literature'] = Object.assign({ _quelle: 'live' }, FIXTURE('literature'));
   return T;
 }
 
@@ -1207,6 +1218,22 @@ function rendern(T) {
     ['research_pilot', 'research', { researchTab: STUDIEN.findIndex((st) => st.tab === 'Pilot') }],
     ['research_pipeline_forward', 'research', { researchTab: STUDIEN.findIndex((st) => st.tab === 'Pipeline forward') }],
     ['research_category_efficiency', 'research', { researchTab: STUDIEN.findIndex((st) => st.tab === 'Category efficiency') }],
+    // The preview studies: with their payload (live mode), loading (empty
+    // mode), and once each with a failed fetch and an empty answer.
+    ['research_thesis', 'research', { researchTab: STUDIEN.findIndex((st) => st.tab === 'Thesis') }],
+    ['research_thesis_fehler', 'research', { researchTab: STUDIEN.findIndex((st) => st.tab === 'Thesis') },
+      ['Thesis', { _quelle: 'fehler', _fehler: 'HTTP 503' }]],
+    ['research_thesis_leer', 'research', { researchTab: STUDIEN.findIndex((st) => st.tab === 'Thesis') },
+      ['Thesis', { _quelle: 'leer' }]],
+    ['research_reddit', 'research', { researchTab: STUDIEN.findIndex((st) => st.tab === 'Reddit sentiment') }],
+    ['research_reddit_leer', 'research', { researchTab: STUDIEN.findIndex((st) => st.tab === 'Reddit sentiment') },
+      ['Reddit sentiment', { _quelle: 'leer' }]],
+    ['research_prereg', 'research', { researchTab: STUDIEN.findIndex((st) => st.tab === 'Pre-registrations') }],
+    ['research_prereg_fehler', 'research', { researchTab: STUDIEN.findIndex((st) => st.tab === 'Pre-registrations') },
+      ['Pre-registrations', { _quelle: 'fehler', _fehler: 'HTTP 503' }]],
+    ['research_literature', 'research', { researchTab: STUDIEN.findIndex((st) => st.tab === 'Literature') }],
+    ['research_literature_leer', 'research', { researchTab: STUDIEN.findIndex((st) => st.tab === 'Literature') },
+      ['Literature', { _quelle: 'leer' }]],
     // Dieselbe Seite mit der alten kategorie_karte.json (nur brier_t7 und
     // brier_t1, keine Horizonte, keine Kalibrierung): sie muss weiter
     // rendern, ohne Kurve und ohne erfundene Horizonte. Das vierte Feld
