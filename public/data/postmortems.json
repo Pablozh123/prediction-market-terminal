@@ -1,6 +1,6 @@
 {
  "hinweis": "Curated post-mortems of the mentions live runs: every incident with its impact and the verified fix. Sources: bot_events/decisions logs of the runs, commits and pull requests of this repo. Honesty principle: false triggers and outages are reported, not explained away.",
- "stand_utc": "2026-10-17T08:41:44+00:00",
+ "stand_utc": "2026-10-18T04:34:27+00:00",
  "kennzeichnung": "curated/postmortem",
  "eintraege": [
   {
