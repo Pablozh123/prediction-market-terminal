@@ -875,25 +875,12 @@ class WebLeerzustandTest(unittest.TestCase):
         self.assertNotIn("THE TAPE, LIVE", leer)
 
     def test_live_runs_streifen_eine_pnl_zahl(self) -> None:
-        # Die Wallet-Zellen nehmen den frischeren Wallet-Ledger, nicht den
-        # eingefrorenen Abgleich aus runs.json: die Bot-Scheibe als PnL, das
-        # ganze Wallet als Cashflow (buys → back). Die Sichttiefe-Zelle ist
-        # weg — sie brauchte den Methodenteil, um verstanden zu werden.
+        # Fest auf Betreiberstand: 740 USD minus 300 USD Einzahlung.
         text = _sichtbarer_text(self.ausgabe["live"]["overview"])
-        self.assertIn("NET PNL (WALLET · BOT MARKETS) +$417.77", text)
-        # Ohne Datumsanhang: die Frische zeigt der Ledger-Stand im Payload,
-        # nicht jede Zelle einzeln.
-        self.assertIn("bot markets in the wallet ledger", text)
-        self.assertNotIn("bot markets in the wallet ledger · as of", text)
-        # Das ganze Wallet steht als Vergleich daneben, damit die Bot-Summe
-        # nicht als Wallet-Summe gelesen wird.
-        self.assertIn("bot markets in the wallet ledger · whole wallet +$469.25", text)
+        self.assertIn("NET PNL (WALLET · ALL ACTIVITY) +$440.00", text)
         self.assertIn("wallet buys $1,039", text)
-        # ROI mit benannter Basis: der Ledger traegt die vom Betreiber
-        # deklarierten Einzahlungen (on-chain nachpruefbar), also
-        # 469.25 / 300 = +156.4% auf Einzahlungen.
-        self.assertIn("ROI (WALLET · ALL ACTIVITY) +156.4%", text)
-        self.assertIn("net cashflow +$469.25 on the one-time deposit of $300", text)
+        self.assertIn("ROI (WALLET · ALL ACTIVITY) +146.7%", text)
+        self.assertIn("net cashflow +$440.00 on the one-time deposit of $300", text)
         self.assertNotIn("on the one-time deposit of $300 ·", text)
         self.assertNotIn("+$175.09", text)                 # die eingefrorene Zahl
         self.assertNotIn("VISIBLE DEPTH", text)
@@ -1215,26 +1202,22 @@ class WebLeerzustandTest(unittest.TestCase):
 
     # ---- Live runs: eine PnL-Kachel, LOG VS WALLET zugeklappt, First taker --
 
+    def test_wallet_kennzahlen_bleiben_bei_neuem_ledger_fest(self) -> None:
+        for page in ("overview_wallet_changed", "runs_wallet_changed"):
+            with self.subTest(page=page):
+                text = _sichtbarer_text(self.ausgabe["live"][page])
+                self.assertIn("NET PNL (WALLET · ALL ACTIVITY) +$440", text)
+                self.assertIn("ROI (WALLET · ALL ACTIVITY) +146.7%", text)
+                self.assertIn("on the one-time deposit of $300", text)
+                self.assertNotIn("metrics frozen", text.lower())
+                self.assertNotIn("withdrawal", text.lower())
+
     def test_live_runs_eine_pnl_kachel_und_log_vs_wallet(self) -> None:
-        # Wallet-Zahlen ueberall, aus der frischesten Quelle — der Harness-
-        # Ledger (2026-08-17, Bot netto +$66.00, Kaeufe $61.34) ist neuer als
-        # der kuratierte Abgleich (2026-07-18, +$20). Die Log-Rekonstruktion
-        # steht nicht mehr auf der Seite: kein "log estimate", kein
-        # zugeklappter LOG-VS-WALLET-Block — nur die Wallet-Adresse als
-        # nachrechenbare Quelle.
         live = self.ausgabe["live"]["runs_runs"]
         text = _sichtbarer_text(live)
-        # Die Bot-Summe heisst so, nicht "WALLET": das ganze Wallet steht
-        # daneben als Netto-Cashflow.
-        self.assertIn("NET PNL (WALLET · BOT MARKETS, AS OF 2026-08-17) +$66", text)
-        self.assertIn("whole wallet +$59", text)
-        self.assertIn("sells + redemptions − buys of the bot markets, on-chain wallet ledger", text)
-        # Statt der Stake-Summe die Rendite wie auf der Overview: Cashflow
-        # des ganzen Wallets gegen die einmalige Einzahlung. Der Harness-
-        # Ledger kennt keine Einzahlungen — dann greift die im Frontend
-        # deklarierte Konstante ($300), nie die Kaufsumme.
-        self.assertIn("ROI (WALLET · ALL ACTIVITY) +19.6%", text)
-        self.assertIn("net cashflow +$59 on the one-time deposit of $300", text)
+        self.assertIn("NET PNL (WALLET · ALL ACTIVITY) +$440", text)
+        self.assertIn("ROI (WALLET · ALL ACTIVITY) +146.7%", text)
+        self.assertIn("net cashflow +$440 on the one-time deposit of $300", text)
         self.assertNotIn("on buys of", text)
         self.assertNotIn("TOTAL STAKE", text)
         # W und L aus dem Wallet-Ledger (Bot-Maerkte), nicht aus den Logs.

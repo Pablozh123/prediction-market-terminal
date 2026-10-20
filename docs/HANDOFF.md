@@ -1,7 +1,30 @@
 # Handoff — Prediction Market Terminal
 
 Single entry point for continuing this project from another machine.
-Last updated 2026-10-12.
+Last updated 2026-10-20.
+
+## Feste Wallet-Kennzahlen, 20.10.2026
+
+Auf ausdrücklichen Nutzerwunsch zeigen Overview und Live runs bis auf
+Weiteres fest +440 USD PNL und +146,7 % ROI. Basis ist der vom Betreiber
+ungefähr erinnerte Wallet-Höchststand von 740 USD bei 300 USD Einzahlung,
+keine neu gemessene Bilanz oder rekonstruierte Auszahlungssumme.
+`web/js/util.js` führt die gemeinsame Konstante `FESTER_WALLET_PNL_USD`.
+Wallet-Aktualisierungen ändern diese beiden Kennzahlen und ihre Basis nicht.
+PNL ist deshalb als ganzes Wallet beschriftet. Kein zusätzlicher Hinweis zur
+Festsetzung auf der Website. Einzelpositionen, Kurve und übrige Daten bleiben
+unverändert und können weiter aktualisiert werden.
+
+Prüfung: 142 Webtests bestanden mit
+`python -X utf8 -m unittest tests.test_web_leerzustand tests.test_web_tape`.
+Regression setzt Wallet-PNL und Einzahlung in beiden Ansichten auf andere
+Werte und erwartet weiterhin +440 USD / +146,7 %. Ruff, Claims-Lint,
+JavaScript-Syntax und `python -X utf8 scripts/build_static_site.py` bestanden.
+Chrome prüfte beide Seiten in dunkler und heller Darstellung sowie mit
+veränderten Ledger-Daten: dieselben Zahlen, keine Seitenfehler. Belege lokal
+unter `outputs/wallet_freeze_*.png`, `wallet_freeze_browser.json` und
+`wallet_freeze_unittest.log` im ursprünglichen Projektordner.
+Vollständige Suite: `python -X utf8 -m unittest discover -s tests -p "test_*.py"`: 2'960 Tests in 163,917 s, bestanden, einer übersprungen. Fachliches Review und Ponytail-Review ohne offene Befunde. Isolierter Release, Veröffentlichung wird anschliessend am Live-Frontend geprüft.
 
 ## Research refresh release (2026-10-12)
 

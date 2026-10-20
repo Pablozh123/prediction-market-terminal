@@ -3,7 +3,7 @@
 // instance (T). Nothing here invents a number: every figure names its payload
 // or the panel says which payload is missing.
 
-import { asOfLine, esc, money, num, volume, contracts, herkunftSatz, leerBlock, leerZeile, seitenKopf, catChipsPresent, signedMoney, stempel, EINZAHLUNGEN_USD, offeneNichtDrin, tapeFenster, fensterSatz, categorySourceLabel, ledgerBotPositionen } from '../util.js';
+import { asOfLine, esc, money, num, volume, contracts, herkunftSatz, leerBlock, leerZeile, seitenKopf, catChipsPresent, signedMoney, stempel, EINZAHLUNGEN_USD, FESTER_WALLET_PNL_USD, tapeFenster, fensterSatz, categorySourceLabel, ledgerBotPositionen } from '../util.js';
 import { caveatZeile } from '../claims.js';
 import { spiegelZeit, kurzGeld, histogramm } from '../charts.js';
 import { studieAnker, basisZeile } from './microstructure_page.js';
@@ -335,42 +335,22 @@ export function renderOverview(T) {
 
   // ---- live-runs strip ----------------------------------------------------
   const agg = runs && runs.aggregat ? runs.aggregat : null;
-  // Wallet-Zahlen ueberall (frischeste Quelle zuerst — der direkt geladene
-  // Wallet-Ledger, sonst der aus extras, sonst der kuratierte Abgleich).
-  // Die Log-Rekonstruktion steht nicht mehr auf der Landung; sie erscheint
-  // nur als benannter Rueckfall, wenn es noch keine Wallet-Zahl gibt.
   const ledger = landing.ledger || (runs && runs.extras && runs.extras.wallet_ledger) || null;
   const ledgerBot = ledger && ledger.aggregat && ledger.aggregat.nach_typ ? ledger.aggregat.nach_typ.bot : null;
   const ledgerStand = ledger && ledger.stand_utc ? String(ledger.stand_utc).slice(0, 10) : '';
   const abgleichStand = agg && agg.wallet_abgleich_stand ? String(agg.wallet_abgleich_stand) : '';
   const ledgerFrischer = ledgerBot && ledgerStand && (!abgleichStand || ledgerStand > abgleichStand);
-  const walletNetto = ledgerFrischer && ledgerBot.netto_cash_usd != null
-    ? { wert: +ledgerBot.netto_cash_usd, stand: ledgerStand }
-    : agg && agg.wallet_netto_usd != null
-      ? { wert: +agg.wallet_netto_usd, stand: abgleichStand }
-      : null;
   const walletKaeufe = ledgerFrischer && ledgerBot.einsatz_usd != null
     ? +ledgerBot.einsatz_usd
     : agg && agg.wallet_kaeufe_usd != null ? +agg.wallet_kaeufe_usd : null;
-  const pnlZelle = walletNetto
-    ? kpiCell('NET PNL (WALLET · BOT MARKETS)', signedMoney(walletNetto.wert),
-      (ledgerFrischer ? 'bot markets in the wallet ledger' : 'on-chain wallet, reconciled')
-      + (ledger && ledger.aggregat && ledger.aggregat.netto_cashflow_usd != null ? ' · whole wallet ' + signedMoney(+ledger.aggregat.netto_cashflow_usd) : ''), true, walletNetto.wert)
-    : kpiCell('NET PNL (FROM RUN LOGS)', agg && agg.realisierter_pnl_usd != null ? signedMoney(agg.realisierter_pnl_usd) : '—', 'no wallet reconciliation yet', true, agg && agg.realisierter_pnl_usd);
-  // Die vierte Zelle: das ganze Wallet als Rendite. Bezugsgroesse ist immer
-  // die einmalige Einzahlung (on-chain nachpruefbar) — aus dem Ledger, sonst
-  // die deklarierte Konstante. Nie die Kaufsumme: jeder reinvestierte Dollar
-  // wuerde die Basis aufblaehen und die Rendite kleinrechnen.
+  const pnlZelle = kpiCell('NET PNL (WALLET · ALL ACTIVITY)', signedMoney(FESTER_WALLET_PNL_USD),
+    'on the one-time deposit of $' + num(EINZAHLUNGEN_USD.toFixed(0)), true, FESTER_WALLET_PNL_USD);
   const la = ledger && ledger.aggregat ? ledger.aggregat : null;
   let botPos = null;
-  const einzahlungen = la && la.einzahlungen_usd != null ? +la.einzahlungen_usd : EINZAHLUNGEN_USD;
-  let flussZelle = kpiCell('ROI (WALLET · ALL ACTIVITY)', '—', 'wallet_ledger.json not loaded yet', false);
-  if (la && la.netto_cashflow_usd != null && einzahlungen > 0) {
-    const roi = (100 * +la.netto_cashflow_usd) / einzahlungen;
-    flussZelle = kpiCell('ROI (WALLET · ALL ACTIVITY)', (roi >= 0 ? '+' : '') + roi.toFixed(1) + '%',
-      'net cashflow ' + signedMoney(+la.netto_cashflow_usd)
-      + ' on the one-time deposit of $' + num(einzahlungen.toFixed(0)) + offeneNichtDrin(la), false, roi);
-  }
+  const roi = (100 * FESTER_WALLET_PNL_USD) / EINZAHLUNGEN_USD;
+  const flussZelle = kpiCell('ROI (WALLET · ALL ACTIVITY)', (roi >= 0 ? '+' : '') + roi.toFixed(1) + '%',
+    'net cashflow ' + signedMoney(FESTER_WALLET_PNL_USD)
+    + ' on the one-time deposit of $' + num(EINZAHLUNGEN_USD.toFixed(0)), false, roi);
   const runsStrip = agg
     ? '<div style="display:grid; grid-template-columns:repeat(4,1fr); border-bottom:1px solid var(--line-2)">'
       + kpiCell('RUNS · BETS', num(agg.n_runs != null ? agg.n_runs : '—') + ' · ' + num(agg.n_wetten != null ? agg.n_wetten : '—'),
@@ -380,8 +360,8 @@ export function renderOverview(T) {
       // wertlos ausgelaufene zaehlen als verloren) — die Run-Zaehlung aus
       // runs.json sah nur die Bot-Wetten und unterschlug den Rest des
       // Wallets. Ohne Ledger bleibt die Run-Zaehlung als benannter Rueckfall.
-      // Dieselbe Basis wie RUNS · BETS und NET PNL daneben: die Bot-Maerkte
-      // des Wallets. Die Zaehlung des ganzen Wallets (42 · 12 mit Hand- und
+      // Dieselbe Basis wie RUNS · BETS: die Bot-Maerkte des Wallets.
+      // Die Zaehlung des ganzen Wallets (42 · 12 mit Hand- und
       // Pilot-Positionen) stand hier neben 24 Laeufen und 27 Wetten und
       // ergab 54 Ergebnisse fuer 27 Wetten.
       // Rueckfallkette: ohne Marktereignisse im Ledger die Zaehlung des

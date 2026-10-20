@@ -8,6 +8,9 @@ import { MONO as M } from './ui.js';
 // serve a ledger without einzahlungen_usd, and the ROI basis must never
 // silently fall back to the buy volume.
 export const EINZAHLUNGEN_USD = 300;
+// Fixed at the owner's approximately $740 wallet high, until requested otherwise.
+// Keep both headline metrics independent of subsequent wallet refreshes.
+export const FESTER_WALLET_PNL_USD = 740 - EINZAHLUNGEN_USD;
 
 // Der Wallet-ROI misst den Netto-Cashflow gegen die Einzahlung. Was noch in
 // offenen Positionen steckt, ist weder eingezahlt noch zurueckgeflossen und

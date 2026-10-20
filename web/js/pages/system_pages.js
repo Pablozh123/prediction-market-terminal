@@ -2,7 +2,7 @@
 // design reference. Research tabs render the published JSON payloads from
 // public/data/ when the API serves them, incl. their stand_utc stamp and note.
 
-import { esc, num, herkunftSatz, leerZeile, EINZAHLUNGEN_USD, offeneNichtDrin, stempelBlock } from '../util.js';
+import { esc, num, herkunftSatz, leerZeile, EINZAHLUNGEN_USD, FESTER_WALLET_PNL_USD, stempelBlock } from '../util.js';
 import { caveat, caveatZeile, registerStand, unregistrierteTexte } from '../claims.js';
 import { stepKurve, diagramm, linien, kalibrierung, fmtZahl, serienFarbe, intervallMarke } from '../charts.js';
 import { renderMicrostructure } from './microstructure_page.js';
@@ -1539,23 +1539,8 @@ function renderLiveRuns(T, payload) {
   const agg = payload && payload.aggregat ? payload.aggregat : null;
   // Kein "rolling" mehr: der letzte Publish ist datiert, kein Einsatz offen.
 
-  // Zwei PnL-Zahlen, beide beschriftet: die aus den Logs rekonstruierte (die
-  // Nutzlast nimmt den Preisdeckel an, wo die FAK-Antwort keinen Fillpreis
-  // trug) und die wallet-abgeglichene Netto-Zahl mit ihrem Stand. Frueher
-  // stand die Log-Zahl unter "REALIZED PNL · wallet-reconciled" — falsch
-  // beschriftet, und die Kachel TOTAL STAKE dazu.
-  const walletStand = agg && agg.wallet_abgleich_stand ? String(agg.wallet_abgleich_stand) : '';
-  // Der Wallet-Ledger traegt einen frischeren Stand als der kuratierte
-  // Abgleich in runs.json, sobald scripts/wallet_ledger.py erneut lief. Dann
-  // kommen die Wallet-Spalten oben aus dem Ledger (nur Bot-Maerkte), mit
-  // dessen Stand beschriftet — sonst stehen Kacheln vom 18. Juli neben einem
-  // Ledger vom 17. August und die Seite widerspricht sich selbst.
   const ledger = walletLedgerVon(T, payload);
-  const ledgerBot = ledger && ledger.aggregat && ledger.aggregat.nach_typ ? ledger.aggregat.nach_typ.bot : null;
   const ledgerStand = ledger && ledger.stand_utc ? String(ledger.stand_utc).slice(0, 10) : '';
-  const frisch = ledgerBot && ledgerBot.netto_cash_usd != null && ledgerStand && (!walletStand || ledgerStand > walletStand)
-    ? { stand: ledgerStand, kaeufe: ledgerBot.einsatz_usd, netto: +ledgerBot.netto_cash_usd }
-    : null;
   // Je Lauf die Wallet-Sicht aus dem Ledger: Eventtitel/-URL und die Summe
   // der API-realisierten PnL der Bot-Maerkte dieses Laufs. Fuer Laeufe ohne
   // kuratierten Abgleich (wallet_netto_usd null) ist das die einzige
@@ -1578,58 +1563,20 @@ function renderLiveRuns(T, payload) {
     });
   }
   const firstTaker = firstTakerKpi(payload);
-  // Eine Zahlenwelt, nicht zwei: jede Geld-Kachel traegt die Wallet-Zahl
-  // (Kassenwahrheit, frischeste Quelle zuerst). Die Log-Rekonstruktion
-  // verwirrte mehr als sie erklaerte und ist von der Seite verschwunden;
-  // sie erscheint nur noch als Rueckfall, wenn es keine Wallet-Zahl gibt,
-  // und sagt dann, woher sie kommt.
-  const nettoKachel = agg && (() => {
-    // Bot-Maerkte des Ledgers, nicht das ganze Wallet: die Kachel hiess
-    // "WALLET" und "cash truth from the on-chain wallet", zeigte aber die
-    // Bot-Summe ($418), waehrend der Netto-Cashflow des Wallets ($430)
-    // daneben in der ROI-Kachel stand.
-    if (frisch) return {
-      label: 'NET PNL (WALLET · BOT MARKETS, AS OF ' + frisch.stand + ')',
-      value: (frisch.netto >= 0 ? '+$' : '-$') + num(Math.abs(frisch.netto).toFixed(0)),
-      sub: 'sells + redemptions − buys of the bot markets, on-chain wallet ledger'
-        + (ledger && ledger.aggregat && ledger.aggregat.netto_cashflow_usd != null
-          ? ' · whole wallet ' + (+ledger.aggregat.netto_cashflow_usd >= 0 ? '+$' : '-$') + num(Math.abs(+ledger.aggregat.netto_cashflow_usd).toFixed(0)) : ''),
-      color: frisch.netto >= 0 ? 'var(--pos)' : 'var(--neg)'
-    };
-    if (agg.wallet_netto_usd != null) return {
-      label: 'NET PNL (WALLET' + (walletStand ? ', AS OF ' + walletStand : '') + ')',
-      value: (+agg.wallet_netto_usd >= 0 ? '+$' : '-$') + num(Math.abs(+agg.wallet_netto_usd).toFixed(0)),
-      sub: 'cash truth from the on-chain wallet',
-      color: +agg.wallet_netto_usd >= 0 ? 'var(--pos)' : 'var(--neg)'
-    };
-    return {
-      label: 'NET PNL (FROM RUN LOGS)',
-      value: agg.realisierter_pnl_usd != null
-        ? (agg.realisierter_pnl_usd >= 0 ? '+$' : '-$') + num(Math.abs(+agg.realisierter_pnl_usd).toFixed(0))
-        : '—',
-      sub: 'no wallet reconciliation yet',
-      color: agg.realisierter_pnl_usd >= 0 ? 'var(--pos)' : 'var(--neg)'
-    };
-  })();
-  // Statt der Stake-Summe die Rendite, dieselbe Rechnung wie auf der
-  // Overview: Netto-Cashflow des ganzen Wallets gegen die einmalige
-  // Einzahlung (on-chain nachpruefbar) — aus dem Ledger, sonst die
-  // deklarierte Konstante. Nie die Kaufsumme als Basis: reinvestierte
-  // Dollars wuerden die Rendite kleinrechnen.
-  const la = ledger && ledger.aggregat ? ledger.aggregat : null;
-  const einzahlungen = la && la.einzahlungen_usd != null ? +la.einzahlungen_usd : EINZAHLUNGEN_USD;
-  const roiKachel = (la && la.netto_cashflow_usd != null && einzahlungen > 0)
-    ? (() => {
-      const roi = (100 * +la.netto_cashflow_usd) / einzahlungen;
-      return {
-        label: 'ROI (WALLET · ALL ACTIVITY)',
-        value: (roi >= 0 ? '+' : '') + roi.toFixed(1) + '%',
-        sub: 'net cashflow ' + (+la.netto_cashflow_usd >= 0 ? '+$' : '-$') + num(Math.abs(+la.netto_cashflow_usd).toFixed(0))
-          + ' on the one-time deposit of $' + num(einzahlungen.toFixed(0)) + offeneNichtDrin(la),
-        color: roi >= 0 ? 'var(--pos)' : 'var(--neg)'
-      };
-    })()
-    : { label: 'ROI (WALLET)', value: '—', sub: 'wallet_ledger.json not loaded yet', color: 'var(--text)' };
+  const nettoKachel = agg && {
+    label: 'NET PNL (WALLET · ALL ACTIVITY)',
+    value: '+$' + num(FESTER_WALLET_PNL_USD.toFixed(0)),
+    sub: 'on the one-time deposit of $' + num(EINZAHLUNGEN_USD.toFixed(0)),
+    color: 'var(--pos)'
+  };
+  const roi = (100 * FESTER_WALLET_PNL_USD) / EINZAHLUNGEN_USD;
+  const roiKachel = {
+    label: 'ROI (WALLET · ALL ACTIVITY)',
+    value: '+' + roi.toFixed(1) + '%',
+    sub: 'net cashflow +$' + num(FESTER_WALLET_PNL_USD.toFixed(0))
+      + ' on the one-time deposit of $' + num(EINZAHLUNGEN_USD.toFixed(0)),
+    color: 'var(--pos)'
+  };
   // W und L wie auf der Overview aus dem Wallet-Ledger, nicht aus der
   // Log-Rekonstruktion: gezaehlt werden die Bot-Maerkte des Wallets,
   // wertlos ausgelaufene zaehlen als verloren. Mehrere Fills desselben
@@ -2065,7 +2012,7 @@ function renderLiveRuns(T, payload) {
     // der aufklappbare LOG-VS-WALLET-Block, der hier stand, erklaerte eine
     // zweite Zahlenwelt, die die Seite nicht mehr zeigt.
     + '<div style="' + M + '; font-size:var(--t-micro); color:var(--ink-3); margin-top:var(--sp-4); line-height:var(--lh-prose)">'
-    + 'Wallet ' + walletLinkHtml() + ' · the headline figures come from the public Polymarket Data API for this address — anyone can rerun the check.'
+    + 'Wallet ' + walletLinkHtml() + ' · public Polymarket Data API for this address.'
     + '</div>'
     // Die versprochene Kurve der Seite: kumulierte PnL je Lauf, aus den
     // publizierten Laufwerten. Ohne Serie kein Diagramm.

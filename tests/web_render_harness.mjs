@@ -1159,6 +1159,26 @@ function rendern(T) {
       return () => { T.liveData.risk = alt; };
     }],
     ['runs_runs', 'research', { researchTab: 3, liveTab: 'runs' }],
+    ['overview_wallet_changed', 'overview', {}, null, (T) => {
+      const old = T.landing;
+      T.landing = structuredClone(old);
+      if (T.landing.ledger) {
+        T.landing.ledger.aggregat.netto_cashflow_usd = -9999;
+        T.landing.ledger.aggregat.einzahlungen_usd = 9999;
+        T.landing.ledger.aggregat.nach_typ.bot.netto_cash_usd = -9999;
+      }
+      return () => { T.landing = old; };
+    }],
+    ['runs_wallet_changed', 'research', { researchTab: 3, liveTab: 'runs' }, null, (T) => {
+      const old = T.liveData.research['Live runs'];
+      if (!old) return null;
+      T.liveData.research['Live runs'] = structuredClone(old);
+      const ledger = T.liveData.research['Live runs'].extras.wallet_ledger;
+      ledger.aggregat.netto_cashflow_usd = -9999;
+      ledger.aggregat.einzahlungen_usd = 9999;
+      ledger.aggregat.nach_typ.bot.netto_cash_usd = -9999;
+      return () => { T.liveData.research['Live runs'] = old; };
+    }],
     ['runs_timing', 'research', { researchTab: 3, liveTab: 'timing' }],
     ['runs_sim', 'research', { researchTab: 3, liveTab: 'sim' }],
     ['runs_calib', 'research', { researchTab: 3, liveTab: 'calib' }],
