@@ -1,0 +1,6 @@
+market_question,reddit_query,raw_posts,retained_posts_threshold_0_20,retention_pct,mean_semantic_score,median_semantic_score
+Trump out as President before GTA VI?,Trump out President,25,19,0.76,0.23559007048606873,0.23534400761127472
+Will China invades Taiwan before GTA VI?,China invades Taiwan,25,25,1.0,0.49978721141815186,0.521862268447876
+Will bitcoin hit $1m before GTA VI?,bitcoin hit 1m,25,24,0.96,0.30233147740364075,0.3097820580005646
+Will Harvey Weinstein be sentenced to no prison time?,Harvey Weinstein sentenced no prison time,25,12,0.48,0.21939943730831146,0.16788682341575623
+Will the Oklahoma City Thunder win the 2026 NBA Finals?,Oklahoma City Thunder win 2026 NBA Finals,25,5,0.2,0.12970063090324402,0.1067335456609726
