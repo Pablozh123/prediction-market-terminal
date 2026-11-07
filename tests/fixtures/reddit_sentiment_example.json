@@ -1,0 +1,713 @@
+{
+ "hinweis": "A negative result, published as one. Course project (FHNW, spring 2026) by Pablo Cruz and Daliah Beck; the numbers are recomputed from the market table and cross-checked against the report.",
+ "einleitung": "Before the order-book work, an earlier question: is there anything in what people say online that the price has not already got? This study took the crudest version of that idea, Reddit mood on a keyword match, and measured it against live Polymarket prices. It found nothing, and the audit of the retrieved posts says why.",
+ "stand_utc": "2026-09-04T18:11:48.865359+00:00",
+ "kennzeichnung": "research/frozen",
+ "fehlend": [],
+ "studie": {
+  "id": "reddit-sentiment",
+  "frage": "Does Reddit mood track Polymarket prices?",
+  "verdikt": "No measurable link. Across 29 markets and 725 posts, sentiment and market probability correlate at r = +0.08 (p = 0.683); direction agrees in 13 of 29. Only the mood between subreddits differs significantly.",
+  "verdikt_art": "nein",
+  "analyse": [
+   {
+    "schluessel": "gemessen",
+    "titel": "What was measured",
+    "text": "The correlation between a market's probability and the average sentiment of Reddit posts found for that market, plus a stance score, subreddit differences and a relevance audit of the retrieved posts."
+   },
+   {
+    "schluessel": "wie",
+    "titel": "How",
+    "text": "Market questions were turned into keyword queries, posts fetched from seven subreddits and filtered by semantic similarity to the question. Twitter-RoBERTa scored each post between -1 and +1; the market's score is the post-weighted mean. A DeBERTa zero-shot model scored stance (supports, neutral, opposes). Pearson and Spearman on the market level; Kruskal-Wallis across subreddits."
+   },
+   {
+    "schluessel": "daten",
+    "titel": "On which data",
+    "text": "29 active Polymarket markets by volume, 725 posts, collected live on 2026-05-22. Post dates range from 2009-06-13 to 2026-05-22."
+   },
+   {
+    "schluessel": "entscheidung",
+    "titel": "What would have counted as evidence",
+    "text": "A significant positive correlation (p below 0.05) between sentiment and probability, or direction agreement well above 50%, would have counted as a link. Neither appeared."
+   }
+  ],
+  "einfach": "For 29 live Polymarket markets the study pulled 725 Reddit posts from 7 subreddits, scored each post's mood with a sentiment model, and compared the average mood per market with the market's probability. The two barely move together: Pearson r = +0.079 (p = 0.683), Spearman rho = +0.151 (p = 0.435). Reading 'mood above zero' as 'Reddit expects it to happen', the direction matched the market in 13 of 29 markets, worse than a coin flip. A stance model, which asks whether a post supports the event rather than whether it sounds happy, did no better (r = -0.086, p = 0.659). What the data do show clearly is that subreddits differ in mood (Kruskal-Wallis H = 92.05, p = 1.1e-17): r/stocks reads +0.16 on average, r/politics -0.23. And a manual audit of 50 retrieved posts found 0 fully relevant, 13 partly and 37 unrelated to their market, which is the most likely reason the signal is absent: keyword search on Reddit mostly finds noise.",
+  "interpretation": [
+   {
+    "art": "lesart",
+    "titel": "What it suggests",
+    "text": "Reddit mood on a keyword match is not information about the event. Prices carry liquidity, specialist knowledge and market mechanics that a paragraph of text does not."
+   },
+   {
+    "art": "gegenlesart",
+    "titel": "What else fits the same numbers",
+    "text": "The retrieval is the weak link, not necessarily the idea: three quarters of the audited posts were about something else. A better-targeted corpus could still show a link this study could not see. And 29 markets is a small sample for a correlation."
+   },
+   {
+    "art": "grenze",
+    "titel": "What this cannot tell you",
+    "text": "One snapshot, no time dimension: this cannot say whether Reddit leads or lags the market, only that the levels do not line up. Sports made the closest approach (r = +0.50 on 15 markets, p = 0.058) and would need its own, larger test."
+   }
+  ],
+  "zahlen": [
+   {
+    "label": "Markets / posts",
+    "wert": "29 / 725",
+    "hinweis": "7 subreddits"
+   },
+   {
+    "label": "Pearson r, sentiment vs probability",
+    "wert": "+0.079",
+    "hinweis": "p = 0.683"
+   },
+   {
+    "label": "Spearman rho",
+    "wert": "+0.151",
+    "hinweis": "p = 0.435"
+   },
+   {
+    "label": "Direction agreement",
+    "wert": "13 of 29",
+    "hinweis": "44.8%"
+   },
+   {
+    "label": "Stance score, Pearson r",
+    "wert": "-0.086",
+    "hinweis": "p = 0.659"
+   },
+   {
+    "label": "Kruskal-Wallis across subreddits",
+    "wert": "H = 92.05",
+    "hinweis": "p = 1.1e-17"
+   },
+   {
+    "label": "Audited posts relevant / partly / unrelated",
+    "wert": "0 / 13 / 37",
+    "hinweis": "of 50 sampled"
+   }
+  ],
+  "diagramme": {
+   "streuung": {
+    "titel": "Market probability against Reddit sentiment, one point per market",
+    "xLabel": "market probability (%)",
+    "yLabel": "weighted sentiment (-1 to +1)",
+    "xDomain": [
+     0,
+     100
+    ],
+    "xReferenzen": [
+     {
+      "wert": 50,
+      "label": "50%"
+     }
+    ],
+    "yReferenzen": [
+     {
+      "wert": 0,
+      "label": "neutral"
+     }
+    ],
+    "punkte": [
+     {
+      "x": 50.5,
+      "y": -0.337,
+      "label": "Trump out as President before GTA VI",
+      "tip": "Trump out as President before GTA VI? · 50.5% · sentiment -0.34 · 25 posts · Politics"
+     },
+     {
+      "x": 50.5,
+      "y": -0.051,
+      "label": "Will China invades Taiwan before GTA…",
+      "tip": "Will China invades Taiwan before GTA VI? · 50.5% · sentiment -0.05 · 25 posts · Geopolitics"
+     },
+     {
+      "x": 49.2,
+      "y": 0.144,
+      "label": "Will bitcoin hit $1m before GTA VI",
+      "tip": "Will bitcoin hit $1m before GTA VI? · 49.2% · sentiment +0.14 · 25 posts · Crypto"
+     },
+     {
+      "x": 0.1,
+      "y": -0.022,
+      "label": "Will Iran win the 2026 FIFA World Cup",
+      "tip": "Will Iran win the 2026 FIFA World Cup? · 0.1% · sentiment -0.02 · 25 posts · Geopolitics"
+     },
+     {
+      "x": 52.5,
+      "y": -0.084,
+      "label": "New Rihanna Album before GTA VI",
+      "tip": "New Rihanna Album before GTA VI? · 52.5% · sentiment -0.08 · 25 posts · Entertainment"
+     },
+     {
+      "x": 54.5,
+      "y": -0.016,
+      "label": "New Playboi Carti Album before GTA VI",
+      "tip": "New Playboi Carti Album before GTA VI? · 54.5% · sentiment -0.02 · 25 posts · Entertainment"
+     },
+     {
+      "x": 48.5,
+      "y": -0.235,
+      "label": "Will Jesus Christ return before GTA VI",
+      "tip": "Will Jesus Christ return before GTA VI? · 48.5% · sentiment -0.24 · 25 posts · Entertainment"
+     },
+     {
+      "x": 0.2,
+      "y": 0.097,
+      "label": "GTA VI released before June 2026",
+      "tip": "GTA VI released before June 2026? · 0.2% · sentiment +0.10 · 25 posts · Entertainment"
+     },
+     {
+      "x": 77.2,
+      "y": -0.15,
+      "label": "Will Harvey Weinstein be sentenced to…",
+      "tip": "Will Harvey Weinstein be sentenced to no prison time? · 77.2% · sentiment -0.15 · 25 posts · Legal"
+     },
+     {
+      "x": 2.2,
+      "y": -0.055,
+      "label": "Will Harvey Weinstein be sentenced to…",
+      "tip": "Will Harvey Weinstein be sentenced to between 5 and 10 years in prison? · 2.2% · sentiment -0.05 · 25 posts · Legal"
+     },
+     {
+      "x": 3.8,
+      "y": -0.148,
+      "label": "Will Harvey Weinstein be sentenced to…",
+      "tip": "Will Harvey Weinstein be sentenced to between 10 and 20 years in prison? · 3.8% · sentiment -0.15 · 25 posts · Legal"
+     },
+     {
+      "x": 8.2,
+      "y": -0.098,
+      "label": "Will Harvey Weinstein be sentenced to…",
+      "tip": "Will Harvey Weinstein be sentenced to between 20 and 30 years in prison? · 8.2% · sentiment -0.10 · 25 posts · Legal"
+     },
+     {
+      "x": 4.2,
+      "y": -0.491,
+      "label": "Will Harvey Weinstein be sentenced to…",
+      "tip": "Will Harvey Weinstein be sentenced to more than 30 years in prison? · 4.2% · sentiment -0.49 · 25 posts · Legal"
+     },
+     {
+      "x": 28.5,
+      "y": 0.253,
+      "label": "Will the Carolina Hurricanes win the…",
+      "tip": "Will the Carolina Hurricanes win the 2026 NHL Stanley Cup? · 28.5% · sentiment +0.25 · 25 posts · Sports"
+     },
+     {
+      "x": 32.6,
+      "y": 0.158,
+      "label": "Will the Colorado Avalanche win the 2…",
+      "tip": "Will the Colorado Avalanche win the 2026 NHL Stanley Cup? · 32.6% · sentiment +0.16 · 25 posts · Sports"
+     },
+     {
+      "x": 20.7,
+      "y": 0.311,
+      "label": "Will the Vegas Golden Knights win the…",
+      "tip": "Will the Vegas Golden Knights win the 2026 NHL Stanley Cup? · 20.7% · sentiment +0.31 · 25 posts · Sports"
+     },
+     {
+      "x": 18.9,
+      "y": 0.165,
+      "label": "Will the Montreal Canadiens win the 2…",
+      "tip": "Will the Montreal Canadiens win the 2026 NHL Stanley Cup? · 18.9% · sentiment +0.17 · 25 posts · Sports"
+     },
+     {
+      "x": 49.5,
+      "y": 0.25,
+      "label": "Will the Oklahoma City Thunder win th…",
+      "tip": "Will the Oklahoma City Thunder win the 2026 NBA Finals? · 49.5% · sentiment +0.25 · 25 posts · Sports"
+     },
+     {
+      "x": 1.8,
+      "y": 0.405,
+      "label": "Will the Cleveland Cavaliers win the…",
+      "tip": "Will the Cleveland Cavaliers win the 2026 NBA Finals? · 1.8% · sentiment +0.40 · 25 posts · Sports"
+     },
+     {
+      "x": 20.2,
+      "y": 0.23,
+      "label": "Will the New York Knicks win the 2026…",
+      "tip": "Will the New York Knicks win the 2026 NBA Finals? · 20.2% · sentiment +0.23 · 25 posts · Sports"
+     },
+     {
+      "x": 29.5,
+      "y": 0.313,
+      "label": "Will the San Antonio Spurs win the 20…",
+      "tip": "Will the San Antonio Spurs win the 2026 NBA Finals? · 29.5% · sentiment +0.31 · 25 posts · Sports"
+     },
+     {
+      "x": 13.0,
+      "y": 0.156,
+      "label": "Will MegaETH perform an airdrop by Ju…",
+      "tip": "Will MegaETH perform an airdrop by June 30?  · 13.0% · sentiment +0.16 · 25 posts · Other"
+     },
+     {
+      "x": 17.1,
+      "y": -0.279,
+      "label": "Will Spain win the 2026 FIFA World Cup",
+      "tip": "Will Spain win the 2026 FIFA World Cup? · 17.1% · sentiment -0.28 · 25 posts · Sports"
+     },
+     {
+      "x": 11.2,
+      "y": -0.272,
+      "label": "Will England win the 2026 FIFA World…",
+      "tip": "Will England win the 2026 FIFA World Cup? · 11.2% · sentiment -0.27 · 25 posts · Sports"
+     },
+     {
+      "x": 17.9,
+      "y": -0.194,
+      "label": "Will France win the 2026 FIFA World C…",
+      "tip": "Will France win the 2026 FIFA World Cup? · 17.9% · sentiment -0.19 · 25 posts · Sports"
+     },
+     {
+      "x": 8.8,
+      "y": -0.19,
+      "label": "Will Brazil win the 2026 FIFA World C…",
+      "tip": "Will Brazil win the 2026 FIFA World Cup? · 8.8% · sentiment -0.19 · 25 posts · Sports"
+     },
+     {
+      "x": 8.3,
+      "y": -0.289,
+      "label": "Will Argentina win the 2026 FIFA Worl…",
+      "tip": "Will Argentina win the 2026 FIFA World Cup? · 8.3% · sentiment -0.29 · 25 posts · Sports"
+     },
+     {
+      "x": 5.1,
+      "y": -0.28,
+      "label": "Will Germany win the 2026 FIFA World…",
+      "tip": "Will Germany win the 2026 FIFA World Cup? · 5.1% · sentiment -0.28 · 25 posts · Sports"
+     },
+     {
+      "x": 8.8,
+      "y": -0.288,
+      "label": "Will Portugal win the 2026 FIFA World…",
+      "tip": "Will Portugal win the 2026 FIFA World Cup? · 8.8% · sentiment -0.29 · 25 posts · Sports"
+     }
+    ],
+    "labelN": 3,
+    "hinweis": "r = +0.079, rho = +0.151, n = 29"
+   },
+   "subreddits": {
+    "titel": "Mean sentiment by subreddit",
+    "einheit": "score, -1 to +1",
+    "referenz": 0.0,
+    "referenz_label": "neutral",
+    "punkte": [
+     {
+      "label": "r/stocks (n 277)",
+      "wert": 0.1624
+     },
+     {
+      "label": "r/investing (n 165)",
+      "wert": 0.1222
+     },
+     {
+      "label": "r/news (n 53)",
+      "wert": 0.0615
+     },
+     {
+      "label": "r/geopolitics (n 19)",
+      "wert": -0.0308
+     },
+     {
+      "label": "r/worldnews (n 49)",
+      "wert": -0.1217
+     },
+     {
+      "label": "r/politics (n 155)",
+      "wert": -0.2342
+     },
+     {
+      "label": "r/Economics (n 7)",
+      "wert": -0.4116
+     }
+    ]
+   },
+   "kategorien": {
+    "titel": "Correlation by market category (three or more markets)",
+    "einheit": "Pearson r",
+    "referenz": 0.0,
+    "referenz_label": "no link",
+    "punkte": [
+     {
+      "label": "Entertainment (n 4, p 0.316)",
+      "wert": -0.6844
+     },
+     {
+      "label": "Legal (n 5, p 0.838)",
+      "wert": 0.1279
+     },
+     {
+      "label": "Sports (n 15, p 0.058)",
+      "wert": 0.5002
+     }
+    ]
+   },
+   "audit": {
+    "titel": "What the retrieved posts were actually about",
+    "einheit": "posts in the audit sample",
+    "punkte": [
+     {
+      "label": "Relevant to the market",
+      "wert": 0,
+      "farbe": "var(--accent)"
+     },
+     {
+      "label": "Partly relevant",
+      "wert": 13,
+      "farbe": "var(--warn)"
+     },
+     {
+      "label": "Unrelated",
+      "wert": 37,
+      "farbe": "var(--neg-soft)"
+     }
+    ]
+   }
+  },
+  "tabellen": [
+   {
+    "titel": "Two sentiment models on the same posts",
+    "spalten": [
+     "Model",
+     "Pearson r",
+     "p",
+     "Spearman rho",
+     "p",
+     "Direction agreement",
+     "Runtime (s)"
+    ],
+    "zeilen": [
+     [
+      "vader",
+      "+0.069",
+      "0.722",
+      "+0.115",
+      "0.554",
+      "27.6%",
+      "13.4"
+     ],
+     [
+      "twitter-roberta",
+      "+0.079",
+      "0.683",
+      "+0.151",
+      "0.435",
+      "44.8%",
+      "0.0"
+     ]
+    ],
+    "hinweis": "Twitter-RoBERTa was kept: 44.8% direction agreement against VADER's 27.6%, at similar correlation."
+   },
+   {
+    "titel": "Every market in the sample",
+    "spalten": [
+     "Market",
+     "Category",
+     "Probability",
+     "Sentiment",
+     "Stance",
+     "Posts"
+    ],
+    "zeilen": [
+     [
+      "Trump out as President before GTA VI?",
+      "Politics",
+      "50.5%",
+      "-0.337",
+      "-0.152",
+      "25"
+     ],
+     [
+      "Will China invades Taiwan before GTA VI?",
+      "Geopolitics",
+      "50.5%",
+      "-0.051",
+      "-0.022",
+      "25"
+     ],
+     [
+      "Will bitcoin hit $1m before GTA VI?",
+      "Crypto",
+      "49.2%",
+      "+0.144",
+      "+0.156",
+      "25"
+     ],
+     [
+      "Will Iran win the 2026 FIFA World Cup?",
+      "Geopolitics",
+      "0.1%",
+      "-0.022",
+      "-0.179",
+      "25"
+     ],
+     [
+      "New Rihanna Album before GTA VI?",
+      "Entertainment",
+      "52.5%",
+      "-0.084",
+      "-0.199",
+      "25"
+     ],
+     [
+      "New Playboi Carti Album before GTA VI?",
+      "Entertainment",
+      "54.5%",
+      "-0.016",
+      "+0.113",
+      "25"
+     ],
+     [
+      "Will Jesus Christ return before GTA VI?",
+      "Entertainment",
+      "48.5%",
+      "-0.235",
+      "-0.110",
+      "25"
+     ],
+     [
+      "GTA VI released before June 2026?",
+      "Entertainment",
+      "0.2%",
+      "+0.097",
+      "+0.319",
+      "25"
+     ],
+     [
+      "Will Harvey Weinstein be sentenced to no prison time?",
+      "Legal",
+      "77.2%",
+      "-0.150",
+      "-0.347",
+      "25"
+     ],
+     [
+      "Will Harvey Weinstein be sentenced to between 5 and 10 years in prison?",
+      "Legal",
+      "2.2%",
+      "-0.055",
+      "-0.352",
+      "25"
+     ],
+     [
+      "Will Harvey Weinstein be sentenced to between 10 and 20 years in prison?",
+      "Legal",
+      "3.8%",
+      "-0.148",
+      "-0.415",
+      "25"
+     ],
+     [
+      "Will Harvey Weinstein be sentenced to between 20 and 30 years in prison?",
+      "Legal",
+      "8.2%",
+      "-0.098",
+      "-0.290",
+      "25"
+     ],
+     [
+      "Will Harvey Weinstein be sentenced to more than 30 years in prison?",
+      "Legal",
+      "4.2%",
+      "-0.491",
+      "-0.455",
+      "25"
+     ],
+     [
+      "Will the Carolina Hurricanes win the 2026 NHL Stanley Cup?",
+      "Sports",
+      "28.5%",
+      "+0.253",
+      "-0.443",
+      "25"
+     ],
+     [
+      "Will the Colorado Avalanche win the 2026 NHL Stanley Cup?",
+      "Sports",
+      "32.6%",
+      "+0.158",
+      "-0.560",
+      "25"
+     ],
+     [
+      "Will the Vegas Golden Knights win the 2026 NHL Stanley Cup?",
+      "Sports",
+      "20.7%",
+      "+0.311",
+      "-0.013",
+      "25"
+     ],
+     [
+      "Will the Montreal Canadiens win the 2026 NHL Stanley Cup?",
+      "Sports",
+      "18.9%",
+      "+0.165",
+      "-0.527",
+      "25"
+     ],
+     [
+      "Will the Oklahoma City Thunder win the 2026 NBA Finals?",
+      "Sports",
+      "49.5%",
+      "+0.250",
+      "+0.039",
+      "25"
+     ],
+     [
+      "Will the Cleveland Cavaliers win the 2026 NBA Finals?",
+      "Sports",
+      "1.8%",
+      "+0.405",
+      "+0.123",
+      "25"
+     ],
+     [
+      "Will the New York Knicks win the 2026 NBA Finals?",
+      "Sports",
+      "20.2%",
+      "+0.230",
+      "-0.088",
+      "25"
+     ],
+     [
+      "Will the San Antonio Spurs win the 2026 NBA Finals?",
+      "Sports",
+      "29.5%",
+      "+0.313",
+      "+0.071",
+      "25"
+     ],
+     [
+      "Will MegaETH perform an airdrop by June 30? ",
+      "Other",
+      "13.0%",
+      "+0.156",
+      "-0.384",
+      "25"
+     ],
+     [
+      "Will Spain win the 2026 FIFA World Cup?",
+      "Sports",
+      "17.1%",
+      "-0.279",
+      "+0.188",
+      "25"
+     ],
+     [
+      "Will England win the 2026 FIFA World Cup?",
+      "Sports",
+      "11.2%",
+      "-0.272",
+      "+0.249",
+      "25"
+     ],
+     [
+      "Will France win the 2026 FIFA World Cup?",
+      "Sports",
+      "17.9%",
+      "-0.194",
+      "+0.236",
+      "25"
+     ],
+     [
+      "Will Brazil win the 2026 FIFA World Cup?",
+      "Sports",
+      "8.8%",
+      "-0.190",
+      "+0.184",
+      "25"
+     ],
+     [
+      "Will Argentina win the 2026 FIFA World Cup?",
+      "Sports",
+      "8.3%",
+      "-0.289",
+      "+0.060",
+      "25"
+     ],
+     [
+      "Will Germany win the 2026 FIFA World Cup?",
+      "Sports",
+      "5.1%",
+      "-0.280",
+      "+0.135",
+      "25"
+     ],
+     [
+      "Will Portugal win the 2026 FIFA World Cup?",
+      "Sports",
+      "8.8%",
+      "-0.288",
+      "+0.162",
+      "25"
+     ]
+    ],
+    "hinweis": "Sentiment is the post-weighted mean of the RoBERTa compound score; stance is the mean of the supports-minus-opposes score."
+   },
+   {
+    "titel": "How much the semantic filter keeps",
+    "spalten": [
+     "Market",
+     "Raw posts",
+     "Kept at 0.20",
+     "Retention"
+    ],
+    "zeilen": [
+     [
+      "Trump out as President before GTA VI?",
+      "25",
+      "19",
+      "76%"
+     ],
+     [
+      "Will China invades Taiwan before GTA VI?",
+      "25",
+      "25",
+      "100%"
+     ],
+     [
+      "Will bitcoin hit $1m before GTA VI?",
+      "25",
+      "24",
+      "96%"
+     ],
+     [
+      "Will Harvey Weinstein be sentenced to no prison time?",
+      "25",
+      "12",
+      "48%"
+     ],
+     [
+      "Will the Oklahoma City Thunder win the 2026 NBA Finals?",
+      "25",
+      "5",
+      "20%"
+     ]
+    ],
+    "hinweis": "Retention ranges from 20% to 100%: on some questions Reddit has almost nothing on topic."
+   }
+  ],
+  "basis": {
+   "maerkte": 29,
+   "beobachtungen": 725,
+   "fenster": "2026-05-22"
+  },
+  "report": "docs/research/reddit_sentiment/report_tables.json",
+  "modul": "src/sentiment.py",
+  "kategorien_n": {
+   "Politics": 1,
+   "Geopolitics": 2,
+   "Crypto": 1,
+   "Entertainment": 4,
+   "Legal": 5,
+   "Sports": 15,
+   "Other": 1
+  },
+  "schlagworte": [
+   "reddit",
+   "sentiment",
+   "nlp",
+   "negative result"
+  ]
+ }
+}

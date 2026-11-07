@@ -1,0 +1,129 @@
+{
+ "quelle": "reports/FINAL_REPORT.md (course project report, live run 2026-05-22), sections 5 F1 to F4 and the relevance audit in section 2",
+ "stichprobe": {
+  "maerkte": 29,
+  "posts": 725,
+  "subreddits": 7,
+  "erhoben_utc": "2026-05-22T12:29:11.061324+00:00"
+ },
+ "f1": [
+  {
+   "metrik": "Weighted Sentiment",
+   "pearson_r": 0.0791,
+   "pearson_p": 0.6833,
+   "spearman_rho": 0.1508,
+   "spearman_p": 0.435
+  },
+  {
+   "metrik": "Adjusted Weighted Sentiment",
+   "pearson_r": 0.0791,
+   "pearson_p": 0.6833,
+   "spearman_rho": 0.1508,
+   "spearman_p": 0.435
+  }
+ ],
+ "f1b_kategorien": [
+  {
+   "kategorie": "Entertainment",
+   "n": 4,
+   "pearson_r": -0.6844,
+   "p": 0.3156
+  },
+  {
+   "kategorie": "Legal",
+   "n": 5,
+   "pearson_r": 0.1279,
+   "p": 0.8375
+  },
+  {
+   "kategorie": "Sports",
+   "n": 15,
+   "pearson_r": 0.5002,
+   "p": 0.0576
+  }
+ ],
+ "f2_subreddits": [
+  {
+   "subreddit": "stocks",
+   "n": 277,
+   "mittel": 0.1624,
+   "median": 0.0,
+   "positiv_pct": 33.6,
+   "negativ_pct": 12.6
+  },
+  {
+   "subreddit": "investing",
+   "n": 165,
+   "mittel": 0.1222,
+   "median": 0.0,
+   "positiv_pct": 26.7,
+   "negativ_pct": 10.9
+  },
+  {
+   "subreddit": "news",
+   "n": 53,
+   "mittel": 0.0615,
+   "median": 0.0,
+   "positiv_pct": 26.4,
+   "negativ_pct": 18.9
+  },
+  {
+   "subreddit": "geopolitics",
+   "n": 19,
+   "mittel": -0.0308,
+   "median": 0.0,
+   "positiv_pct": 0.0,
+   "negativ_pct": 5.3
+  },
+  {
+   "subreddit": "worldnews",
+   "n": 49,
+   "mittel": -0.1217,
+   "median": 0.0,
+   "positiv_pct": 6.1,
+   "negativ_pct": 26.5
+  },
+  {
+   "subreddit": "politics",
+   "n": 155,
+   "mittel": -0.2342,
+   "median": 0.0,
+   "positiv_pct": 6.5,
+   "negativ_pct": 43.2
+  },
+  {
+   "subreddit": "Economics",
+   "n": 7,
+   "mittel": -0.4116,
+   "median": -0.7344,
+   "positiv_pct": 14.3,
+   "negativ_pct": 71.4
+  }
+ ],
+ "f2_kruskal_wallis": {
+  "H": 92.05,
+  "p": 1.14e-17
+ },
+ "f4_stance": [
+  {
+   "metrik": "Stance Score",
+   "pearson_r": -0.0855,
+   "pearson_p": 0.6591,
+   "spearman_rho": -0.1123,
+   "spearman_p": 0.5618
+  }
+ ],
+ "relevanz_audit": {
+  "stichprobe": 50,
+  "relevant": 0,
+  "teilweise": 13,
+  "irrelevant": 37
+ },
+ "zeitraum_posts": {
+  "von": "2009-06-13",
+  "bis": "2026-05-22",
+  "kalendertage": 235,
+  "ab_2025_posts": 566,
+  "ab_2025_tage": 144
+ }
+}

@@ -1,0 +1,435 @@
+{
+ "hinweis": "The register of every test whose rules were written down before its data were seen. A test window that is still open shows its training numbers only; nothing in a training window is a result.",
+ "einleitung": "Three tests on this site were, or are being, run against rules fixed in advance: the small-stake pilot, the queue-position study on market making, and a validation of the wallet track-record score. This page lists each with its hypothesis, its success rule and where it stands.",
+ "policy": [
+  "Pre-registered means: hypothesis, primary metric, success threshold, cohort and exclusion rules are fixed before the first look at the outcome period and externally time-stamped.",
+  "Results are published in both directions: a failure opens a negative-results register, an insufficient sample is published as such; both are citable results.",
+  "Every analysis outside the pre-registered primary test is exploratory and labelled as such everywhere."
+ ],
+ "policy_de": [
+  "Preregistriert heisst: Hypothese, Primaermetrik, Erfolgsschwelle, Kohorten- und Ausschlussregeln stehen vor der ersten Sicht auf die Ergebnisperiode fest und sind extern zeitgestempelt (AsPredicted-PDF im Repo).",
+  "Ergebnisse werden in beide Richtungen publiziert: Ein Fehlschlag wird als erster Eintrag eines eigenen Negative-Results-Registers veroeffentlicht, ein zu kleines Sample wird als \"insufficient sample\" publiziert; beides sind gueltige, zitierfaehige Ergebnisse.",
+  "Alle Analysen ausserhalb des praeregistrierten Primaertests sind exploratorisch und werden ueberall als exploratorisch gekennzeichnet."
+ ],
+ "stand_utc": "2026-09-04T18:11:48.868626+00:00",
+ "kennzeichnung": "research/register",
+ "zaehler": {
+  "abgeschlossen": 1,
+  "eingefroren": 0,
+  "laeuft": 1,
+  "wartet": 0,
+  "entwurf": 1
+ },
+ "eintraege": [
+  {
+   "id": "pilot",
+   "titel": "Small-stake field test of two tail-fade signal arms",
+   "eingefroren": "2026-05-02",
+   "fenster": "2026-05-02 to 2026-08-01",
+   "extern": "internal, git timestamp",
+   "status": "abgeschlossen",
+   "ergebnis": "Trading window closed 2026-08-01; every trade and its rule adherence is on the Pilot page. The stake was halved against the frozen text and is reported as a deviation.",
+   "seite": "research/pilot",
+   "dokument": "docs/research/preregistrations.md",
+   "status_text": "COMPLETED"
+  },
+  {
+   "id": "mm-queue",
+   "titel": "Does symmetric market making pay once queue position is modelled?",
+   "eingefroren": "2026-09-03",
+   "fenster": "2026-09-04 to 2026-09-17",
+   "extern": "internal, git timestamp (not submitted to AsPredicted)",
+   "status": "laeuft",
+   "status_satz": "day 1 of 14, closes 2026-09-17",
+   "hypothese": "H1: symmetric quoting at the chosen parameters earns a positive daily total net of adverse selection, inventory drift and maker rebate, in both queue fill models, over the test window. H0: it does not, in at least one of the two.",
+   "primaermetrik": "Daily total USD of the chosen parameter set; success is a daily block-bootstrap 95% interval above zero in both queue_front and queue_back. Fewer than ten scored test days is reported as an insufficient sample.",
+   "wahlregel": "Six candidates (half spread in 0.005, 0.01, 0.02 x gamma in 0, 0.08), scored on every training day; the chosen set is the highest training total in queue_back among candidates with at least 1,000 fills.",
+   "gewaehlt": {
+    "half_spread": 0.02,
+    "gamma": 0.08,
+    "latency_s": 0.0,
+    "modell": "queue_back",
+    "fills": 23813,
+    "total_usd": 51932.0966,
+    "mean_daily_usd": 2360.5498,
+    "daily_ci95_usd": [
+     1650.1987,
+     3136.0422
+    ],
+    "spread_capture_cents_per_fill": 321.541,
+    "markout_cents_per_fill": -167.368
+   },
+   "training": {
+    "tage": 22,
+    "von": "2026-07-30",
+    "bis": "2026-09-03",
+    "kandidaten": 6,
+    "modelle": [
+     "queue_back",
+     "queue_front"
+    ]
+   },
+   "zahlen": [
+    {
+     "label": "Training days",
+     "wert": 22,
+     "hinweis": "2026-07-30 to 2026-09-03"
+    },
+    {
+     "label": "Chosen parameters",
+     "wert": "half spread 0.02, gamma 0.08",
+     "hinweis": "by the pre-registered rule in queue_back"
+    },
+    {
+     "label": "Training total, chosen set",
+     "wert": "+51,932",
+     "einheit": "USD",
+     "hinweis": "23,813 modelled fills"
+    },
+    {
+     "label": "Daily 95% interval, training",
+     "wert": "1,650 to 3,136",
+     "einheit": "USD",
+     "hinweis": "training only, nothing here is a result"
+    },
+    {
+     "label": "Tape model reference (half spread 0.01, gamma 0.08)",
+     "wert": "+71,152",
+     "einheit": "USD",
+     "hinweis": "the published fill model the queue models replace; at the published parameters, not the chosen set"
+    }
+   ],
+   "diagramme": {
+    "kandidaten": {
+     "titel": "Training total per candidate, both queue models",
+     "einheit": "USD over the training days",
+     "gruppen": [
+      "queue_back",
+      "queue_front"
+     ],
+     "punkte": [
+      {
+       "label": "spread 0.005 · gamma 0.0",
+       "werte": [
+        -7311.0,
+        -4550.0
+       ]
+      },
+      {
+       "label": "spread 0.005 · gamma 0.08",
+       "werte": [
+        26529.0,
+        36163.0
+       ]
+      },
+      {
+       "label": "spread 0.01 · gamma 0.0",
+       "werte": [
+        34751.0,
+        40529.0
+       ]
+      },
+      {
+       "label": "spread 0.01 · gamma 0.08",
+       "werte": [
+        45166.0,
+        51537.0
+       ]
+      },
+      {
+       "label": "spread 0.02 · gamma 0.0",
+       "werte": [
+        45340.0,
+        56490.0
+       ]
+      },
+      {
+       "label": "spread 0.02 · gamma 0.08",
+       "werte": [
+        51932.0,
+        64077.0
+       ]
+      }
+     ]
+    },
+    "tage": {
+     "titel": "Chosen set, cumulative training total by day",
+     "einheit": "USD",
+     "punkte": [
+      {
+       "t": "2026-07-30",
+       "wert": 202.01
+      },
+      {
+       "t": "2026-07-31",
+       "wert": 4239.92
+      },
+      {
+       "t": "2026-08-01",
+       "wert": 4194.21
+      },
+      {
+       "t": "2026-08-02",
+       "wert": 9403.03
+      },
+      {
+       "t": "2026-08-03",
+       "wert": 10319.26
+      },
+      {
+       "t": "2026-08-04",
+       "wert": 11255.0
+      },
+      {
+       "t": "2026-08-05",
+       "wert": 15801.53
+      },
+      {
+       "t": "2026-08-06",
+       "wert": 17493.17
+      },
+      {
+       "t": "2026-08-07",
+       "wert": 22797.84
+      },
+      {
+       "t": "2026-08-08",
+       "wert": 24300.63
+      },
+      {
+       "t": "2026-08-09",
+       "wert": 27275.34
+      },
+      {
+       "t": "2026-08-10",
+       "wert": 29161.47
+      },
+      {
+       "t": "2026-08-11",
+       "wert": 32703.98
+      },
+      {
+       "t": "2026-08-26",
+       "wert": 32593.8
+      },
+      {
+       "t": "2026-08-27",
+       "wert": 34742.57
+      },
+      {
+       "t": "2026-08-28",
+       "wert": 39115.78
+      },
+      {
+       "t": "2026-08-29",
+       "wert": 39169.56
+      },
+      {
+       "t": "2026-08-30",
+       "wert": 44578.39
+      },
+      {
+       "t": "2026-08-31",
+       "wert": 48261.59
+      },
+      {
+       "t": "2026-09-01",
+       "wert": 51304.31
+      },
+      {
+       "t": "2026-09-02",
+       "wert": 52285.29
+      },
+      {
+       "t": "2026-09-03",
+       "wert": 51932.08
+      }
+     ]
+    }
+   },
+   "tabellen": [
+    {
+     "titel": "Every candidate and model on the training days",
+     "spalten": [
+      "Model",
+      "Half spread",
+      "Gamma",
+      "Fills",
+      "Total (USD)",
+      "Mean/day",
+      "CI95 daily",
+      "Spread/fill (c)",
+      "Markout/fill (c)"
+     ],
+     "zeilen": [
+      [
+       "queue_back",
+       0.005,
+       0.08,
+       "100,079",
+       "+26,529",
+       "+1,206",
+       "(488, 2,021)",
+       "+96.4",
+       "-81.5"
+      ],
+      [
+       "queue_back",
+       0.005,
+       0.0,
+       "106,938",
+       "-7,311",
+       "-332",
+       "(-1,385, 807)",
+       "+80.7",
+       "-80.5"
+      ],
+      [
+       "queue_back",
+       0.01,
+       0.08,
+       "57,142",
+       "+45,166",
+       "+2,053",
+       "(1,370, 2,843)",
+       "+163.8",
+       "-109.4"
+      ],
+      [
+       "queue_back",
+       0.01,
+       0.0,
+       "47,439",
+       "+34,751",
+       "+1,580",
+       "(749, 2,493)",
+       "+174.1",
+       "-118.9"
+      ],
+      [
+       "queue_back",
+       0.02,
+       0.08,
+       "23,813",
+       "+51,932",
+       "+2,361",
+       "(1,650, 3,136)",
+       "+321.5",
+       "-167.4"
+      ],
+      [
+       "queue_back",
+       0.02,
+       0.0,
+       "21,732",
+       "+45,340",
+       "+2,061",
+       "(1,361, 2,779)",
+       "+334.1",
+       "-177.8"
+      ],
+      [
+       "queue_front",
+       0.005,
+       0.08,
+       "137,477",
+       "+36,163",
+       "+1,644",
+       "(814, 2,543)",
+       "+80.8",
+       "-62.3"
+      ],
+      [
+       "queue_front",
+       0.005,
+       0.0,
+       "161,161",
+       "-4,550",
+       "-207",
+       "(-1,286, 918)",
+       "+60.8",
+       "-56.5"
+      ],
+      [
+       "queue_front",
+       0.01,
+       0.08,
+       "76,499",
+       "+51,537",
+       "+2,343",
+       "(1,540, 3,173)",
+       "+140.0",
+       "-88.9"
+      ],
+      [
+       "queue_front",
+       0.01,
+       0.0,
+       "61,030",
+       "+40,529",
+       "+1,842",
+       "(906, 2,804)",
+       "+150.9",
+       "-95.0"
+      ],
+      [
+       "queue_front",
+       0.02,
+       0.08,
+       "31,590",
+       "+64,077",
+       "+2,913",
+       "(2,110, 3,787)",
+       "+277.3",
+       "-131.4"
+      ],
+      [
+       "queue_front",
+       0.02,
+       0.0,
+       "28,125",
+       "+56,490",
+       "+2,568",
+       "(1,835, 3,388)",
+       "+292.0",
+       "-139.0"
+      ],
+      [
+       "tape",
+       0.01,
+       0.08,
+       "90,595",
+       "+71,152",
+       "+3,234",
+       "(2,270, 4,233)",
+       "+143.4",
+       "-81.4"
+      ]
+     ],
+     "hinweis": "Training window only. The test window is scored once, with the chosen set, after it closes."
+    }
+   ],
+   "seite": "research/microstructure/mm-identified",
+   "dokument": "docs/research/preregistration_mm_queue_2026-09-03.md",
+   "report": "docs/research/mm_queue_train.md",
+   "modul": "src/mm_queue_study.py",
+   "status_text": "TEST WINDOW RUNNING"
+  },
+  {
+   "id": "track-record-validation",
+   "titel": "Out-of-sample persistence of the corrected wallet track-record score",
+   "eingefroren": "",
+   "fenster": "period 2 starts at submission; scored after it closes",
+   "extern": "AsPredicted draft, not yet submitted",
+   "status": "entwurf",
+   "status_satz": "nine-question draft ready; the submission date fixes the split between period 1 and period 2",
+   "hypothese": "A wallet's corrected composite track-record score, computed only from period 1, rank-correlates positively with the wallet's realised edge in period 2.",
+   "primaermetrik": "Spearman rho between the period-1 score and the period-2 realised edge across wallets; success is rho at or above +0.15 with a one-sided p below 0.05. Published either way by 2026-11-14.",
+   "seite": "wallet",
+   "dokument": "docs/research/aspredicted_draft_track_record_validation.md",
+   "status_text": "DRAFT"
+  }
+ ],
+ "fehlend": [],
+ "register": "docs/research/preregistrations.md"
+}
