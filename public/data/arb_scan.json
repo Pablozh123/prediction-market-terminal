@@ -1,6 +1,6 @@
 {
   "schema": "arb_scan/2",
-  "generated_at": "2026-10-29T17:58:13.792Z",
+  "generated_at": "2026-11-10T08:40:06.592Z",
   "generator": {
     "repo": "prediction-alpha-bot",
     "git_sha": "e546d107c0ef",
@@ -8,10 +8,10 @@
   },
   "disclaimer": "Paper-only research. Not trading advice.",
   "health": {
-    "last_cycle_at": "2026-10-29T17:58:13.785Z",
-    "cycles_24h": 75,
+    "last_cycle_at": "2026-11-10T08:40:06.585Z",
+    "cycles_24h": 17,
     "errors_24h": 0,
-    "scan_interval_ms": 122048,
+    "scan_interval_ms": 120893,
     "configured_interval_ms": 10000,
     "alive": true
   },
@@ -27,12 +27,12 @@
     "fee_model_version": "2026-07-30"
   },
   "summary": {
-    "raw_candidates_24h": 575,
-    "near_miss_24h": 46119,
+    "raw_candidates_24h": 32,
+    "near_miss_24h": 13549,
     "validated_24h": 0,
     "candidates_24h": 0,
     "paper_fired_24h": 0,
-    "open_paper_positions": 22,
+    "open_paper_positions": 15,
     "resolved_paper_trades": 18,
     "resolved_paper_pnl_usd": -0.52,
     "sample_note": "18 resolved paper trade(s) with a linked candidate; 147 legacy trade(s) without a candidate link are excluded from PnL. PnL is the sum over linked, resolved, unflagged trades only. Pre-registered 2026-09-04: 14-day measurement window from go-live; criterion is resolved, candidate-linked paper trades with positive net edge after fees."
@@ -42,23 +42,23 @@
       "id": "neg_risk_bracket_arb",
       "label": "NEG_RISK bracket sum-arb (Polymarket)",
       "class": "neg_risk_no_basket",
-      "raw_24h": 149,
+      "raw_24h": 17,
       "near_miss_24h": 0,
       "validated_24h": 0,
       "candidates_24h": 0,
       "paper_24h": 0,
-      "top_rejection": "not_neg_risk_event"
+      "top_rejection": "nested_temporal_basket"
     },
     {
       "id": "within_market_fast_arb",
       "label": "Within-market YES+NO (Polymarket)",
       "class": "same_market_complement",
-      "raw_24h": 6,
-      "near_miss_24h": 46119,
+      "raw_24h": 0,
+      "near_miss_24h": 13549,
       "validated_24h": 0,
       "candidates_24h": 0,
       "paper_24h": 0,
-      "top_rejection": "non_positive_executable_edge"
+      "top_rejection": null
     },
     {
       "id": "clear_win_watch",
@@ -75,7 +75,7 @@
       "id": "cross_venue_yes_no_arb",
       "label": "Cross-venue YES/NO (Kalshi x Polymarket)",
       "class": "cross_venue_complement",
-      "raw_24h": 420,
+      "raw_24h": 15,
       "near_miss_24h": 0,
       "validated_24h": 0,
       "candidates_24h": 0,
@@ -85,50 +85,38 @@
   ],
   "rejections_24h": [
     {
-      "reason": "compound_kalshi_market",
-      "label": "Kalshi market bundles several outcomes",
-      "gate": 1,
-      "count": 280
-    },
-    {
-      "reason": "not_neg_risk_event",
-      "label": "venue does not flag the event as mutually exclusive",
-      "gate": 1,
-      "count": 75
-    },
-    {
       "reason": "nested_temporal_basket",
       "label": "legs are nested by date, not exclusive",
       "gate": 1,
-      "count": 74
+      "count": 17
+    },
+    {
+      "reason": "compound_kalshi_market",
+      "label": "Kalshi market bundles several outcomes",
+      "gate": 1,
+      "count": 10
     },
     {
       "reason": "rule_review_not_equivalent",
       "label": "a person found the two rulebooks not equivalent",
       "gate": 1,
-      "count": 56
-    },
-    {
-      "reason": "non_positive_executable_edge",
-      "label": "edge gone at executable prices",
-      "gate": 3,
-      "count": 33
+      "count": 2
     },
     {
       "reason": "resolution_time_mismatch",
       "label": "resolution times differ",
       "gate": 1,
-      "count": 28
+      "count": 1
     },
     {
-      "reason": "below_annualized_hurdle",
-      "label": "annualised net return below the hurdle rate",
-      "gate": 4,
-      "count": 28
+      "reason": "non_positive_executable_edge",
+      "label": "edge gone at executable prices",
+      "gate": 3,
+      "count": 1
     },
     {
-      "reason": "non_positive_net_edge_after_fees",
-      "label": "edge gone after venue fees",
+      "reason": "below_min_net_edge",
+      "label": "net edge below the configured floor",
       "gate": 3,
       "count": 1
     }
@@ -475,584 +463,7 @@
   },
   "opportunities": [
     {
-      "id": "b9f57f9c-eb86-4cbc-a166-d2af714f9b6a",
-      "strategy": "cross_venue_yes_no_arb",
-      "class": "cross_venue_complement",
-      "venues": [
-        "polymarket",
-        "kalshi"
-      ],
-      "title": "Will J.B. Pritzker win the 2028 Democratic presidential nomination?",
-      "market_ref": "will-jb-pritzker-win-the-2028-democratic-presidential-nomination-288",
-      "legs": [
-        {
-          "venue": "polymarket",
-          "side": "YES",
-          "price": 0.016031,
-          "size_usd": 1653.9351,
-          "role": "taker",
-          "fee_usd": 65.0968
-        },
-        {
-          "venue": "kalshi",
-          "side": "NO",
-          "price": 0.975004,
-          "size_usd": 100592.1864,
-          "role": "taker",
-          "fee_usd": 176.01
-        }
-      ],
-      "gross_edge_bps": 90.46,
-      "executable_net_edge_bps": 66.88,
-      "net_profit_usd": 683.82,
-      "depth_usd": 102036.1685,
-      "capital_usd": 102246.1215,
-      "days_to_resolution": 739.8772,
-      "annualized_pct": 0.33,
-      "hurdle_met": false,
-      "capital_lock_class": "long",
-      "resolution_at_by_venue": {
-        "kalshi": "2028-11-07T15:00:00.000Z",
-        "polymarket": "2028-11-07T00:00:00.000Z"
-      },
-      "status": "rejected",
-      "rejection_reason": "below_annualized_hurdle",
-      "gate_failed": 4,
-      "rule_match": "unverified",
-      "rule_screen": "passed",
-      "rule_review": "pending",
-      "first_seen_at": "2026-10-29T15:35:27.993Z",
-      "last_seen_at": "2026-10-29T17:58:11.885Z",
-      "open_seconds": 8563
-    },
-    {
-      "id": "fb793f9a-9786-4dfb-a1dc-f37dec1d040f",
-      "strategy": "within_market_fast_arb",
-      "class": "same_market_complement",
-      "venues": [
-        "polymarket"
-      ],
-      "title": "Will Ari Weinstein leave OpenAI by December 31, 2026?",
-      "market_ref": "will-ari-leave-openai-by-december-31-2026",
-      "legs": [
-        {
-          "venue": "polymarket",
-          "side": "YES",
-          "price": 0.409,
-          "size_usd": 8.1841,
-          "role": "taker",
-          "fee_usd": 0.2418
-        },
-        {
-          "venue": "polymarket",
-          "side": "NO",
-          "price": 0.894,
-          "size_usd": 17.8889,
-          "role": "taker",
-          "fee_usd": 0.0948
-        }
-      ],
-      "gross_edge_bps": -2325.4,
-      "executable_net_edge_bps": -2454.52,
-      "net_profit_usd": null,
-      "depth_usd": 12671.4405,
-      "capital_usd": 26.073,
-      "days_to_resolution": 63.5119,
-      "annualized_pct": -141.06,
-      "hurdle_met": false,
-      "capital_lock_class": "long",
-      "resolution_at_by_venue": {
-        "kalshi": null,
-        "polymarket": "2027-01-01T04:59:00.000Z"
-      },
-      "status": "rejected",
-      "rejection_reason": "non_positive_executable_edge",
-      "gate_failed": 3,
-      "rule_match": "reviewed",
-      "rule_screen": "structural",
-      "rule_review": null,
-      "first_seen_at": "2026-10-29T16:40:09.238Z",
-      "last_seen_at": "2026-10-29T16:41:49.450Z",
-      "open_seconds": 100
-    },
-    {
-      "id": "0dd1b370-130a-43a4-9225-ee8091eb6909",
-      "strategy": "cross_venue_yes_no_arb",
-      "class": "cross_venue_complement",
-      "venues": [
-        "kalshi",
-        "polymarket"
-      ],
-      "title": "Will Candidate J win the 2026 Los Angeles mayoral election?",
-      "market_ref": "will-candidate-j-win-the-2026-los-angeles-mayoral-election",
-      "legs": [],
-      "gross_edge_bps": null,
-      "executable_net_edge_bps": null,
-      "net_profit_usd": null,
-      "depth_usd": 0,
-      "capital_usd": 0,
-      "days_to_resolution": 63.2506,
-      "annualized_pct": null,
-      "hurdle_met": null,
-      "capital_lock_class": "long",
-      "resolution_at_by_venue": {
-        "kalshi": null,
-        "polymarket": null
-      },
-      "status": "rejected",
-      "rejection_reason": "compound_kalshi_market",
-      "gate_failed": 1,
-      "rule_match": "mismatch",
-      "rule_screen": "compound_market",
-      "rule_review": "none",
-      "first_seen_at": "2026-10-29T17:58:11.885Z",
-      "last_seen_at": "2026-10-29T17:58:11.885Z",
-      "open_seconds": 0
-    },
-    {
-      "id": "16ae496a-55c2-4ae7-a8cf-7d1e85d2c597",
-      "strategy": "cross_venue_yes_no_arb",
-      "class": "cross_venue_complement",
-      "venues": [
-        "kalshi",
-        "polymarket"
-      ],
-      "title": "Will Candidate I win the 2026 Los Angeles mayoral election?",
-      "market_ref": "will-candidate-i-win-the-2026-los-angeles-mayoral-election",
-      "legs": [],
-      "gross_edge_bps": null,
-      "executable_net_edge_bps": null,
-      "net_profit_usd": null,
-      "depth_usd": 0,
-      "capital_usd": 0,
-      "days_to_resolution": 63.2506,
-      "annualized_pct": null,
-      "hurdle_met": null,
-      "capital_lock_class": "long",
-      "resolution_at_by_venue": {
-        "kalshi": null,
-        "polymarket": null
-      },
-      "status": "rejected",
-      "rejection_reason": "compound_kalshi_market",
-      "gate_failed": 1,
-      "rule_match": "mismatch",
-      "rule_screen": "compound_market",
-      "rule_review": "none",
-      "first_seen_at": "2026-10-29T17:58:11.885Z",
-      "last_seen_at": "2026-10-29T17:58:11.885Z",
-      "open_seconds": 0
-    },
-    {
-      "id": "3ae70e57-05db-446c-8e51-e4344edd8a21",
-      "strategy": "cross_venue_yes_no_arb",
-      "class": "cross_venue_complement",
-      "venues": [
-        "kalshi",
-        "polymarket"
-      ],
-      "title": "Will Marine Le Pen win the 2027 French presidential election?",
-      "market_ref": "will-marine-le-pen-win-the-2027-french-presidential-election",
-      "legs": [],
-      "gross_edge_bps": null,
-      "executable_net_edge_bps": null,
-      "net_profit_usd": null,
-      "depth_usd": 0,
-      "capital_usd": 0,
-      "days_to_resolution": 213.8346,
-      "annualized_pct": null,
-      "hurdle_met": null,
-      "capital_lock_class": "long",
-      "resolution_at_by_venue": {
-        "kalshi": "2027-05-31T14:00:00.000Z",
-        "polymarket": "2027-04-30T00:00:00.000Z"
-      },
-      "status": "rejected",
-      "rejection_reason": "resolution_time_mismatch",
-      "gate_failed": 1,
-      "rule_match": "mismatch",
-      "rule_screen": "resolution_time_mismatch",
-      "rule_review": "pending",
-      "first_seen_at": "2026-10-29T15:35:27.993Z",
-      "last_seen_at": "2026-10-29T17:58:11.885Z",
-      "open_seconds": 8563
-    },
-    {
-      "id": "3e0d7092-a4ef-4078-9233-2f0bc42b893d",
-      "strategy": "cross_venue_yes_no_arb",
-      "class": "cross_venue_complement",
-      "venues": [
-        "kalshi",
-        "polymarket"
-      ],
-      "title": "Will James Talarico win the 2028 Democratic presidential nomination?",
-      "market_ref": "will-james-talarico-win-the-2028-democratic-presidential-nomination",
-      "legs": [],
-      "gross_edge_bps": null,
-      "executable_net_edge_bps": null,
-      "net_profit_usd": null,
-      "depth_usd": 0,
-      "capital_usd": 0,
-      "days_to_resolution": 740.4589,
-      "annualized_pct": null,
-      "hurdle_met": null,
-      "capital_lock_class": "long",
-      "resolution_at_by_venue": {
-        "kalshi": null,
-        "polymarket": null
-      },
-      "status": "rejected",
-      "rejection_reason": "compound_kalshi_market",
-      "gate_failed": 1,
-      "rule_match": "mismatch",
-      "rule_screen": "compound_market",
-      "rule_review": "none",
-      "first_seen_at": "2026-10-29T17:58:11.885Z",
-      "last_seen_at": "2026-10-29T17:58:11.885Z",
-      "open_seconds": 0
-    },
-    {
-      "id": "5c69e4de-5a70-4a4a-9ff9-de997c3dfa00",
-      "strategy": "cross_venue_yes_no_arb",
-      "class": "cross_venue_complement",
-      "venues": [
-        "kalshi",
-        "polymarket"
-      ],
-      "title": "Will Candidate H win the 2026 Los Angeles mayoral election?",
-      "market_ref": "will-candidate-h-win-the-2026-los-angeles-mayoral-election",
-      "legs": [],
-      "gross_edge_bps": null,
-      "executable_net_edge_bps": null,
-      "net_profit_usd": null,
-      "depth_usd": 0,
-      "capital_usd": 0,
-      "days_to_resolution": 63.2506,
-      "annualized_pct": null,
-      "hurdle_met": null,
-      "capital_lock_class": "long",
-      "resolution_at_by_venue": {
-        "kalshi": null,
-        "polymarket": null
-      },
-      "status": "rejected",
-      "rejection_reason": "compound_kalshi_market",
-      "gate_failed": 1,
-      "rule_match": "mismatch",
-      "rule_screen": "compound_market",
-      "rule_review": "none",
-      "first_seen_at": "2026-10-29T17:58:11.885Z",
-      "last_seen_at": "2026-10-29T17:58:11.885Z",
-      "open_seconds": 0
-    },
-    {
-      "id": "765439bc-ddbe-424e-9010-27784aeda408",
-      "strategy": "cross_venue_yes_no_arb",
-      "class": "cross_venue_complement",
-      "venues": [
-        "kalshi",
-        "polymarket"
-      ],
-      "title": "Will Donald Trump win the 2028 US Presidential Election?",
-      "market_ref": "will-donald-trump-win-the-2028-us-presidential-election",
-      "legs": [],
-      "gross_edge_bps": null,
-      "executable_net_edge_bps": null,
-      "net_profit_usd": null,
-      "depth_usd": 0,
-      "capital_usd": 0,
-      "days_to_resolution": 814.8763,
-      "annualized_pct": null,
-      "hurdle_met": null,
-      "capital_lock_class": "long",
-      "resolution_at_by_venue": {
-        "kalshi": "2029-01-21T15:00:00.000Z",
-        "polymarket": "2028-11-07T00:00:00.000Z"
-      },
-      "status": "rejected",
-      "rejection_reason": "rule_review_not_equivalent",
-      "gate_failed": 1,
-      "rule_match": "mismatch",
-      "rule_screen": "resolution_time_mismatch",
-      "rule_review": "not_equivalent",
-      "first_seen_at": "2026-10-29T15:35:27.993Z",
-      "last_seen_at": "2026-10-29T17:58:11.885Z",
-      "open_seconds": 8563
-    },
-    {
-      "id": "769eb1b5-9bed-4a39-9647-54bf40dc87d3",
-      "strategy": "cross_venue_yes_no_arb",
-      "class": "cross_venue_complement",
-      "venues": [
-        "kalshi",
-        "polymarket"
-      ],
-      "title": "Will Trump recognize Somaliland before 2027?",
-      "market_ref": "will-trump-recognize-somaliland-before-2027",
-      "legs": [],
-      "gross_edge_bps": 20,
-      "executable_net_edge_bps": -69,
-      "net_profit_usd": null,
-      "depth_usd": 0,
-      "capital_usd": 0,
-      "days_to_resolution": 63.8763,
-      "annualized_pct": null,
-      "hurdle_met": null,
-      "capital_lock_class": "long",
-      "resolution_at_by_venue": {
-        "kalshi": "2027-01-01T15:00:00.000Z",
-        "polymarket": "2027-01-01T04:59:00.000Z"
-      },
-      "status": "rejected",
-      "rejection_reason": "non_positive_net_edge_after_fees",
-      "gate_failed": 3,
-      "rule_match": "unverified",
-      "rule_screen": "passed",
-      "rule_review": "pending",
-      "first_seen_at": "2026-10-29T15:35:27.993Z",
-      "last_seen_at": "2026-10-29T17:58:11.885Z",
-      "open_seconds": 8563
-    },
-    {
-      "id": "81ee2fa0-1cd4-434f-9932-01e013b6b472",
-      "strategy": "cross_venue_yes_no_arb",
-      "class": "cross_venue_complement",
-      "venues": [
-        "kalshi",
-        "polymarket"
-      ],
-      "title": "Will Candidate I win the 2026 Los Angeles mayoral election?",
-      "market_ref": "will-candidate-i-win-the-2026-los-angeles-mayoral-election",
-      "legs": [],
-      "gross_edge_bps": null,
-      "executable_net_edge_bps": null,
-      "net_profit_usd": null,
-      "depth_usd": 0,
-      "capital_usd": 0,
-      "days_to_resolution": 63.2506,
-      "annualized_pct": null,
-      "hurdle_met": null,
-      "capital_lock_class": "long",
-      "resolution_at_by_venue": {
-        "kalshi": null,
-        "polymarket": null
-      },
-      "status": "rejected",
-      "rejection_reason": "compound_kalshi_market",
-      "gate_failed": 1,
-      "rule_match": "mismatch",
-      "rule_screen": "compound_market",
-      "rule_review": "none",
-      "first_seen_at": "2026-10-29T17:58:11.885Z",
-      "last_seen_at": "2026-10-29T17:58:11.885Z",
-      "open_seconds": 0
-    },
-    {
-      "id": "b0a0f654-6063-452b-ae34-3fa1d6cf3c5d",
-      "strategy": "cross_venue_yes_no_arb",
-      "class": "cross_venue_complement",
-      "venues": [
-        "kalshi",
-        "polymarket"
-      ],
-      "title": "Will Candidate H win the 2026 Los Angeles mayoral election?",
-      "market_ref": "will-candidate-h-win-the-2026-los-angeles-mayoral-election",
-      "legs": [],
-      "gross_edge_bps": null,
-      "executable_net_edge_bps": null,
-      "net_profit_usd": null,
-      "depth_usd": 0,
-      "capital_usd": 0,
-      "days_to_resolution": 63.2506,
-      "annualized_pct": null,
-      "hurdle_met": null,
-      "capital_lock_class": "long",
-      "resolution_at_by_venue": {
-        "kalshi": null,
-        "polymarket": null
-      },
-      "status": "rejected",
-      "rejection_reason": "compound_kalshi_market",
-      "gate_failed": 1,
-      "rule_match": "mismatch",
-      "rule_screen": "compound_market",
-      "rule_review": "none",
-      "first_seen_at": "2026-10-29T17:58:11.885Z",
-      "last_seen_at": "2026-10-29T17:58:11.885Z",
-      "open_seconds": 0
-    },
-    {
-      "id": "b9a7c2b0-806c-46e5-ad31-fc28fa44e6dc",
-      "strategy": "cross_venue_yes_no_arb",
-      "class": "cross_venue_complement",
-      "venues": [
-        "kalshi",
-        "polymarket"
-      ],
-      "title": "Will Marco Rubio win the 2028 US Presidential Election?",
-      "market_ref": "will-marco-rubio-win-the-2028-us-presidential-election",
-      "legs": [],
-      "gross_edge_bps": null,
-      "executable_net_edge_bps": null,
-      "net_profit_usd": null,
-      "depth_usd": 0,
-      "capital_usd": 0,
-      "days_to_resolution": 814.8763,
-      "annualized_pct": null,
-      "hurdle_met": null,
-      "capital_lock_class": "long",
-      "resolution_at_by_venue": {
-        "kalshi": "2029-01-21T15:00:00.000Z",
-        "polymarket": "2028-11-07T00:00:00.000Z"
-      },
-      "status": "rejected",
-      "rejection_reason": "rule_review_not_equivalent",
-      "gate_failed": 1,
-      "rule_match": "mismatch",
-      "rule_screen": "resolution_time_mismatch",
-      "rule_review": "not_equivalent",
-      "first_seen_at": "2026-10-29T15:35:27.993Z",
-      "last_seen_at": "2026-10-29T17:58:11.885Z",
-      "open_seconds": 8563
-    },
-    {
-      "id": "bd63e2e5-17f0-4808-aaf6-99a2689072b0",
-      "strategy": "cross_venue_yes_no_arb",
-      "class": "cross_venue_complement",
-      "venues": [
-        "kalshi",
-        "polymarket"
-      ],
-      "title": "Will Candidate I win the 2026 Los Angeles mayoral election?",
-      "market_ref": "will-candidate-i-win-the-2026-los-angeles-mayoral-election",
-      "legs": [],
-      "gross_edge_bps": null,
-      "executable_net_edge_bps": null,
-      "net_profit_usd": null,
-      "depth_usd": 0,
-      "capital_usd": 0,
-      "days_to_resolution": 63.2506,
-      "annualized_pct": null,
-      "hurdle_met": null,
-      "capital_lock_class": "long",
-      "resolution_at_by_venue": {
-        "kalshi": null,
-        "polymarket": null
-      },
-      "status": "rejected",
-      "rejection_reason": "compound_kalshi_market",
-      "gate_failed": 1,
-      "rule_match": "mismatch",
-      "rule_screen": "compound_market",
-      "rule_review": "none",
-      "first_seen_at": "2026-10-29T17:58:11.885Z",
-      "last_seen_at": "2026-10-29T17:58:11.885Z",
-      "open_seconds": 0
-    },
-    {
-      "id": "d9b2c6db-1c98-4e18-8efb-23448e86e110",
-      "strategy": "cross_venue_yes_no_arb",
-      "class": "cross_venue_complement",
-      "venues": [
-        "kalshi",
-        "polymarket"
-      ],
-      "title": "Will Candidate J win the 2026 Los Angeles mayoral election?",
-      "market_ref": "will-candidate-j-win-the-2026-los-angeles-mayoral-election",
-      "legs": [],
-      "gross_edge_bps": null,
-      "executable_net_edge_bps": null,
-      "net_profit_usd": null,
-      "depth_usd": 0,
-      "capital_usd": 0,
-      "days_to_resolution": 63.2506,
-      "annualized_pct": null,
-      "hurdle_met": null,
-      "capital_lock_class": "long",
-      "resolution_at_by_venue": {
-        "kalshi": null,
-        "polymarket": null
-      },
-      "status": "rejected",
-      "rejection_reason": "compound_kalshi_market",
-      "gate_failed": 1,
-      "rule_match": "mismatch",
-      "rule_screen": "compound_market",
-      "rule_review": "none",
-      "first_seen_at": "2026-10-29T17:58:11.885Z",
-      "last_seen_at": "2026-10-29T17:58:11.885Z",
-      "open_seconds": 0
-    },
-    {
-      "id": "e87a19f5-9ace-4ec0-bc38-ea6a232f3a30",
-      "strategy": "cross_venue_yes_no_arb",
-      "class": "cross_venue_complement",
-      "venues": [
-        "kalshi",
-        "polymarket"
-      ],
-      "title": "Will Candidate J win the 2026 Los Angeles mayoral election?",
-      "market_ref": "will-candidate-j-win-the-2026-los-angeles-mayoral-election",
-      "legs": [],
-      "gross_edge_bps": null,
-      "executable_net_edge_bps": null,
-      "net_profit_usd": null,
-      "depth_usd": 0,
-      "capital_usd": 0,
-      "days_to_resolution": 63.2506,
-      "annualized_pct": null,
-      "hurdle_met": null,
-      "capital_lock_class": "long",
-      "resolution_at_by_venue": {
-        "kalshi": null,
-        "polymarket": null
-      },
-      "status": "rejected",
-      "rejection_reason": "compound_kalshi_market",
-      "gate_failed": 1,
-      "rule_match": "mismatch",
-      "rule_screen": "compound_market",
-      "rule_review": "none",
-      "first_seen_at": "2026-10-29T17:58:11.885Z",
-      "last_seen_at": "2026-10-29T17:58:11.885Z",
-      "open_seconds": 0
-    },
-    {
-      "id": "f73b2c76-6cf1-4cf7-a8ce-f753b85d8694",
-      "strategy": "cross_venue_yes_no_arb",
-      "class": "cross_venue_complement",
-      "venues": [
-        "kalshi",
-        "polymarket"
-      ],
-      "title": "Will Candidate H win the 2026 Los Angeles mayoral election?",
-      "market_ref": "will-candidate-h-win-the-2026-los-angeles-mayoral-election",
-      "legs": [],
-      "gross_edge_bps": null,
-      "executable_net_edge_bps": null,
-      "net_profit_usd": null,
-      "depth_usd": 0,
-      "capital_usd": 0,
-      "days_to_resolution": 63.2506,
-      "annualized_pct": null,
-      "hurdle_met": null,
-      "capital_lock_class": "long",
-      "resolution_at_by_venue": {
-        "kalshi": null,
-        "polymarket": null
-      },
-      "status": "rejected",
-      "rejection_reason": "compound_kalshi_market",
-      "gate_failed": 1,
-      "rule_match": "mismatch",
-      "rule_screen": "compound_market",
-      "rule_review": "none",
-      "first_seen_at": "2026-10-29T17:58:11.885Z",
-      "last_seen_at": "2026-10-29T17:58:11.885Z",
-      "open_seconds": 0
-    },
-    {
-      "id": "72e06c77-96ee-4417-80d9-6c8ef95dc1f0",
+      "id": "1a12f7af-2c38-4fb3-9f13-60c6e7f415dc",
       "strategy": "neg_risk_bracket_arb",
       "class": "neg_risk_no_basket",
       "venues": [
@@ -1080,60 +491,129 @@
       "rule_match": "unverified",
       "rule_screen": null,
       "rule_review": null,
-      "first_seen_at": "2026-10-29T15:37:43.661Z",
-      "last_seen_at": "2026-10-29T17:56:53.288Z",
-      "open_seconds": 8349
+      "first_seen_at": "2026-11-10T08:36:04.028Z",
+      "last_seen_at": "2026-11-10T08:40:04.740Z",
+      "open_seconds": 240
     },
     {
-      "id": "bb80ab24-8e5a-46dc-99ae-3b4d8601ce58",
-      "strategy": "neg_risk_bracket_arb",
-      "class": "neg_risk_no_basket",
+      "id": "088e5d97-3294-4c6d-8d74-f138e64dc367",
+      "strategy": "cross_venue_yes_no_arb",
+      "class": "cross_venue_complement",
       "venues": [
+        "kalshi",
         "polymarket"
       ],
-      "title": "will-trump-be-impeached-by-december-31-2026",
-      "market_ref": "will-trump-be-impeached-by-december-31-2026",
+      "title": "Will LeBron James win the 2028 US Presidential Election?",
+      "market_ref": "will-lebron-james-win-the-2028-us-presidential-election",
       "legs": [],
       "gross_edge_bps": null,
       "executable_net_edge_bps": null,
       "net_profit_usd": null,
       "depth_usd": 0,
       "capital_usd": 0,
-      "days_to_resolution": null,
+      "days_to_resolution": 728.8484,
       "annualized_pct": null,
       "hurdle_met": null,
       "capital_lock_class": "long",
       "resolution_at_by_venue": {
         "kalshi": null,
-        "polymarket": "2028-01-01T04:59:00.000Z"
+        "polymarket": null
       },
       "status": "rejected",
-      "rejection_reason": "not_neg_risk_event",
+      "rejection_reason": "compound_kalshi_market",
       "gate_failed": 1,
+      "rule_match": "mismatch",
+      "rule_screen": "compound_market",
+      "rule_review": "none",
+      "first_seen_at": "2026-11-10T08:37:15.815Z",
+      "last_seen_at": "2026-11-10T08:37:15.815Z",
+      "open_seconds": 0
+    },
+    {
+      "id": "12717ec5-faa0-4cb9-aa9b-03078f2569a4",
+      "strategy": "cross_venue_yes_no_arb",
+      "class": "cross_venue_complement",
+      "venues": [
+        "kalshi",
+        "polymarket"
+      ],
+      "title": "Will J.B. Pritzker win the 2028 Democratic presidential nomination?",
+      "market_ref": "will-jb-pritzker-win-the-2028-democratic-presidential-nomination-288",
+      "legs": [],
+      "gross_edge_bps": 70,
+      "executable_net_edge_bps": 48,
+      "net_profit_usd": null,
+      "depth_usd": 0,
+      "capital_usd": 0,
+      "days_to_resolution": 728.2658,
+      "annualized_pct": null,
+      "hurdle_met": null,
+      "capital_lock_class": "long",
+      "resolution_at_by_venue": {
+        "kalshi": "2028-11-07T15:00:00.000Z",
+        "polymarket": "2028-11-07T00:00:00.000Z"
+      },
+      "status": "rejected",
+      "rejection_reason": "below_min_net_edge",
+      "gate_failed": 3,
       "rule_match": "unverified",
-      "rule_screen": null,
-      "rule_review": null,
-      "first_seen_at": "2026-10-29T15:32:44.508Z",
-      "last_seen_at": "2026-10-29T17:56:53.275Z",
-      "open_seconds": 8648
+      "rule_screen": "passed",
+      "rule_review": "pending",
+      "first_seen_at": "2026-11-10T08:37:15.815Z",
+      "last_seen_at": "2026-11-10T08:37:15.815Z",
+      "open_seconds": 0
     },
     {
-      "id": "0ca52a55-a0fe-4133-9c77-4dac97f6ff3b",
+      "id": "1ea7e456-3b0f-4b14-8794-c49426f55941",
       "strategy": "cross_venue_yes_no_arb",
       "class": "cross_venue_complement",
       "venues": [
         "kalshi",
         "polymarket"
       ],
-      "title": "Will Ted Cruz win the 2028 US Presidential Election?",
-      "market_ref": "will-ted-cruz-win-the-2028-us-presidential-election",
+      "title": "Will Donald Trump win the 2028 US Presidential Election?",
+      "market_ref": "will-donald-trump-win-the-2028-us-presidential-election",
       "legs": [],
       "gross_edge_bps": null,
       "executable_net_edge_bps": null,
       "net_profit_usd": null,
       "depth_usd": 0,
       "capital_usd": 0,
-      "days_to_resolution": 740.4626,
+      "days_to_resolution": 803.2658,
+      "annualized_pct": null,
+      "hurdle_met": null,
+      "capital_lock_class": "long",
+      "resolution_at_by_venue": {
+        "kalshi": "2029-01-21T15:00:00.000Z",
+        "polymarket": "2028-11-07T00:00:00.000Z"
+      },
+      "status": "rejected",
+      "rejection_reason": "rule_review_not_equivalent",
+      "gate_failed": 1,
+      "rule_match": "mismatch",
+      "rule_screen": "resolution_time_mismatch",
+      "rule_review": "not_equivalent",
+      "first_seen_at": "2026-11-10T08:37:15.815Z",
+      "last_seen_at": "2026-11-10T08:37:15.815Z",
+      "open_seconds": 0
+    },
+    {
+      "id": "1fb48a3f-556b-4bde-b2fa-55d2b04f131d",
+      "strategy": "cross_venue_yes_no_arb",
+      "class": "cross_venue_complement",
+      "venues": [
+        "kalshi",
+        "polymarket"
+      ],
+      "title": "Will Jalen Brunson win the 2028 US Presidential Election?",
+      "market_ref": "will-jalen-brunson-win-the-2028-us-presidential-election",
+      "legs": [],
+      "gross_edge_bps": null,
+      "executable_net_edge_bps": null,
+      "net_profit_usd": null,
+      "depth_usd": 0,
+      "capital_usd": 0,
+      "days_to_resolution": 728.8484,
       "annualized_pct": null,
       "hurdle_met": null,
       "capital_lock_class": "long",
@@ -1147,27 +627,27 @@
       "rule_match": "mismatch",
       "rule_screen": "compound_market",
       "rule_review": "none",
-      "first_seen_at": "2026-10-29T17:52:48.827Z",
-      "last_seen_at": "2026-10-29T17:52:48.827Z",
+      "first_seen_at": "2026-11-10T08:37:15.815Z",
+      "last_seen_at": "2026-11-10T08:37:15.815Z",
       "open_seconds": 0
     },
     {
-      "id": "185c9f16-21fc-4789-861a-1ea23db6f5f6",
+      "id": "2939d907-4b9b-4741-b0d2-7f605f36a20a",
       "strategy": "cross_venue_yes_no_arb",
       "class": "cross_venue_complement",
       "venues": [
         "kalshi",
         "polymarket"
       ],
-      "title": "Will Candidate H win the 2026 Los Angeles mayoral election?",
-      "market_ref": "will-candidate-h-win-the-2026-los-angeles-mayoral-election",
+      "title": "Will LeBron James win the 2028 US Presidential Election?",
+      "market_ref": "will-lebron-james-win-the-2028-us-presidential-election",
       "legs": [],
       "gross_edge_bps": null,
       "executable_net_edge_bps": null,
       "net_profit_usd": null,
       "depth_usd": 0,
       "capital_usd": 0,
-      "days_to_resolution": 63.2543,
+      "days_to_resolution": 728.8484,
       "annualized_pct": null,
       "hurdle_met": null,
       "capital_lock_class": "long",
@@ -1181,27 +661,27 @@
       "rule_match": "mismatch",
       "rule_screen": "compound_market",
       "rule_review": "none",
-      "first_seen_at": "2026-10-29T17:52:48.827Z",
-      "last_seen_at": "2026-10-29T17:52:48.827Z",
+      "first_seen_at": "2026-11-10T08:37:15.815Z",
+      "last_seen_at": "2026-11-10T08:37:15.815Z",
       "open_seconds": 0
     },
     {
-      "id": "554aef89-5896-4b44-87ec-82f491810d7f",
+      "id": "3f3dd55e-5d5d-4c0c-9c14-0f3632a33dff",
       "strategy": "cross_venue_yes_no_arb",
       "class": "cross_venue_complement",
       "venues": [
         "kalshi",
         "polymarket"
       ],
-      "title": "Will Candidate H win the 2026 Los Angeles mayoral election?",
-      "market_ref": "will-candidate-h-win-the-2026-los-angeles-mayoral-election",
+      "title": "Will LeBron James win the 2028 US Presidential Election?",
+      "market_ref": "will-lebron-james-win-the-2028-us-presidential-election",
       "legs": [],
       "gross_edge_bps": null,
       "executable_net_edge_bps": null,
       "net_profit_usd": null,
       "depth_usd": 0,
       "capital_usd": 0,
-      "days_to_resolution": 63.2543,
+      "days_to_resolution": 728.8484,
       "annualized_pct": null,
       "hurdle_met": null,
       "capital_lock_class": "long",
@@ -1215,27 +695,61 @@
       "rule_match": "mismatch",
       "rule_screen": "compound_market",
       "rule_review": "none",
-      "first_seen_at": "2026-10-29T17:52:48.827Z",
-      "last_seen_at": "2026-10-29T17:52:48.827Z",
+      "first_seen_at": "2026-11-10T08:37:15.815Z",
+      "last_seen_at": "2026-11-10T08:37:15.815Z",
       "open_seconds": 0
     },
     {
-      "id": "6604c75d-751a-48c9-b5b2-2b81e4cb288c",
+      "id": "744ec0a4-71fd-44fb-b022-cdde62619db5",
       "strategy": "cross_venue_yes_no_arb",
       "class": "cross_venue_complement",
       "venues": [
         "kalshi",
         "polymarket"
       ],
-      "title": "Will Ted Cruz win the 2028 US Presidential Election?",
-      "market_ref": "will-ted-cruz-win-the-2028-us-presidential-election",
+      "title": "Will Marine Le Pen win the 2027 French presidential election?",
+      "market_ref": "will-marine-le-pen-win-the-2027-french-presidential-election",
       "legs": [],
       "gross_edge_bps": null,
       "executable_net_edge_bps": null,
       "net_profit_usd": null,
       "depth_usd": 0,
       "capital_usd": 0,
-      "days_to_resolution": 740.4626,
+      "days_to_resolution": 202.2241,
+      "annualized_pct": null,
+      "hurdle_met": null,
+      "capital_lock_class": "long",
+      "resolution_at_by_venue": {
+        "kalshi": "2027-05-31T14:00:00.000Z",
+        "polymarket": "2027-04-30T00:00:00.000Z"
+      },
+      "status": "rejected",
+      "rejection_reason": "resolution_time_mismatch",
+      "gate_failed": 1,
+      "rule_match": "mismatch",
+      "rule_screen": "resolution_time_mismatch",
+      "rule_review": "pending",
+      "first_seen_at": "2026-11-10T08:37:15.815Z",
+      "last_seen_at": "2026-11-10T08:37:15.815Z",
+      "open_seconds": 0
+    },
+    {
+      "id": "a1737db2-e2f6-4ded-b6b6-ea7197b1943f",
+      "strategy": "cross_venue_yes_no_arb",
+      "class": "cross_venue_complement",
+      "venues": [
+        "kalshi",
+        "polymarket"
+      ],
+      "title": "Will Jalen Brunson win the 2028 US Presidential Election?",
+      "market_ref": "will-jalen-brunson-win-the-2028-us-presidential-election",
+      "legs": [],
+      "gross_edge_bps": null,
+      "executable_net_edge_bps": null,
+      "net_profit_usd": null,
+      "depth_usd": 0,
+      "capital_usd": 0,
+      "days_to_resolution": 728.8484,
       "annualized_pct": null,
       "hurdle_met": null,
       "capital_lock_class": "long",
@@ -1249,27 +763,27 @@
       "rule_match": "mismatch",
       "rule_screen": "compound_market",
       "rule_review": "none",
-      "first_seen_at": "2026-10-29T17:52:48.827Z",
-      "last_seen_at": "2026-10-29T17:52:48.827Z",
+      "first_seen_at": "2026-11-10T08:37:15.815Z",
+      "last_seen_at": "2026-11-10T08:37:15.815Z",
       "open_seconds": 0
     },
     {
-      "id": "762a1d25-0043-4e7a-b50d-72d7e840f599",
+      "id": "b2a5e198-7dc4-4cc6-af14-01acde6035ba",
       "strategy": "cross_venue_yes_no_arb",
       "class": "cross_venue_complement",
       "venues": [
         "kalshi",
         "polymarket"
       ],
-      "title": "Will Candidate I win the 2026 Los Angeles mayoral election?",
-      "market_ref": "will-candidate-i-win-the-2026-los-angeles-mayoral-election",
+      "title": "Will Jalen Brunson win the 2028 US Presidential Election?",
+      "market_ref": "will-jalen-brunson-win-the-2028-us-presidential-election",
       "legs": [],
       "gross_edge_bps": null,
       "executable_net_edge_bps": null,
       "net_profit_usd": null,
       "depth_usd": 0,
       "capital_usd": 0,
-      "days_to_resolution": 63.2543,
+      "days_to_resolution": 728.8484,
       "annualized_pct": null,
       "hurdle_met": null,
       "capital_lock_class": "long",
@@ -1283,27 +797,27 @@
       "rule_match": "mismatch",
       "rule_screen": "compound_market",
       "rule_review": "none",
-      "first_seen_at": "2026-10-29T17:52:48.827Z",
-      "last_seen_at": "2026-10-29T17:52:48.827Z",
+      "first_seen_at": "2026-11-10T08:37:15.815Z",
+      "last_seen_at": "2026-11-10T08:37:15.815Z",
       "open_seconds": 0
     },
     {
-      "id": "7d0bd241-337b-4151-80a5-52763f798b4d",
+      "id": "ccd845c3-5517-4b2b-92a0-aaab119dd05f",
       "strategy": "cross_venue_yes_no_arb",
       "class": "cross_venue_complement",
       "venues": [
         "kalshi",
         "polymarket"
       ],
-      "title": "Will Ted Cruz win the 2028 US Presidential Election?",
-      "market_ref": "will-ted-cruz-win-the-2028-us-presidential-election",
+      "title": "Will Jalen Brunson win the 2028 US Presidential Election?",
+      "market_ref": "will-jalen-brunson-win-the-2028-us-presidential-election",
       "legs": [],
       "gross_edge_bps": null,
       "executable_net_edge_bps": null,
       "net_profit_usd": null,
       "depth_usd": 0,
       "capital_usd": 0,
-      "days_to_resolution": 740.4626,
+      "days_to_resolution": 728.8484,
       "annualized_pct": null,
       "hurdle_met": null,
       "capital_lock_class": "long",
@@ -1317,27 +831,61 @@
       "rule_match": "mismatch",
       "rule_screen": "compound_market",
       "rule_review": "none",
-      "first_seen_at": "2026-10-29T17:52:48.827Z",
-      "last_seen_at": "2026-10-29T17:52:48.827Z",
+      "first_seen_at": "2026-11-10T08:37:15.815Z",
+      "last_seen_at": "2026-11-10T08:37:15.815Z",
       "open_seconds": 0
     },
     {
-      "id": "b7e726de-cef6-4ec6-9547-499ef715671f",
+      "id": "e0e1cbf9-c66b-468c-8a3f-84813d785814",
       "strategy": "cross_venue_yes_no_arb",
       "class": "cross_venue_complement",
       "venues": [
         "kalshi",
         "polymarket"
       ],
-      "title": "Will Candidate J win the 2026 Los Angeles mayoral election?",
-      "market_ref": "will-candidate-j-win-the-2026-los-angeles-mayoral-election",
+      "title": "Will Trump recognize Somaliland before 2027?",
+      "market_ref": "will-trump-recognize-somaliland-before-2027",
+      "legs": [],
+      "gross_edge_bps": -30,
+      "executable_net_edge_bps": -58,
+      "net_profit_usd": null,
+      "depth_usd": 0,
+      "capital_usd": 0,
+      "days_to_resolution": 52.2658,
+      "annualized_pct": null,
+      "hurdle_met": null,
+      "capital_lock_class": "long",
+      "resolution_at_by_venue": {
+        "kalshi": "2027-01-01T15:00:00.000Z",
+        "polymarket": "2027-01-01T04:59:00.000Z"
+      },
+      "status": "rejected",
+      "rejection_reason": "non_positive_executable_edge",
+      "gate_failed": 3,
+      "rule_match": "unverified",
+      "rule_screen": "passed",
+      "rule_review": "pending",
+      "first_seen_at": "2026-11-10T08:37:15.815Z",
+      "last_seen_at": "2026-11-10T08:37:15.815Z",
+      "open_seconds": 0
+    },
+    {
+      "id": "e285b89e-aed0-47e0-8c2e-549141019adf",
+      "strategy": "cross_venue_yes_no_arb",
+      "class": "cross_venue_complement",
+      "venues": [
+        "kalshi",
+        "polymarket"
+      ],
+      "title": "Will Jalen Brunson win the 2028 US Presidential Election?",
+      "market_ref": "will-jalen-brunson-win-the-2028-us-presidential-election",
       "legs": [],
       "gross_edge_bps": null,
       "executable_net_edge_bps": null,
       "net_profit_usd": null,
       "depth_usd": 0,
       "capital_usd": 0,
-      "days_to_resolution": 63.2543,
+      "days_to_resolution": 728.8484,
       "annualized_pct": null,
       "hurdle_met": null,
       "capital_lock_class": "long",
@@ -1351,27 +899,27 @@
       "rule_match": "mismatch",
       "rule_screen": "compound_market",
       "rule_review": "none",
-      "first_seen_at": "2026-10-29T17:52:48.827Z",
-      "last_seen_at": "2026-10-29T17:52:48.827Z",
+      "first_seen_at": "2026-11-10T08:37:15.815Z",
+      "last_seen_at": "2026-11-10T08:37:15.815Z",
       "open_seconds": 0
     },
     {
-      "id": "eed2cd21-cf8f-450f-94a7-f4bfa161029b",
+      "id": "eabb1789-391c-4696-8353-9b2523dfc999",
       "strategy": "cross_venue_yes_no_arb",
       "class": "cross_venue_complement",
       "venues": [
         "kalshi",
         "polymarket"
       ],
-      "title": "Will Candidate J win the 2026 Los Angeles mayoral election?",
-      "market_ref": "will-candidate-j-win-the-2026-los-angeles-mayoral-election",
+      "title": "Will Jalen Brunson win the 2028 US Presidential Election?",
+      "market_ref": "will-jalen-brunson-win-the-2028-us-presidential-election",
       "legs": [],
       "gross_edge_bps": null,
       "executable_net_edge_bps": null,
       "net_profit_usd": null,
       "depth_usd": 0,
       "capital_usd": 0,
-      "days_to_resolution": 63.2543,
+      "days_to_resolution": 728.8484,
       "annualized_pct": null,
       "hurdle_met": null,
       "capital_lock_class": "long",
@@ -1385,27 +933,61 @@
       "rule_match": "mismatch",
       "rule_screen": "compound_market",
       "rule_review": "none",
-      "first_seen_at": "2026-10-29T17:52:48.827Z",
-      "last_seen_at": "2026-10-29T17:52:48.827Z",
+      "first_seen_at": "2026-11-10T08:37:15.815Z",
+      "last_seen_at": "2026-11-10T08:37:15.815Z",
       "open_seconds": 0
     },
     {
-      "id": "f21cc53f-d92a-42a6-87c7-6f618ac9616f",
+      "id": "f3989e35-88b5-4c48-a199-f668fd09b2ab",
       "strategy": "cross_venue_yes_no_arb",
       "class": "cross_venue_complement",
       "venues": [
         "kalshi",
         "polymarket"
       ],
-      "title": "Will Candidate I win the 2026 Los Angeles mayoral election?",
-      "market_ref": "will-candidate-i-win-the-2026-los-angeles-mayoral-election",
+      "title": "Will Marco Rubio win the 2028 US Presidential Election?",
+      "market_ref": "will-marco-rubio-win-the-2028-us-presidential-election",
       "legs": [],
       "gross_edge_bps": null,
       "executable_net_edge_bps": null,
       "net_profit_usd": null,
       "depth_usd": 0,
       "capital_usd": 0,
-      "days_to_resolution": 63.2543,
+      "days_to_resolution": 803.2658,
+      "annualized_pct": null,
+      "hurdle_met": null,
+      "capital_lock_class": "long",
+      "resolution_at_by_venue": {
+        "kalshi": "2029-01-21T15:00:00.000Z",
+        "polymarket": "2028-11-07T00:00:00.000Z"
+      },
+      "status": "rejected",
+      "rejection_reason": "rule_review_not_equivalent",
+      "gate_failed": 1,
+      "rule_match": "mismatch",
+      "rule_screen": "resolution_time_mismatch",
+      "rule_review": "not_equivalent",
+      "first_seen_at": "2026-11-10T08:37:15.815Z",
+      "last_seen_at": "2026-11-10T08:37:15.815Z",
+      "open_seconds": 0
+    },
+    {
+      "id": "fa304db8-f591-42b7-b202-626b00699905",
+      "strategy": "cross_venue_yes_no_arb",
+      "class": "cross_venue_complement",
+      "venues": [
+        "kalshi",
+        "polymarket"
+      ],
+      "title": "Will Jalen Brunson win the 2028 US Presidential Election?",
+      "market_ref": "will-jalen-brunson-win-the-2028-us-presidential-election",
+      "legs": [],
+      "gross_edge_bps": null,
+      "executable_net_edge_bps": null,
+      "net_profit_usd": null,
+      "depth_usd": 0,
+      "capital_usd": 0,
+      "days_to_resolution": 728.8484,
       "annualized_pct": null,
       "hurdle_met": null,
       "capital_lock_class": "long",
@@ -1419,790 +1001,8 @@
       "rule_match": "mismatch",
       "rule_screen": "compound_market",
       "rule_review": "none",
-      "first_seen_at": "2026-10-29T17:52:48.827Z",
-      "last_seen_at": "2026-10-29T17:52:48.827Z",
-      "open_seconds": 0
-    },
-    {
-      "id": "f486ef58-f000-49fc-94bf-b0f3f33669e5",
-      "strategy": "cross_venue_yes_no_arb",
-      "class": "cross_venue_complement",
-      "venues": [
-        "kalshi",
-        "polymarket"
-      ],
-      "title": "Will Ted Cruz win the 2028 US Presidential Election?",
-      "market_ref": "will-ted-cruz-win-the-2028-us-presidential-election",
-      "legs": [],
-      "gross_edge_bps": null,
-      "executable_net_edge_bps": null,
-      "net_profit_usd": null,
-      "depth_usd": 0,
-      "capital_usd": 0,
-      "days_to_resolution": 740.4626,
-      "annualized_pct": null,
-      "hurdle_met": null,
-      "capital_lock_class": "long",
-      "resolution_at_by_venue": {
-        "kalshi": null,
-        "polymarket": null
-      },
-      "status": "rejected",
-      "rejection_reason": "compound_kalshi_market",
-      "gate_failed": 1,
-      "rule_match": "mismatch",
-      "rule_screen": "compound_market",
-      "rule_review": "none",
-      "first_seen_at": "2026-10-29T17:52:48.827Z",
-      "last_seen_at": "2026-10-29T17:52:48.827Z",
-      "open_seconds": 0
-    },
-    {
-      "id": "25ddcbe0-af72-4eb0-89ff-104a9a8f0843",
-      "strategy": "cross_venue_yes_no_arb",
-      "class": "cross_venue_complement",
-      "venues": [
-        "kalshi",
-        "polymarket"
-      ],
-      "title": "Will Roy Cooper win the 2028 Democratic presidential nomination?",
-      "market_ref": "will-roy-cooper-win-the-2028-democratic-presidential-nomination-286",
-      "legs": [],
-      "gross_edge_bps": null,
-      "executable_net_edge_bps": null,
-      "net_profit_usd": null,
-      "depth_usd": 0,
-      "capital_usd": 0,
-      "days_to_resolution": 1104.8837,
-      "annualized_pct": null,
-      "hurdle_met": null,
-      "capital_lock_class": "long",
-      "resolution_at_by_venue": {
-        "kalshi": null,
-        "polymarket": null
-      },
-      "status": "rejected",
-      "rejection_reason": "compound_kalshi_market",
-      "gate_failed": 1,
-      "rule_match": "mismatch",
-      "rule_screen": "compound_market",
-      "rule_review": "none",
-      "first_seen_at": "2026-10-29T17:47:31.992Z",
-      "last_seen_at": "2026-10-29T17:47:31.992Z",
-      "open_seconds": 0
-    },
-    {
-      "id": "346de18b-9e38-47d5-b1bc-64701b2218e6",
-      "strategy": "cross_venue_yes_no_arb",
-      "class": "cross_venue_complement",
-      "venues": [
-        "kalshi",
-        "polymarket"
-      ],
-      "title": "Will Jon Ossoff win the 2028 Democratic presidential nomination?",
-      "market_ref": "will-jon-ossoff-win-the-2028-democratic-presidential-nomination-885",
-      "legs": [],
-      "gross_edge_bps": null,
-      "executable_net_edge_bps": null,
-      "net_profit_usd": null,
-      "depth_usd": 0,
-      "capital_usd": 0,
-      "days_to_resolution": 1104.8837,
-      "annualized_pct": null,
-      "hurdle_met": null,
-      "capital_lock_class": "long",
-      "resolution_at_by_venue": {
-        "kalshi": null,
-        "polymarket": null
-      },
-      "status": "rejected",
-      "rejection_reason": "compound_kalshi_market",
-      "gate_failed": 1,
-      "rule_match": "mismatch",
-      "rule_screen": "compound_market",
-      "rule_review": "none",
-      "first_seen_at": "2026-10-29T17:47:31.992Z",
-      "last_seen_at": "2026-10-29T17:47:31.992Z",
-      "open_seconds": 0
-    },
-    {
-      "id": "3e1df080-362c-41d9-8f70-6dbc97ba76d7",
-      "strategy": "cross_venue_yes_no_arb",
-      "class": "cross_venue_complement",
-      "venues": [
-        "kalshi",
-        "polymarket"
-      ],
-      "title": "Will Candidate J win the 2026 Los Angeles mayoral election?",
-      "market_ref": "will-candidate-j-win-the-2026-los-angeles-mayoral-election",
-      "legs": [],
-      "gross_edge_bps": null,
-      "executable_net_edge_bps": null,
-      "net_profit_usd": null,
-      "depth_usd": 0,
-      "capital_usd": 0,
-      "days_to_resolution": 63.258,
-      "annualized_pct": null,
-      "hurdle_met": null,
-      "capital_lock_class": "long",
-      "resolution_at_by_venue": {
-        "kalshi": null,
-        "polymarket": null
-      },
-      "status": "rejected",
-      "rejection_reason": "compound_kalshi_market",
-      "gate_failed": 1,
-      "rule_match": "mismatch",
-      "rule_screen": "compound_market",
-      "rule_review": "none",
-      "first_seen_at": "2026-10-29T17:47:31.992Z",
-      "last_seen_at": "2026-10-29T17:47:31.992Z",
-      "open_seconds": 0
-    },
-    {
-      "id": "4ec773f0-640b-42aa-9474-d0b86d88907d",
-      "strategy": "cross_venue_yes_no_arb",
-      "class": "cross_venue_complement",
-      "venues": [
-        "kalshi",
-        "polymarket"
-      ],
-      "title": "Will Candidate I win the 2026 Los Angeles mayoral election?",
-      "market_ref": "will-candidate-i-win-the-2026-los-angeles-mayoral-election",
-      "legs": [],
-      "gross_edge_bps": null,
-      "executable_net_edge_bps": null,
-      "net_profit_usd": null,
-      "depth_usd": 0,
-      "capital_usd": 0,
-      "days_to_resolution": 63.258,
-      "annualized_pct": null,
-      "hurdle_met": null,
-      "capital_lock_class": "long",
-      "resolution_at_by_venue": {
-        "kalshi": null,
-        "polymarket": null
-      },
-      "status": "rejected",
-      "rejection_reason": "compound_kalshi_market",
-      "gate_failed": 1,
-      "rule_match": "mismatch",
-      "rule_screen": "compound_market",
-      "rule_review": "none",
-      "first_seen_at": "2026-10-29T17:47:31.992Z",
-      "last_seen_at": "2026-10-29T17:47:31.992Z",
-      "open_seconds": 0
-    },
-    {
-      "id": "8dad8d68-6f59-46eb-afbe-6e10dd667eaf",
-      "strategy": "cross_venue_yes_no_arb",
-      "class": "cross_venue_complement",
-      "venues": [
-        "kalshi",
-        "polymarket"
-      ],
-      "title": "Will Jon Ossoff win the 2028 Democratic presidential nomination?",
-      "market_ref": "will-jon-ossoff-win-the-2028-democratic-presidential-nomination-885",
-      "legs": [],
-      "gross_edge_bps": null,
-      "executable_net_edge_bps": null,
-      "net_profit_usd": null,
-      "depth_usd": 0,
-      "capital_usd": 0,
-      "days_to_resolution": 1104.8837,
-      "annualized_pct": null,
-      "hurdle_met": null,
-      "capital_lock_class": "long",
-      "resolution_at_by_venue": {
-        "kalshi": null,
-        "polymarket": null
-      },
-      "status": "rejected",
-      "rejection_reason": "compound_kalshi_market",
-      "gate_failed": 1,
-      "rule_match": "mismatch",
-      "rule_screen": "compound_market",
-      "rule_review": "none",
-      "first_seen_at": "2026-10-29T17:47:31.992Z",
-      "last_seen_at": "2026-10-29T17:47:31.992Z",
-      "open_seconds": 0
-    },
-    {
-      "id": "98a6dde7-abb2-4e0a-b8be-4447b08f9ba8",
-      "strategy": "cross_venue_yes_no_arb",
-      "class": "cross_venue_complement",
-      "venues": [
-        "kalshi",
-        "polymarket"
-      ],
-      "title": "Will Candidate H win the 2026 Los Angeles mayoral election?",
-      "market_ref": "will-candidate-h-win-the-2026-los-angeles-mayoral-election",
-      "legs": [],
-      "gross_edge_bps": null,
-      "executable_net_edge_bps": null,
-      "net_profit_usd": null,
-      "depth_usd": 0,
-      "capital_usd": 0,
-      "days_to_resolution": 63.258,
-      "annualized_pct": null,
-      "hurdle_met": null,
-      "capital_lock_class": "long",
-      "resolution_at_by_venue": {
-        "kalshi": null,
-        "polymarket": null
-      },
-      "status": "rejected",
-      "rejection_reason": "compound_kalshi_market",
-      "gate_failed": 1,
-      "rule_match": "mismatch",
-      "rule_screen": "compound_market",
-      "rule_review": "none",
-      "first_seen_at": "2026-10-29T17:47:31.992Z",
-      "last_seen_at": "2026-10-29T17:47:31.992Z",
-      "open_seconds": 0
-    },
-    {
-      "id": "99ef20ed-2aff-4103-8618-470b441522df",
-      "strategy": "cross_venue_yes_no_arb",
-      "class": "cross_venue_complement",
-      "venues": [
-        "kalshi",
-        "polymarket"
-      ],
-      "title": "Will Candidate I win the 2026 Los Angeles mayoral election?",
-      "market_ref": "will-candidate-i-win-the-2026-los-angeles-mayoral-election",
-      "legs": [],
-      "gross_edge_bps": null,
-      "executable_net_edge_bps": null,
-      "net_profit_usd": null,
-      "depth_usd": 0,
-      "capital_usd": 0,
-      "days_to_resolution": 63.258,
-      "annualized_pct": null,
-      "hurdle_met": null,
-      "capital_lock_class": "long",
-      "resolution_at_by_venue": {
-        "kalshi": null,
-        "polymarket": null
-      },
-      "status": "rejected",
-      "rejection_reason": "compound_kalshi_market",
-      "gate_failed": 1,
-      "rule_match": "mismatch",
-      "rule_screen": "compound_market",
-      "rule_review": "none",
-      "first_seen_at": "2026-10-29T17:47:31.992Z",
-      "last_seen_at": "2026-10-29T17:47:31.992Z",
-      "open_seconds": 0
-    },
-    {
-      "id": "d0b23430-8fc4-4d38-8b1b-0dd2601c205e",
-      "strategy": "cross_venue_yes_no_arb",
-      "class": "cross_venue_complement",
-      "venues": [
-        "kalshi",
-        "polymarket"
-      ],
-      "title": "Will Roy Cooper win the 2028 Democratic presidential nomination?",
-      "market_ref": "will-roy-cooper-win-the-2028-democratic-presidential-nomination-286",
-      "legs": [],
-      "gross_edge_bps": null,
-      "executable_net_edge_bps": null,
-      "net_profit_usd": null,
-      "depth_usd": 0,
-      "capital_usd": 0,
-      "days_to_resolution": 1104.8837,
-      "annualized_pct": null,
-      "hurdle_met": null,
-      "capital_lock_class": "long",
-      "resolution_at_by_venue": {
-        "kalshi": null,
-        "polymarket": null
-      },
-      "status": "rejected",
-      "rejection_reason": "compound_kalshi_market",
-      "gate_failed": 1,
-      "rule_match": "mismatch",
-      "rule_screen": "compound_market",
-      "rule_review": "none",
-      "first_seen_at": "2026-10-29T17:47:31.992Z",
-      "last_seen_at": "2026-10-29T17:47:31.992Z",
-      "open_seconds": 0
-    },
-    {
-      "id": "d839b96f-3fe7-4e0c-837b-1f8693c03d04",
-      "strategy": "cross_venue_yes_no_arb",
-      "class": "cross_venue_complement",
-      "venues": [
-        "kalshi",
-        "polymarket"
-      ],
-      "title": "Will Candidate H win the 2026 Los Angeles mayoral election?",
-      "market_ref": "will-candidate-h-win-the-2026-los-angeles-mayoral-election",
-      "legs": [],
-      "gross_edge_bps": null,
-      "executable_net_edge_bps": null,
-      "net_profit_usd": null,
-      "depth_usd": 0,
-      "capital_usd": 0,
-      "days_to_resolution": 63.258,
-      "annualized_pct": null,
-      "hurdle_met": null,
-      "capital_lock_class": "long",
-      "resolution_at_by_venue": {
-        "kalshi": null,
-        "polymarket": null
-      },
-      "status": "rejected",
-      "rejection_reason": "compound_kalshi_market",
-      "gate_failed": 1,
-      "rule_match": "mismatch",
-      "rule_screen": "compound_market",
-      "rule_review": "none",
-      "first_seen_at": "2026-10-29T17:47:31.992Z",
-      "last_seen_at": "2026-10-29T17:47:31.992Z",
-      "open_seconds": 0
-    },
-    {
-      "id": "f57246e9-6fae-4477-bff4-0989934e8be9",
-      "strategy": "cross_venue_yes_no_arb",
-      "class": "cross_venue_complement",
-      "venues": [
-        "kalshi",
-        "polymarket"
-      ],
-      "title": "Will Candidate J win the 2026 Los Angeles mayoral election?",
-      "market_ref": "will-candidate-j-win-the-2026-los-angeles-mayoral-election",
-      "legs": [],
-      "gross_edge_bps": null,
-      "executable_net_edge_bps": null,
-      "net_profit_usd": null,
-      "depth_usd": 0,
-      "capital_usd": 0,
-      "days_to_resolution": 63.258,
-      "annualized_pct": null,
-      "hurdle_met": null,
-      "capital_lock_class": "long",
-      "resolution_at_by_venue": {
-        "kalshi": null,
-        "polymarket": null
-      },
-      "status": "rejected",
-      "rejection_reason": "compound_kalshi_market",
-      "gate_failed": 1,
-      "rule_match": "mismatch",
-      "rule_screen": "compound_market",
-      "rule_review": "none",
-      "first_seen_at": "2026-10-29T17:47:31.992Z",
-      "last_seen_at": "2026-10-29T17:47:31.992Z",
-      "open_seconds": 0
-    },
-    {
-      "id": "024196f9-4e46-4d06-a7a2-6e17a403fabf",
-      "strategy": "cross_venue_yes_no_arb",
-      "class": "cross_venue_complement",
-      "venues": [
-        "kalshi",
-        "polymarket"
-      ],
-      "title": "Will Option D win the New York governor race in 2026?",
-      "market_ref": "will-option-d-win-the-new-york-governor-race-in-2026",
-      "legs": [],
-      "gross_edge_bps": null,
-      "executable_net_edge_bps": null,
-      "net_profit_usd": null,
-      "depth_usd": 0,
-      "capital_usd": 0,
-      "days_to_resolution": 5.4701,
-      "annualized_pct": null,
-      "hurdle_met": null,
-      "capital_lock_class": "medium",
-      "resolution_at_by_venue": {
-        "kalshi": null,
-        "polymarket": null
-      },
-      "status": "rejected",
-      "rejection_reason": "compound_kalshi_market",
-      "gate_failed": 1,
-      "rule_match": "mismatch",
-      "rule_screen": "compound_market",
-      "rule_review": "none",
-      "first_seen_at": "2026-10-29T17:42:02.684Z",
-      "last_seen_at": "2026-10-29T17:42:02.684Z",
-      "open_seconds": 0
-    },
-    {
-      "id": "0495c66d-12f4-4d6e-82fa-2d311cfe2134",
-      "strategy": "cross_venue_yes_no_arb",
-      "class": "cross_venue_complement",
-      "venues": [
-        "kalshi",
-        "polymarket"
-      ],
-      "title": "Will Option C win the New York governor race in 2026?",
-      "market_ref": "will-option-c-win-the-new-york-governor-race-in-2026",
-      "legs": [],
-      "gross_edge_bps": null,
-      "executable_net_edge_bps": null,
-      "net_profit_usd": null,
-      "depth_usd": 0,
-      "capital_usd": 0,
-      "days_to_resolution": 5.4701,
-      "annualized_pct": null,
-      "hurdle_met": null,
-      "capital_lock_class": "medium",
-      "resolution_at_by_venue": {
-        "kalshi": null,
-        "polymarket": null
-      },
-      "status": "rejected",
-      "rejection_reason": "compound_kalshi_market",
-      "gate_failed": 1,
-      "rule_match": "mismatch",
-      "rule_screen": "compound_market",
-      "rule_review": "none",
-      "first_seen_at": "2026-10-29T17:42:02.684Z",
-      "last_seen_at": "2026-10-29T17:42:02.684Z",
-      "open_seconds": 0
-    },
-    {
-      "id": "12b6dd17-697d-46ac-a0d4-581c03e2a9c1",
-      "strategy": "cross_venue_yes_no_arb",
-      "class": "cross_venue_complement",
-      "venues": [
-        "kalshi",
-        "polymarket"
-      ],
-      "title": "Will Option G win the New York governor race in 2026?",
-      "market_ref": "will-option-g-win-the-new-york-governor-race-in-2026",
-      "legs": [],
-      "gross_edge_bps": null,
-      "executable_net_edge_bps": null,
-      "net_profit_usd": null,
-      "depth_usd": 0,
-      "capital_usd": 0,
-      "days_to_resolution": 5.4701,
-      "annualized_pct": null,
-      "hurdle_met": null,
-      "capital_lock_class": "medium",
-      "resolution_at_by_venue": {
-        "kalshi": null,
-        "polymarket": null
-      },
-      "status": "rejected",
-      "rejection_reason": "compound_kalshi_market",
-      "gate_failed": 1,
-      "rule_match": "mismatch",
-      "rule_screen": "compound_market",
-      "rule_review": "none",
-      "first_seen_at": "2026-10-29T17:42:02.684Z",
-      "last_seen_at": "2026-10-29T17:42:02.684Z",
-      "open_seconds": 0
-    },
-    {
-      "id": "2bb4cfdc-4720-4ca2-860d-9c3a71fa4484",
-      "strategy": "cross_venue_yes_no_arb",
-      "class": "cross_venue_complement",
-      "venues": [
-        "kalshi",
-        "polymarket"
-      ],
-      "title": "Will Option F win the New York governor race in 2026?",
-      "market_ref": "will-option-f-win-the-new-york-governor-race-in-2026",
-      "legs": [],
-      "gross_edge_bps": null,
-      "executable_net_edge_bps": null,
-      "net_profit_usd": null,
-      "depth_usd": 0,
-      "capital_usd": 0,
-      "days_to_resolution": 5.4701,
-      "annualized_pct": null,
-      "hurdle_met": null,
-      "capital_lock_class": "medium",
-      "resolution_at_by_venue": {
-        "kalshi": null,
-        "polymarket": null
-      },
-      "status": "rejected",
-      "rejection_reason": "compound_kalshi_market",
-      "gate_failed": 1,
-      "rule_match": "mismatch",
-      "rule_screen": "compound_market",
-      "rule_review": "none",
-      "first_seen_at": "2026-10-29T17:42:02.684Z",
-      "last_seen_at": "2026-10-29T17:42:02.684Z",
-      "open_seconds": 0
-    },
-    {
-      "id": "4845a254-d963-494c-b6b8-2b1f0b43b363",
-      "strategy": "cross_venue_yes_no_arb",
-      "class": "cross_venue_complement",
-      "venues": [
-        "kalshi",
-        "polymarket"
-      ],
-      "title": "Will Option A win the New York governor race in 2026?",
-      "market_ref": "will-option-a-win-the-new-york-governor-race-in-2026",
-      "legs": [],
-      "gross_edge_bps": null,
-      "executable_net_edge_bps": null,
-      "net_profit_usd": null,
-      "depth_usd": 0,
-      "capital_usd": 0,
-      "days_to_resolution": 5.4701,
-      "annualized_pct": null,
-      "hurdle_met": null,
-      "capital_lock_class": "medium",
-      "resolution_at_by_venue": {
-        "kalshi": null,
-        "polymarket": null
-      },
-      "status": "rejected",
-      "rejection_reason": "compound_kalshi_market",
-      "gate_failed": 1,
-      "rule_match": "mismatch",
-      "rule_screen": "compound_market",
-      "rule_review": "none",
-      "first_seen_at": "2026-10-29T17:42:02.684Z",
-      "last_seen_at": "2026-10-29T17:42:02.684Z",
-      "open_seconds": 0
-    },
-    {
-      "id": "631d53d7-53d6-451b-beec-a54a51e222d7",
-      "strategy": "cross_venue_yes_no_arb",
-      "class": "cross_venue_complement",
-      "venues": [
-        "kalshi",
-        "polymarket"
-      ],
-      "title": "Will Option I win the New York governor race in 2026?",
-      "market_ref": "will-option-i-win-the-new-york-governor-race-in-2026",
-      "legs": [],
-      "gross_edge_bps": null,
-      "executable_net_edge_bps": null,
-      "net_profit_usd": null,
-      "depth_usd": 0,
-      "capital_usd": 0,
-      "days_to_resolution": 5.4701,
-      "annualized_pct": null,
-      "hurdle_met": null,
-      "capital_lock_class": "medium",
-      "resolution_at_by_venue": {
-        "kalshi": null,
-        "polymarket": null
-      },
-      "status": "rejected",
-      "rejection_reason": "compound_kalshi_market",
-      "gate_failed": 1,
-      "rule_match": "mismatch",
-      "rule_screen": "compound_market",
-      "rule_review": "none",
-      "first_seen_at": "2026-10-29T17:42:02.684Z",
-      "last_seen_at": "2026-10-29T17:42:02.684Z",
-      "open_seconds": 0
-    },
-    {
-      "id": "b3345a62-bba7-4689-ba46-c5811e4b0b2d",
-      "strategy": "cross_venue_yes_no_arb",
-      "class": "cross_venue_complement",
-      "venues": [
-        "kalshi",
-        "polymarket"
-      ],
-      "title": "Will Option B win the New York governor race in 2026?",
-      "market_ref": "will-option-b-win-the-new-york-governor-race-in-2026",
-      "legs": [],
-      "gross_edge_bps": null,
-      "executable_net_edge_bps": null,
-      "net_profit_usd": null,
-      "depth_usd": 0,
-      "capital_usd": 0,
-      "days_to_resolution": 5.4701,
-      "annualized_pct": null,
-      "hurdle_met": null,
-      "capital_lock_class": "medium",
-      "resolution_at_by_venue": {
-        "kalshi": null,
-        "polymarket": null
-      },
-      "status": "rejected",
-      "rejection_reason": "compound_kalshi_market",
-      "gate_failed": 1,
-      "rule_match": "mismatch",
-      "rule_screen": "compound_market",
-      "rule_review": "none",
-      "first_seen_at": "2026-10-29T17:42:02.684Z",
-      "last_seen_at": "2026-10-29T17:42:02.684Z",
-      "open_seconds": 0
-    },
-    {
-      "id": "c57e9cd7-885d-41bc-9683-f40e381f01a7",
-      "strategy": "cross_venue_yes_no_arb",
-      "class": "cross_venue_complement",
-      "venues": [
-        "kalshi",
-        "polymarket"
-      ],
-      "title": "Will Option J win the New York governor race in 2026?",
-      "market_ref": "will-option-j-win-the-new-york-governor-race-in-2026",
-      "legs": [],
-      "gross_edge_bps": null,
-      "executable_net_edge_bps": null,
-      "net_profit_usd": null,
-      "depth_usd": 0,
-      "capital_usd": 0,
-      "days_to_resolution": 5.4701,
-      "annualized_pct": null,
-      "hurdle_met": null,
-      "capital_lock_class": "medium",
-      "resolution_at_by_venue": {
-        "kalshi": null,
-        "polymarket": null
-      },
-      "status": "rejected",
-      "rejection_reason": "compound_kalshi_market",
-      "gate_failed": 1,
-      "rule_match": "mismatch",
-      "rule_screen": "compound_market",
-      "rule_review": "none",
-      "first_seen_at": "2026-10-29T17:42:02.684Z",
-      "last_seen_at": "2026-10-29T17:42:02.684Z",
-      "open_seconds": 0
-    },
-    {
-      "id": "de2b83a1-8874-4521-a296-7b814c3fece8",
-      "strategy": "cross_venue_yes_no_arb",
-      "class": "cross_venue_complement",
-      "venues": [
-        "kalshi",
-        "polymarket"
-      ],
-      "title": "Will Option E win the New York governor race in 2026?",
-      "market_ref": "will-option-e-win-the-new-york-governor-race-in-2026",
-      "legs": [],
-      "gross_edge_bps": null,
-      "executable_net_edge_bps": null,
-      "net_profit_usd": null,
-      "depth_usd": 0,
-      "capital_usd": 0,
-      "days_to_resolution": 5.4701,
-      "annualized_pct": null,
-      "hurdle_met": null,
-      "capital_lock_class": "medium",
-      "resolution_at_by_venue": {
-        "kalshi": null,
-        "polymarket": null
-      },
-      "status": "rejected",
-      "rejection_reason": "compound_kalshi_market",
-      "gate_failed": 1,
-      "rule_match": "mismatch",
-      "rule_screen": "compound_market",
-      "rule_review": "none",
-      "first_seen_at": "2026-10-29T17:42:02.684Z",
-      "last_seen_at": "2026-10-29T17:42:02.684Z",
-      "open_seconds": 0
-    },
-    {
-      "id": "fb76d0d3-b544-474d-909f-124a3263c911",
-      "strategy": "cross_venue_yes_no_arb",
-      "class": "cross_venue_complement",
-      "venues": [
-        "kalshi",
-        "polymarket"
-      ],
-      "title": "Will Option H win the New York governor race in 2026?",
-      "market_ref": "will-option-h-win-the-new-york-governor-race-in-2026",
-      "legs": [],
-      "gross_edge_bps": null,
-      "executable_net_edge_bps": null,
-      "net_profit_usd": null,
-      "depth_usd": 0,
-      "capital_usd": 0,
-      "days_to_resolution": 5.4701,
-      "annualized_pct": null,
-      "hurdle_met": null,
-      "capital_lock_class": "medium",
-      "resolution_at_by_venue": {
-        "kalshi": null,
-        "polymarket": null
-      },
-      "status": "rejected",
-      "rejection_reason": "compound_kalshi_market",
-      "gate_failed": 1,
-      "rule_match": "mismatch",
-      "rule_screen": "compound_market",
-      "rule_review": "none",
-      "first_seen_at": "2026-10-29T17:42:02.684Z",
-      "last_seen_at": "2026-10-29T17:42:02.684Z",
-      "open_seconds": 0
-    },
-    {
-      "id": "1d0ab5d1-dd23-4b18-b1bb-8c57aa49de54",
-      "strategy": "cross_venue_yes_no_arb",
-      "class": "cross_venue_complement",
-      "venues": [
-        "kalshi",
-        "polymarket"
-      ],
-      "title": "Will Option B win the New York governor race in 2026?",
-      "market_ref": "will-option-b-win-the-new-york-governor-race-in-2026",
-      "legs": [],
-      "gross_edge_bps": null,
-      "executable_net_edge_bps": null,
-      "net_profit_usd": null,
-      "depth_usd": 0,
-      "capital_usd": 0,
-      "days_to_resolution": 5.4739,
-      "annualized_pct": null,
-      "hurdle_met": null,
-      "capital_lock_class": "medium",
-      "resolution_at_by_venue": {
-        "kalshi": null,
-        "polymarket": null
-      },
-      "status": "rejected",
-      "rejection_reason": "compound_kalshi_market",
-      "gate_failed": 1,
-      "rule_match": "mismatch",
-      "rule_screen": "compound_market",
-      "rule_review": "none",
-      "first_seen_at": "2026-10-29T17:36:38.125Z",
-      "last_seen_at": "2026-10-29T17:36:38.125Z",
-      "open_seconds": 0
-    },
-    {
-      "id": "21831517-86bd-4a36-9faf-7124e9eea391",
-      "strategy": "cross_venue_yes_no_arb",
-      "class": "cross_venue_complement",
-      "venues": [
-        "kalshi",
-        "polymarket"
-      ],
-      "title": "Will Candidate J win the 2026 Los Angeles mayoral election?",
-      "market_ref": "will-candidate-j-win-the-2026-los-angeles-mayoral-election",
-      "legs": [],
-      "gross_edge_bps": null,
-      "executable_net_edge_bps": null,
-      "net_profit_usd": null,
-      "depth_usd": 0,
-      "capital_usd": 0,
-      "days_to_resolution": 63.2655,
-      "annualized_pct": null,
-      "hurdle_met": null,
-      "capital_lock_class": "long",
-      "resolution_at_by_venue": {
-        "kalshi": null,
-        "polymarket": null
-      },
-      "status": "rejected",
-      "rejection_reason": "compound_kalshi_market",
-      "gate_failed": 1,
-      "rule_match": "mismatch",
-      "rule_screen": "compound_market",
-      "rule_review": "none",
-      "first_seen_at": "2026-10-29T17:36:38.125Z",
-      "last_seen_at": "2026-10-29T17:36:38.125Z",
+      "first_seen_at": "2026-11-10T08:37:15.815Z",
+      "last_seen_at": "2026-11-10T08:37:15.815Z",
       "open_seconds": 0
     }
   ],
@@ -2210,232 +1010,13 @@
   "carry_candidates": [],
   "rejected_examples": [
     {
-      "reason": "compound_kalshi_market",
-      "label": "Kalshi market bundles several outcomes",
-      "gate": 1,
-      "count_24h": 280,
-      "examples": [
-        {
-          "id": "5c69e4de-5a70-4a4a-9ff9-de997c3dfa00",
-          "strategy": "cross_venue_yes_no_arb",
-          "class": "cross_venue_complement",
-          "venues": [
-            "kalshi",
-            "polymarket"
-          ],
-          "title": "Will Candidate H win the 2026 Los Angeles mayoral election?",
-          "market_ref": "will-candidate-h-win-the-2026-los-angeles-mayoral-election",
-          "legs": [],
-          "gross_edge_bps": null,
-          "executable_net_edge_bps": null,
-          "net_profit_usd": null,
-          "depth_usd": 0,
-          "capital_usd": 0,
-          "days_to_resolution": 63.2506,
-          "annualized_pct": null,
-          "hurdle_met": null,
-          "capital_lock_class": "long",
-          "resolution_at_by_venue": {
-            "kalshi": null,
-            "polymarket": null
-          },
-          "status": "rejected",
-          "rejection_reason": "compound_kalshi_market",
-          "gate_failed": 1,
-          "rule_match": "mismatch",
-          "rule_screen": "compound_market",
-          "rule_review": "none",
-          "first_seen_at": "2026-10-29T17:58:11.885Z",
-          "last_seen_at": "2026-10-29T17:58:11.885Z",
-          "open_seconds": 0
-        },
-        {
-          "id": "b0a0f654-6063-452b-ae34-3fa1d6cf3c5d",
-          "strategy": "cross_venue_yes_no_arb",
-          "class": "cross_venue_complement",
-          "venues": [
-            "kalshi",
-            "polymarket"
-          ],
-          "title": "Will Candidate H win the 2026 Los Angeles mayoral election?",
-          "market_ref": "will-candidate-h-win-the-2026-los-angeles-mayoral-election",
-          "legs": [],
-          "gross_edge_bps": null,
-          "executable_net_edge_bps": null,
-          "net_profit_usd": null,
-          "depth_usd": 0,
-          "capital_usd": 0,
-          "days_to_resolution": 63.2506,
-          "annualized_pct": null,
-          "hurdle_met": null,
-          "capital_lock_class": "long",
-          "resolution_at_by_venue": {
-            "kalshi": null,
-            "polymarket": null
-          },
-          "status": "rejected",
-          "rejection_reason": "compound_kalshi_market",
-          "gate_failed": 1,
-          "rule_match": "mismatch",
-          "rule_screen": "compound_market",
-          "rule_review": "none",
-          "first_seen_at": "2026-10-29T17:58:11.885Z",
-          "last_seen_at": "2026-10-29T17:58:11.885Z",
-          "open_seconds": 0
-        },
-        {
-          "id": "f73b2c76-6cf1-4cf7-a8ce-f753b85d8694",
-          "strategy": "cross_venue_yes_no_arb",
-          "class": "cross_venue_complement",
-          "venues": [
-            "kalshi",
-            "polymarket"
-          ],
-          "title": "Will Candidate H win the 2026 Los Angeles mayoral election?",
-          "market_ref": "will-candidate-h-win-the-2026-los-angeles-mayoral-election",
-          "legs": [],
-          "gross_edge_bps": null,
-          "executable_net_edge_bps": null,
-          "net_profit_usd": null,
-          "depth_usd": 0,
-          "capital_usd": 0,
-          "days_to_resolution": 63.2506,
-          "annualized_pct": null,
-          "hurdle_met": null,
-          "capital_lock_class": "long",
-          "resolution_at_by_venue": {
-            "kalshi": null,
-            "polymarket": null
-          },
-          "status": "rejected",
-          "rejection_reason": "compound_kalshi_market",
-          "gate_failed": 1,
-          "rule_match": "mismatch",
-          "rule_screen": "compound_market",
-          "rule_review": "none",
-          "first_seen_at": "2026-10-29T17:58:11.885Z",
-          "last_seen_at": "2026-10-29T17:58:11.885Z",
-          "open_seconds": 0
-        },
-        {
-          "id": "bd63e2e5-17f0-4808-aaf6-99a2689072b0",
-          "strategy": "cross_venue_yes_no_arb",
-          "class": "cross_venue_complement",
-          "venues": [
-            "kalshi",
-            "polymarket"
-          ],
-          "title": "Will Candidate I win the 2026 Los Angeles mayoral election?",
-          "market_ref": "will-candidate-i-win-the-2026-los-angeles-mayoral-election",
-          "legs": [],
-          "gross_edge_bps": null,
-          "executable_net_edge_bps": null,
-          "net_profit_usd": null,
-          "depth_usd": 0,
-          "capital_usd": 0,
-          "days_to_resolution": 63.2506,
-          "annualized_pct": null,
-          "hurdle_met": null,
-          "capital_lock_class": "long",
-          "resolution_at_by_venue": {
-            "kalshi": null,
-            "polymarket": null
-          },
-          "status": "rejected",
-          "rejection_reason": "compound_kalshi_market",
-          "gate_failed": 1,
-          "rule_match": "mismatch",
-          "rule_screen": "compound_market",
-          "rule_review": "none",
-          "first_seen_at": "2026-10-29T17:58:11.885Z",
-          "last_seen_at": "2026-10-29T17:58:11.885Z",
-          "open_seconds": 0
-        },
-        {
-          "id": "16ae496a-55c2-4ae7-a8cf-7d1e85d2c597",
-          "strategy": "cross_venue_yes_no_arb",
-          "class": "cross_venue_complement",
-          "venues": [
-            "kalshi",
-            "polymarket"
-          ],
-          "title": "Will Candidate I win the 2026 Los Angeles mayoral election?",
-          "market_ref": "will-candidate-i-win-the-2026-los-angeles-mayoral-election",
-          "legs": [],
-          "gross_edge_bps": null,
-          "executable_net_edge_bps": null,
-          "net_profit_usd": null,
-          "depth_usd": 0,
-          "capital_usd": 0,
-          "days_to_resolution": 63.2506,
-          "annualized_pct": null,
-          "hurdle_met": null,
-          "capital_lock_class": "long",
-          "resolution_at_by_venue": {
-            "kalshi": null,
-            "polymarket": null
-          },
-          "status": "rejected",
-          "rejection_reason": "compound_kalshi_market",
-          "gate_failed": 1,
-          "rule_match": "mismatch",
-          "rule_screen": "compound_market",
-          "rule_review": "none",
-          "first_seen_at": "2026-10-29T17:58:11.885Z",
-          "last_seen_at": "2026-10-29T17:58:11.885Z",
-          "open_seconds": 0
-        }
-      ]
-    },
-    {
-      "reason": "not_neg_risk_event",
-      "label": "venue does not flag the event as mutually exclusive",
-      "gate": 1,
-      "count_24h": 75,
-      "examples": [
-        {
-          "id": "bb80ab24-8e5a-46dc-99ae-3b4d8601ce58",
-          "strategy": "neg_risk_bracket_arb",
-          "class": "neg_risk_no_basket",
-          "venues": [
-            "polymarket"
-          ],
-          "title": "will-trump-be-impeached-by-december-31-2026",
-          "market_ref": "will-trump-be-impeached-by-december-31-2026",
-          "legs": [],
-          "gross_edge_bps": null,
-          "executable_net_edge_bps": null,
-          "net_profit_usd": null,
-          "depth_usd": 0,
-          "capital_usd": 0,
-          "days_to_resolution": null,
-          "annualized_pct": null,
-          "hurdle_met": null,
-          "capital_lock_class": "long",
-          "resolution_at_by_venue": {
-            "kalshi": null,
-            "polymarket": "2028-01-01T04:59:00.000Z"
-          },
-          "status": "rejected",
-          "rejection_reason": "not_neg_risk_event",
-          "gate_failed": 1,
-          "rule_match": "unverified",
-          "rule_screen": null,
-          "rule_review": null,
-          "first_seen_at": "2026-10-29T15:32:44.508Z",
-          "last_seen_at": "2026-10-29T17:56:53.275Z",
-          "open_seconds": 8648
-        }
-      ]
-    },
-    {
       "reason": "nested_temporal_basket",
       "label": "legs are nested by date, not exclusive",
       "gate": 1,
-      "count_24h": 74,
+      "count_24h": 17,
       "examples": [
         {
-          "id": "72e06c77-96ee-4417-80d9-6c8ef95dc1f0",
+          "id": "1a12f7af-2c38-4fb3-9f13-60c6e7f415dc",
           "strategy": "neg_risk_bracket_arb",
           "class": "neg_risk_no_basket",
           "venues": [
@@ -2463,9 +1044,187 @@
           "rule_match": "unverified",
           "rule_screen": null,
           "rule_review": null,
-          "first_seen_at": "2026-10-29T15:37:43.661Z",
-          "last_seen_at": "2026-10-29T17:56:53.288Z",
-          "open_seconds": 8349
+          "first_seen_at": "2026-11-10T08:36:04.028Z",
+          "last_seen_at": "2026-11-10T08:40:04.740Z",
+          "open_seconds": 240
+        }
+      ]
+    },
+    {
+      "reason": "compound_kalshi_market",
+      "label": "Kalshi market bundles several outcomes",
+      "gate": 1,
+      "count_24h": 10,
+      "examples": [
+        {
+          "id": "a1737db2-e2f6-4ded-b6b6-ea7197b1943f",
+          "strategy": "cross_venue_yes_no_arb",
+          "class": "cross_venue_complement",
+          "venues": [
+            "kalshi",
+            "polymarket"
+          ],
+          "title": "Will Jalen Brunson win the 2028 US Presidential Election?",
+          "market_ref": "will-jalen-brunson-win-the-2028-us-presidential-election",
+          "legs": [],
+          "gross_edge_bps": null,
+          "executable_net_edge_bps": null,
+          "net_profit_usd": null,
+          "depth_usd": 0,
+          "capital_usd": 0,
+          "days_to_resolution": 728.8484,
+          "annualized_pct": null,
+          "hurdle_met": null,
+          "capital_lock_class": "long",
+          "resolution_at_by_venue": {
+            "kalshi": null,
+            "polymarket": null
+          },
+          "status": "rejected",
+          "rejection_reason": "compound_kalshi_market",
+          "gate_failed": 1,
+          "rule_match": "mismatch",
+          "rule_screen": "compound_market",
+          "rule_review": "none",
+          "first_seen_at": "2026-11-10T08:37:15.815Z",
+          "last_seen_at": "2026-11-10T08:37:15.815Z",
+          "open_seconds": 0
+        },
+        {
+          "id": "eabb1789-391c-4696-8353-9b2523dfc999",
+          "strategy": "cross_venue_yes_no_arb",
+          "class": "cross_venue_complement",
+          "venues": [
+            "kalshi",
+            "polymarket"
+          ],
+          "title": "Will Jalen Brunson win the 2028 US Presidential Election?",
+          "market_ref": "will-jalen-brunson-win-the-2028-us-presidential-election",
+          "legs": [],
+          "gross_edge_bps": null,
+          "executable_net_edge_bps": null,
+          "net_profit_usd": null,
+          "depth_usd": 0,
+          "capital_usd": 0,
+          "days_to_resolution": 728.8484,
+          "annualized_pct": null,
+          "hurdle_met": null,
+          "capital_lock_class": "long",
+          "resolution_at_by_venue": {
+            "kalshi": null,
+            "polymarket": null
+          },
+          "status": "rejected",
+          "rejection_reason": "compound_kalshi_market",
+          "gate_failed": 1,
+          "rule_match": "mismatch",
+          "rule_screen": "compound_market",
+          "rule_review": "none",
+          "first_seen_at": "2026-11-10T08:37:15.815Z",
+          "last_seen_at": "2026-11-10T08:37:15.815Z",
+          "open_seconds": 0
+        },
+        {
+          "id": "fa304db8-f591-42b7-b202-626b00699905",
+          "strategy": "cross_venue_yes_no_arb",
+          "class": "cross_venue_complement",
+          "venues": [
+            "kalshi",
+            "polymarket"
+          ],
+          "title": "Will Jalen Brunson win the 2028 US Presidential Election?",
+          "market_ref": "will-jalen-brunson-win-the-2028-us-presidential-election",
+          "legs": [],
+          "gross_edge_bps": null,
+          "executable_net_edge_bps": null,
+          "net_profit_usd": null,
+          "depth_usd": 0,
+          "capital_usd": 0,
+          "days_to_resolution": 728.8484,
+          "annualized_pct": null,
+          "hurdle_met": null,
+          "capital_lock_class": "long",
+          "resolution_at_by_venue": {
+            "kalshi": null,
+            "polymarket": null
+          },
+          "status": "rejected",
+          "rejection_reason": "compound_kalshi_market",
+          "gate_failed": 1,
+          "rule_match": "mismatch",
+          "rule_screen": "compound_market",
+          "rule_review": "none",
+          "first_seen_at": "2026-11-10T08:37:15.815Z",
+          "last_seen_at": "2026-11-10T08:37:15.815Z",
+          "open_seconds": 0
+        },
+        {
+          "id": "ccd845c3-5517-4b2b-92a0-aaab119dd05f",
+          "strategy": "cross_venue_yes_no_arb",
+          "class": "cross_venue_complement",
+          "venues": [
+            "kalshi",
+            "polymarket"
+          ],
+          "title": "Will Jalen Brunson win the 2028 US Presidential Election?",
+          "market_ref": "will-jalen-brunson-win-the-2028-us-presidential-election",
+          "legs": [],
+          "gross_edge_bps": null,
+          "executable_net_edge_bps": null,
+          "net_profit_usd": null,
+          "depth_usd": 0,
+          "capital_usd": 0,
+          "days_to_resolution": 728.8484,
+          "annualized_pct": null,
+          "hurdle_met": null,
+          "capital_lock_class": "long",
+          "resolution_at_by_venue": {
+            "kalshi": null,
+            "polymarket": null
+          },
+          "status": "rejected",
+          "rejection_reason": "compound_kalshi_market",
+          "gate_failed": 1,
+          "rule_match": "mismatch",
+          "rule_screen": "compound_market",
+          "rule_review": "none",
+          "first_seen_at": "2026-11-10T08:37:15.815Z",
+          "last_seen_at": "2026-11-10T08:37:15.815Z",
+          "open_seconds": 0
+        },
+        {
+          "id": "b2a5e198-7dc4-4cc6-af14-01acde6035ba",
+          "strategy": "cross_venue_yes_no_arb",
+          "class": "cross_venue_complement",
+          "venues": [
+            "kalshi",
+            "polymarket"
+          ],
+          "title": "Will Jalen Brunson win the 2028 US Presidential Election?",
+          "market_ref": "will-jalen-brunson-win-the-2028-us-presidential-election",
+          "legs": [],
+          "gross_edge_bps": null,
+          "executable_net_edge_bps": null,
+          "net_profit_usd": null,
+          "depth_usd": 0,
+          "capital_usd": 0,
+          "days_to_resolution": 728.8484,
+          "annualized_pct": null,
+          "hurdle_met": null,
+          "capital_lock_class": "long",
+          "resolution_at_by_venue": {
+            "kalshi": null,
+            "polymarket": null
+          },
+          "status": "rejected",
+          "rejection_reason": "compound_kalshi_market",
+          "gate_failed": 1,
+          "rule_match": "mismatch",
+          "rule_screen": "compound_market",
+          "rule_review": "none",
+          "first_seen_at": "2026-11-10T08:37:15.815Z",
+          "last_seen_at": "2026-11-10T08:37:15.815Z",
+          "open_seconds": 0
         }
       ]
     },
@@ -2473,10 +1232,10 @@
       "reason": "rule_review_not_equivalent",
       "label": "a person found the two rulebooks not equivalent",
       "gate": 1,
-      "count_24h": 56,
+      "count_24h": 2,
       "examples": [
         {
-          "id": "765439bc-ddbe-424e-9010-27784aeda408",
+          "id": "1ea7e456-3b0f-4b14-8794-c49426f55941",
           "strategy": "cross_venue_yes_no_arb",
           "class": "cross_venue_complement",
           "venues": [
@@ -2491,7 +1250,7 @@
           "net_profit_usd": null,
           "depth_usd": 0,
           "capital_usd": 0,
-          "days_to_resolution": 814.8763,
+          "days_to_resolution": 803.2658,
           "annualized_pct": null,
           "hurdle_met": null,
           "capital_lock_class": "long",
@@ -2505,12 +1264,12 @@
           "rule_match": "mismatch",
           "rule_screen": "resolution_time_mismatch",
           "rule_review": "not_equivalent",
-          "first_seen_at": "2026-10-29T15:35:27.993Z",
-          "last_seen_at": "2026-10-29T17:58:11.885Z",
-          "open_seconds": 8563
+          "first_seen_at": "2026-11-10T08:37:15.815Z",
+          "last_seen_at": "2026-11-10T08:37:15.815Z",
+          "open_seconds": 0
         },
         {
-          "id": "b9a7c2b0-806c-46e5-ad31-fc28fa44e6dc",
+          "id": "f3989e35-88b5-4c48-a199-f668fd09b2ab",
           "strategy": "cross_venue_yes_no_arb",
           "class": "cross_venue_complement",
           "venues": [
@@ -2525,7 +1284,7 @@
           "net_profit_usd": null,
           "depth_usd": 0,
           "capital_usd": 0,
-          "days_to_resolution": 814.8763,
+          "days_to_resolution": 803.2658,
           "annualized_pct": null,
           "hurdle_met": null,
           "capital_lock_class": "long",
@@ -2539,67 +1298,9 @@
           "rule_match": "mismatch",
           "rule_screen": "resolution_time_mismatch",
           "rule_review": "not_equivalent",
-          "first_seen_at": "2026-10-29T15:35:27.993Z",
-          "last_seen_at": "2026-10-29T17:58:11.885Z",
-          "open_seconds": 8563
-        }
-      ]
-    },
-    {
-      "reason": "non_positive_executable_edge",
-      "label": "edge gone at executable prices",
-      "gate": 3,
-      "count_24h": 33,
-      "examples": [
-        {
-          "id": "fb793f9a-9786-4dfb-a1dc-f37dec1d040f",
-          "strategy": "within_market_fast_arb",
-          "class": "same_market_complement",
-          "venues": [
-            "polymarket"
-          ],
-          "title": "Will Ari Weinstein leave OpenAI by December 31, 2026?",
-          "market_ref": "will-ari-leave-openai-by-december-31-2026",
-          "legs": [
-            {
-              "venue": "polymarket",
-              "side": "YES",
-              "price": 0.409,
-              "size_usd": 8.1841,
-              "role": "taker",
-              "fee_usd": 0.2418
-            },
-            {
-              "venue": "polymarket",
-              "side": "NO",
-              "price": 0.894,
-              "size_usd": 17.8889,
-              "role": "taker",
-              "fee_usd": 0.0948
-            }
-          ],
-          "gross_edge_bps": -2325.4,
-          "executable_net_edge_bps": -2454.52,
-          "net_profit_usd": null,
-          "depth_usd": 12671.4405,
-          "capital_usd": 26.073,
-          "days_to_resolution": 63.5119,
-          "annualized_pct": -141.06,
-          "hurdle_met": false,
-          "capital_lock_class": "long",
-          "resolution_at_by_venue": {
-            "kalshi": null,
-            "polymarket": "2027-01-01T04:59:00.000Z"
-          },
-          "status": "rejected",
-          "rejection_reason": "non_positive_executable_edge",
-          "gate_failed": 3,
-          "rule_match": "reviewed",
-          "rule_screen": "structural",
-          "rule_review": null,
-          "first_seen_at": "2026-10-29T16:40:09.238Z",
-          "last_seen_at": "2026-10-29T16:41:49.450Z",
-          "open_seconds": 100
+          "first_seen_at": "2026-11-10T08:37:15.815Z",
+          "last_seen_at": "2026-11-10T08:37:15.815Z",
+          "open_seconds": 0
         }
       ]
     },
@@ -2607,10 +1308,10 @@
       "reason": "resolution_time_mismatch",
       "label": "resolution times differ",
       "gate": 1,
-      "count_24h": 28,
+      "count_24h": 1,
       "examples": [
         {
-          "id": "3ae70e57-05db-446c-8e51-e4344edd8a21",
+          "id": "744ec0a4-71fd-44fb-b022-cdde62619db5",
           "strategy": "cross_venue_yes_no_arb",
           "class": "cross_venue_complement",
           "venues": [
@@ -2625,7 +1326,7 @@
           "net_profit_usd": null,
           "depth_usd": 0,
           "capital_usd": 0,
-          "days_to_resolution": 213.8346,
+          "days_to_resolution": 202.2241,
           "annualized_pct": null,
           "hurdle_met": null,
           "capital_lock_class": "long",
@@ -2639,79 +1340,20 @@
           "rule_match": "mismatch",
           "rule_screen": "resolution_time_mismatch",
           "rule_review": "pending",
-          "first_seen_at": "2026-10-29T15:35:27.993Z",
-          "last_seen_at": "2026-10-29T17:58:11.885Z",
-          "open_seconds": 8563
+          "first_seen_at": "2026-11-10T08:37:15.815Z",
+          "last_seen_at": "2026-11-10T08:37:15.815Z",
+          "open_seconds": 0
         }
       ]
     },
     {
-      "reason": "below_annualized_hurdle",
-      "label": "annualised net return below the hurdle rate",
-      "gate": 4,
-      "count_24h": 28,
-      "examples": [
-        {
-          "id": "b9f57f9c-eb86-4cbc-a166-d2af714f9b6a",
-          "strategy": "cross_venue_yes_no_arb",
-          "class": "cross_venue_complement",
-          "venues": [
-            "polymarket",
-            "kalshi"
-          ],
-          "title": "Will J.B. Pritzker win the 2028 Democratic presidential nomination?",
-          "market_ref": "will-jb-pritzker-win-the-2028-democratic-presidential-nomination-288",
-          "legs": [
-            {
-              "venue": "polymarket",
-              "side": "YES",
-              "price": 0.016031,
-              "size_usd": 1653.9351,
-              "role": "taker",
-              "fee_usd": 65.0968
-            },
-            {
-              "venue": "kalshi",
-              "side": "NO",
-              "price": 0.975004,
-              "size_usd": 100592.1864,
-              "role": "taker",
-              "fee_usd": 176.01
-            }
-          ],
-          "gross_edge_bps": 90.46,
-          "executable_net_edge_bps": 66.88,
-          "net_profit_usd": 683.82,
-          "depth_usd": 102036.1685,
-          "capital_usd": 102246.1215,
-          "days_to_resolution": 739.8772,
-          "annualized_pct": 0.33,
-          "hurdle_met": false,
-          "capital_lock_class": "long",
-          "resolution_at_by_venue": {
-            "kalshi": "2028-11-07T15:00:00.000Z",
-            "polymarket": "2028-11-07T00:00:00.000Z"
-          },
-          "status": "rejected",
-          "rejection_reason": "below_annualized_hurdle",
-          "gate_failed": 4,
-          "rule_match": "unverified",
-          "rule_screen": "passed",
-          "rule_review": "pending",
-          "first_seen_at": "2026-10-29T15:35:27.993Z",
-          "last_seen_at": "2026-10-29T17:58:11.885Z",
-          "open_seconds": 8563
-        }
-      ]
-    },
-    {
-      "reason": "non_positive_net_edge_after_fees",
-      "label": "edge gone after venue fees",
+      "reason": "non_positive_executable_edge",
+      "label": "edge gone at executable prices",
       "gate": 3,
       "count_24h": 1,
       "examples": [
         {
-          "id": "769eb1b5-9bed-4a39-9647-54bf40dc87d3",
+          "id": "e0e1cbf9-c66b-468c-8a3f-84813d785814",
           "strategy": "cross_venue_yes_no_arb",
           "class": "cross_venue_complement",
           "venues": [
@@ -2721,12 +1363,12 @@
           "title": "Will Trump recognize Somaliland before 2027?",
           "market_ref": "will-trump-recognize-somaliland-before-2027",
           "legs": [],
-          "gross_edge_bps": 20,
-          "executable_net_edge_bps": -69,
+          "gross_edge_bps": -30,
+          "executable_net_edge_bps": -58,
           "net_profit_usd": null,
           "depth_usd": 0,
           "capital_usd": 0,
-          "days_to_resolution": 63.8763,
+          "days_to_resolution": 52.2658,
           "annualized_pct": null,
           "hurdle_met": null,
           "capital_lock_class": "long",
@@ -2735,14 +1377,56 @@
             "polymarket": "2027-01-01T04:59:00.000Z"
           },
           "status": "rejected",
-          "rejection_reason": "non_positive_net_edge_after_fees",
+          "rejection_reason": "non_positive_executable_edge",
           "gate_failed": 3,
           "rule_match": "unverified",
           "rule_screen": "passed",
           "rule_review": "pending",
-          "first_seen_at": "2026-10-29T15:35:27.993Z",
-          "last_seen_at": "2026-10-29T17:58:11.885Z",
-          "open_seconds": 8563
+          "first_seen_at": "2026-11-10T08:37:15.815Z",
+          "last_seen_at": "2026-11-10T08:37:15.815Z",
+          "open_seconds": 0
+        }
+      ]
+    },
+    {
+      "reason": "below_min_net_edge",
+      "label": "net edge below the configured floor",
+      "gate": 3,
+      "count_24h": 1,
+      "examples": [
+        {
+          "id": "12717ec5-faa0-4cb9-aa9b-03078f2569a4",
+          "strategy": "cross_venue_yes_no_arb",
+          "class": "cross_venue_complement",
+          "venues": [
+            "kalshi",
+            "polymarket"
+          ],
+          "title": "Will J.B. Pritzker win the 2028 Democratic presidential nomination?",
+          "market_ref": "will-jb-pritzker-win-the-2028-democratic-presidential-nomination-288",
+          "legs": [],
+          "gross_edge_bps": 70,
+          "executable_net_edge_bps": 48,
+          "net_profit_usd": null,
+          "depth_usd": 0,
+          "capital_usd": 0,
+          "days_to_resolution": 728.2658,
+          "annualized_pct": null,
+          "hurdle_met": null,
+          "capital_lock_class": "long",
+          "resolution_at_by_venue": {
+            "kalshi": "2028-11-07T15:00:00.000Z",
+            "polymarket": "2028-11-07T00:00:00.000Z"
+          },
+          "status": "rejected",
+          "rejection_reason": "below_min_net_edge",
+          "gate_failed": 3,
+          "rule_match": "unverified",
+          "rule_screen": "passed",
+          "rule_review": "pending",
+          "first_seen_at": "2026-11-10T08:37:15.815Z",
+          "last_seen_at": "2026-11-10T08:37:15.815Z",
+          "open_seconds": 0
         }
       ]
     }
@@ -2787,14 +1471,14 @@
       },
       "hedged": false,
       "last": {
-        "gross_cents": 1.1,
-        "net_cents": 0.86,
+        "gross_cents": 0.7,
+        "net_cents": 0.48,
         "annualized_pct": 0.33,
         "executable_size": 103171.05,
-        "status": "rejected"
+        "status": "no_edge"
       },
       "first_seen_at": "2026-09-05T17:23:26.743Z",
-      "last_seen_at": "2026-10-29T17:58:11.885Z"
+      "last_seen_at": "2026-11-10T08:37:15.815Z"
     },
     {
       "pair_id": "KXRECOGSOMALI-29-27|will-trump-recognize-somaliland-before-2027",
@@ -2835,14 +1519,14 @@
       },
       "hedged": false,
       "last": {
-        "gross_cents": 0.2,
-        "net_cents": -0.69,
+        "gross_cents": -0.3,
+        "net_cents": -0.58,
         "annualized_pct": 5.38,
         "executable_size": 298.78,
         "status": "no_edge"
       },
       "first_seen_at": "2026-09-05T15:55:38.252Z",
-      "last_seen_at": "2026-10-29T17:58:11.885Z"
+      "last_seen_at": "2026-11-10T08:37:15.815Z"
     },
     {
       "pair_id": "KXFRENCHPRES-27-MLEP|will-marine-le-pen-win-the-2027-french-presidential-election",
@@ -2890,28 +1574,28 @@
         "status": "rejected"
       },
       "first_seen_at": "2026-09-05T17:23:26.743Z",
-      "last_seen_at": "2026-10-29T17:58:11.885Z"
+      "last_seen_at": "2026-11-10T08:37:15.815Z"
     },
     {
-      "pair_id": "KXMVECROSSCATEGORY-S2026PTTTRIS54ERXLO4R-IOWMESNR4|will-james-talarico-win-the-2028-democratic-presidential-nomination",
-      "title": "Will James Talarico win the 2028 Democratic presidential nomination?",
+      "pair_id": "KXMVECROSSCATEGORY-S202667A2MRJ7MFIOTA5B-5TVWQP5NS|will-jalen-brunson-win-the-2028-us-presidential-election",
+      "title": "Will Jalen Brunson win the 2028 US Presidential Election?",
       "category": "politics",
       "source": "discovery",
       "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY-S2026PTTTRIS54ERXLO4R-IOWMESNR4",
-        "title": "yes Democratic Party,yes Keisha Lance Bottoms,yes Greg Abbott,yes Greg Murphy,yes Brad Knott,yes Democratic party,yes Troy Jackson,yes Abdul El-Sayed,yes Sherrod Brown,yes James Talarico",
+        "ticker": "KXMVECROSSCATEGORY-S202667A2MRJ7MFIOTA5B-5TVWQP5NS",
+        "title": "yes New York wins by over 1.5 points,yes LeBron James: 4+,yes Jalen Brunson: 4+,no Jayson Tatum: 35+,yes Tyrese Maxey: 20+,yes New York wins by over 5.5 points,yes New York over 109.5 points",
         "resolution_at": null,
         "rules_excerpt": null
       },
       "polymarket": {
-        "slug": "will-james-talarico-win-the-2028-democratic-presidential-nomination",
-        "question": "Will James Talarico win the 2028 Democratic presidential nomination?",
+        "slug": "will-jalen-brunson-win-the-2028-us-presidential-election",
+        "question": "Will Jalen Brunson win the 2028 US Presidential Election?",
         "resolution_at": "2028-11-08T04:59:00.000Z",
         "rules_excerpt": null
       },
       "resolution_gap_days": null,
       "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=democratic,james,talarico;anchors=democratic,james,talarico",
+      "rule_screen_detail": "shared=win,jalen,brunson;anchors=jalen,brunson",
       "rule_review": "none",
       "review": null,
       "hedged": false,
@@ -2922,29 +1606,29 @@
         "executable_size": null,
         "status": "rejected"
       },
-      "first_seen_at": "2026-10-29T17:58:11.885Z",
-      "last_seen_at": "2026-10-29T17:58:11.885Z"
+      "first_seen_at": "2026-11-10T08:37:15.815Z",
+      "last_seen_at": "2026-11-10T08:37:15.815Z"
     },
     {
-      "pair_id": "KXMVECROSSCATEGORY0-S202647G5KMD3XXMWTQND-BIPXDQIKM|will-candidate-h-win-the-2026-los-angeles-mayoral-election",
-      "title": "Will Candidate H win the 2026 Los Angeles mayoral election?",
+      "pair_id": "KXMVECROSSCATEGORY-S202667A2MRJ7MFIOTA5B-5TVWQP5NS|will-lebron-james-win-the-2028-us-presidential-election",
+      "title": "Will LeBron James win the 2028 US Presidential Election?",
       "category": "politics",
       "source": "discovery",
       "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY0-S202647G5KMD3XXMWTQND-BIPXDQIKM",
-        "title": "yes Los Angeles R,yes New York J,yes Detroit,yes New England,no Dallas wins by over 7.5 points,no Pittsburgh wins by over 4.5 points,no Washington wins by over 7.5 points,no Seattle wins by over 4.5 points",
+        "ticker": "KXMVECROSSCATEGORY-S202667A2MRJ7MFIOTA5B-5TVWQP5NS",
+        "title": "yes New York wins by over 1.5 points,yes LeBron James: 4+,yes Jalen Brunson: 4+,no Jayson Tatum: 35+,yes Tyrese Maxey: 20+,yes New York wins by over 5.5 points,yes New York over 109.5 points",
         "resolution_at": null,
         "rules_excerpt": null
       },
       "polymarket": {
-        "slug": "will-candidate-h-win-the-2026-los-angeles-mayoral-election",
-        "question": "Will Candidate H win the 2026 Los Angeles mayoral election?",
-        "resolution_at": "2026-12-31T23:59:00.000Z",
+        "slug": "will-lebron-james-win-the-2028-us-presidential-election",
+        "question": "Will LeBron James win the 2028 US Presidential Election?",
+        "resolution_at": "2028-11-08T04:59:00.000Z",
         "rules_excerpt": null
       },
       "resolution_gap_days": null,
       "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=los,angeles,win;anchors=los,angeles",
+      "rule_screen_detail": "shared=win,lebron,james;anchors=lebron,james",
       "rule_review": "none",
       "review": null,
       "hedged": false,
@@ -2955,29 +1639,29 @@
         "executable_size": null,
         "status": "rejected"
       },
-      "first_seen_at": "2026-10-29T17:58:11.885Z",
-      "last_seen_at": "2026-10-29T17:58:11.885Z"
+      "first_seen_at": "2026-11-10T08:37:15.815Z",
+      "last_seen_at": "2026-11-10T08:37:15.815Z"
     },
     {
-      "pair_id": "KXMVECROSSCATEGORY0-S202647G5KMD3XXMWTQND-BIPXDQIKM|will-candidate-i-win-the-2026-los-angeles-mayoral-election",
-      "title": "Will Candidate I win the 2026 Los Angeles mayoral election?",
+      "pair_id": "KXMVECROSSCATEGORY-S20267ZJFTUSI3U5HLKCX-ZLCEVJBQJ|will-lebron-james-win-the-2028-us-presidential-election",
+      "title": "Will LeBron James win the 2028 US Presidential Election?",
       "category": "politics",
       "source": "discovery",
       "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY0-S202647G5KMD3XXMWTQND-BIPXDQIKM",
-        "title": "yes Los Angeles R,yes New York J,yes Detroit,yes New England,no Dallas wins by over 7.5 points,no Pittsburgh wins by over 4.5 points,no Washington wins by over 7.5 points,no Seattle wins by over 4.5 points",
+        "ticker": "KXMVECROSSCATEGORY-S20267ZJFTUSI3U5HLKCX-ZLCEVJBQJ",
+        "title": "yes Jayson Tatum: 6+,yes LeBron James: 6+,yes Tyrese Maxey: 4+,yes New York,yes Jayson Tatum: 20+,yes Tyrese Maxey: 20+,yes Joel Embiid: 8+,yes VJ Edgecombe: 4+,yes Phoenix wins by over 2.5 points",
         "resolution_at": null,
         "rules_excerpt": null
       },
       "polymarket": {
-        "slug": "will-candidate-i-win-the-2026-los-angeles-mayoral-election",
-        "question": "Will Candidate I win the 2026 Los Angeles mayoral election?",
-        "resolution_at": "2026-12-31T23:59:00.000Z",
+        "slug": "will-lebron-james-win-the-2028-us-presidential-election",
+        "question": "Will LeBron James win the 2028 US Presidential Election?",
+        "resolution_at": "2028-11-08T04:59:00.000Z",
         "rules_excerpt": null
       },
       "resolution_gap_days": null,
       "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=los,angeles,win;anchors=los,angeles",
+      "rule_screen_detail": "shared=lebron,james,win;anchors=lebron,james",
       "rule_review": "none",
       "review": null,
       "hedged": false,
@@ -2988,29 +1672,29 @@
         "executable_size": null,
         "status": "rejected"
       },
-      "first_seen_at": "2026-10-29T17:58:11.885Z",
-      "last_seen_at": "2026-10-29T17:58:11.885Z"
+      "first_seen_at": "2026-11-10T08:37:15.815Z",
+      "last_seen_at": "2026-11-10T08:37:15.815Z"
     },
     {
-      "pair_id": "KXMVECROSSCATEGORY0-S202647G5KMD3XXMWTQND-BIPXDQIKM|will-candidate-j-win-the-2026-los-angeles-mayoral-election",
-      "title": "Will Candidate J win the 2026 Los Angeles mayoral election?",
+      "pair_id": "KXMVECROSSCATEGORY-S2026H7CWVMMFDRZTIHZI-NILOVH5ZS|will-lebron-james-win-the-2028-us-presidential-election",
+      "title": "Will LeBron James win the 2028 US Presidential Election?",
       "category": "politics",
       "source": "discovery",
       "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY0-S202647G5KMD3XXMWTQND-BIPXDQIKM",
-        "title": "yes Los Angeles R,yes New York J,yes Detroit,yes New England,no Dallas wins by over 7.5 points,no Pittsburgh wins by over 4.5 points,no Washington wins by over 7.5 points,no Seattle wins by over 4.5 points",
+        "ticker": "KXMVECROSSCATEGORY-S2026H7CWVMMFDRZTIHZI-NILOVH5ZS",
+        "title": "no Bam Adebayo: 2+,yes LeBron James: 25+,yes Davion Mitchell: 20+,yes Jaylen Brown: 20+,no Miami wins by over 9.5 points",
         "resolution_at": null,
         "rules_excerpt": null
       },
       "polymarket": {
-        "slug": "will-candidate-j-win-the-2026-los-angeles-mayoral-election",
-        "question": "Will Candidate J win the 2026 Los Angeles mayoral election?",
-        "resolution_at": "2026-12-31T23:59:00.000Z",
+        "slug": "will-lebron-james-win-the-2028-us-presidential-election",
+        "question": "Will LeBron James win the 2028 US Presidential Election?",
+        "resolution_at": "2028-11-08T04:59:00.000Z",
         "rules_excerpt": null
       },
       "resolution_gap_days": null,
       "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=los,angeles,win;anchors=los,angeles",
+      "rule_screen_detail": "shared=lebron,james,win;anchors=lebron,james",
       "rule_review": "none",
       "review": null,
       "hedged": false,
@@ -3021,29 +1705,29 @@
         "executable_size": null,
         "status": "rejected"
       },
-      "first_seen_at": "2026-10-29T17:58:11.885Z",
-      "last_seen_at": "2026-10-29T17:58:11.885Z"
+      "first_seen_at": "2026-11-10T08:37:15.815Z",
+      "last_seen_at": "2026-11-10T08:37:15.815Z"
     },
     {
-      "pair_id": "KXMVECROSSCATEGORY0-S2026AWSYLTCCNMYAZZDH-W7I2FVAYY|will-candidate-h-win-the-2026-los-angeles-mayoral-election",
-      "title": "Will Candidate H win the 2026 Los Angeles mayoral election?",
+      "pair_id": "KXMVECROSSCATEGORY-S2026Q3C4LOXHLPMTQGIB-4HQ2ZKK5D|will-jalen-brunson-win-the-2028-us-presidential-election",
+      "title": "Will Jalen Brunson win the 2028 US Presidential Election?",
       "category": "politics",
       "source": "discovery",
       "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY0-S2026AWSYLTCCNMYAZZDH-W7I2FVAYY",
-        "title": "yes Dallas wins by over 6.5 points,no Buffalo wins by over 3.5 points,yes Los Angeles R wins by over 5.5 points,no Detroit wins by over 4.5 points,no Over 45.5 points",
+        "ticker": "KXMVECROSSCATEGORY-S2026Q3C4LOXHLPMTQGIB-4HQ2ZKK5D",
+        "title": "yes Jayson Tatum: 25+,yes Jaylen Brown: 25+,yes Jalen Brunson: 25+,yes Miami wins by over 4.5 points,yes New York wins by over 9.5 points",
         "resolution_at": null,
         "rules_excerpt": null
       },
       "polymarket": {
-        "slug": "will-candidate-h-win-the-2026-los-angeles-mayoral-election",
-        "question": "Will Candidate H win the 2026 Los Angeles mayoral election?",
-        "resolution_at": "2026-12-31T23:59:00.000Z",
+        "slug": "will-jalen-brunson-win-the-2028-us-presidential-election",
+        "question": "Will Jalen Brunson win the 2028 US Presidential Election?",
+        "resolution_at": "2028-11-08T04:59:00.000Z",
         "rules_excerpt": null
       },
       "resolution_gap_days": null,
       "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=win,los,angeles;anchors=los,angeles",
+      "rule_screen_detail": "shared=jalen,brunson,win;anchors=jalen,brunson",
       "rule_review": "none",
       "review": null,
       "hedged": false,
@@ -3054,29 +1738,29 @@
         "executable_size": null,
         "status": "rejected"
       },
-      "first_seen_at": "2026-10-29T17:58:11.885Z",
-      "last_seen_at": "2026-10-29T17:58:11.885Z"
+      "first_seen_at": "2026-11-10T08:37:15.815Z",
+      "last_seen_at": "2026-11-10T08:37:15.815Z"
     },
     {
-      "pair_id": "KXMVECROSSCATEGORY0-S2026AWSYLTCCNMYAZZDH-W7I2FVAYY|will-candidate-i-win-the-2026-los-angeles-mayoral-election",
-      "title": "Will Candidate I win the 2026 Los Angeles mayoral election?",
+      "pair_id": "KXMVECROSSCATEGORY-S2026Q3C4LOXHLPMTQGIB-BLB2XZV3Q|will-jalen-brunson-win-the-2028-us-presidential-election",
+      "title": "Will Jalen Brunson win the 2028 US Presidential Election?",
       "category": "politics",
       "source": "discovery",
       "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY0-S2026AWSYLTCCNMYAZZDH-W7I2FVAYY",
-        "title": "yes Dallas wins by over 6.5 points,no Buffalo wins by over 3.5 points,yes Los Angeles R wins by over 5.5 points,no Detroit wins by over 4.5 points,no Over 45.5 points",
+        "ticker": "KXMVECROSSCATEGORY-S2026Q3C4LOXHLPMTQGIB-BLB2XZV3Q",
+        "title": "yes Jayson Tatum: 25+,yes Jaylen Brown: 25+,yes Jalen Brunson: 25+,yes Miami wins by over 1.5 points,yes New York wins by over 9.5 points",
         "resolution_at": null,
         "rules_excerpt": null
       },
       "polymarket": {
-        "slug": "will-candidate-i-win-the-2026-los-angeles-mayoral-election",
-        "question": "Will Candidate I win the 2026 Los Angeles mayoral election?",
-        "resolution_at": "2026-12-31T23:59:00.000Z",
+        "slug": "will-jalen-brunson-win-the-2028-us-presidential-election",
+        "question": "Will Jalen Brunson win the 2028 US Presidential Election?",
+        "resolution_at": "2028-11-08T04:59:00.000Z",
         "rules_excerpt": null
       },
       "resolution_gap_days": null,
       "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=win,los,angeles;anchors=los,angeles",
+      "rule_screen_detail": "shared=jalen,brunson,win;anchors=jalen,brunson",
       "rule_review": "none",
       "review": null,
       "hedged": false,
@@ -3087,29 +1771,29 @@
         "executable_size": null,
         "status": "rejected"
       },
-      "first_seen_at": "2026-10-29T17:58:11.885Z",
-      "last_seen_at": "2026-10-29T17:58:11.885Z"
+      "first_seen_at": "2026-11-10T08:37:15.815Z",
+      "last_seen_at": "2026-11-10T08:37:15.815Z"
     },
     {
-      "pair_id": "KXMVECROSSCATEGORY0-S2026AWSYLTCCNMYAZZDH-W7I2FVAYY|will-candidate-j-win-the-2026-los-angeles-mayoral-election",
-      "title": "Will Candidate J win the 2026 Los Angeles mayoral election?",
+      "pair_id": "KXMVECROSSCATEGORY-S2026SAOHCHQZ32KFJYI4-KEP2ZRVL5|will-jalen-brunson-win-the-2028-us-presidential-election",
+      "title": "Will Jalen Brunson win the 2028 US Presidential Election?",
       "category": "politics",
       "source": "discovery",
       "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY0-S2026AWSYLTCCNMYAZZDH-W7I2FVAYY",
-        "title": "yes Dallas wins by over 6.5 points,no Buffalo wins by over 3.5 points,yes Los Angeles R wins by over 5.5 points,no Detroit wins by over 4.5 points,no Over 45.5 points",
+        "ticker": "KXMVECROSSCATEGORY-S2026SAOHCHQZ32KFJYI4-KEP2ZRVL5",
+        "title": "yes Jalen Brunson: 2+,yes Josh Hart: 4+,yes Jalen Brunson: 25+,yes New York wins by over 15.5 points",
         "resolution_at": null,
         "rules_excerpt": null
       },
       "polymarket": {
-        "slug": "will-candidate-j-win-the-2026-los-angeles-mayoral-election",
-        "question": "Will Candidate J win the 2026 Los Angeles mayoral election?",
-        "resolution_at": "2026-12-31T23:59:00.000Z",
+        "slug": "will-jalen-brunson-win-the-2028-us-presidential-election",
+        "question": "Will Jalen Brunson win the 2028 US Presidential Election?",
+        "resolution_at": "2028-11-08T04:59:00.000Z",
         "rules_excerpt": null
       },
       "resolution_gap_days": null,
       "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=win,los,angeles;anchors=los,angeles",
+      "rule_screen_detail": "shared=jalen,brunson,win;anchors=jalen,brunson",
       "rule_review": "none",
       "review": null,
       "hedged": false,
@@ -3120,29 +1804,29 @@
         "executable_size": null,
         "status": "rejected"
       },
-      "first_seen_at": "2026-10-29T17:58:11.885Z",
-      "last_seen_at": "2026-10-29T17:58:11.885Z"
+      "first_seen_at": "2026-11-10T08:37:15.815Z",
+      "last_seen_at": "2026-11-10T08:37:15.815Z"
     },
     {
-      "pair_id": "KXMVECROSSCATEGORY0-S2026IFBFQF3Y2746TZCJ-BA347OW7I|will-candidate-h-win-the-2026-los-angeles-mayoral-election",
-      "title": "Will Candidate H win the 2026 Los Angeles mayoral election?",
+      "pair_id": "KXMVECROSSCATEGORY-S2026SF7LTJAZ5XVKUDFE-MYN34NPNH|will-jalen-brunson-win-the-2028-us-presidential-election",
+      "title": "Will Jalen Brunson win the 2028 US Presidential Election?",
       "category": "politics",
       "source": "discovery",
       "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY0-S2026IFBFQF3Y2746TZCJ-BA347OW7I",
-        "title": "yes Buffalo,yes Pittsburgh,yes Jacksonville,yes Los Angeles R,yes Las Vegas,yes Minnesota,yes Cincinnati,yes New England wins by over 6.5 points",
+        "ticker": "KXMVECROSSCATEGORY-S2026SF7LTJAZ5XVKUDFE-MYN34NPNH",
+        "title": "yes Jalen Brunson: 30+,yes Landry Shamet: 10+,yes New York wins by over 10.5 points",
         "resolution_at": null,
         "rules_excerpt": null
       },
       "polymarket": {
-        "slug": "will-candidate-h-win-the-2026-los-angeles-mayoral-election",
-        "question": "Will Candidate H win the 2026 Los Angeles mayoral election?",
-        "resolution_at": "2026-12-31T23:59:00.000Z",
+        "slug": "will-jalen-brunson-win-the-2028-us-presidential-election",
+        "question": "Will Jalen Brunson win the 2028 US Presidential Election?",
+        "resolution_at": "2028-11-08T04:59:00.000Z",
         "rules_excerpt": null
       },
       "resolution_gap_days": null,
       "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=los,angeles,win;anchors=los,angeles",
+      "rule_screen_detail": "shared=jalen,brunson,win;anchors=jalen,brunson",
       "rule_review": "none",
       "review": null,
       "hedged": false,
@@ -3153,29 +1837,29 @@
         "executable_size": null,
         "status": "rejected"
       },
-      "first_seen_at": "2026-10-29T17:58:11.885Z",
-      "last_seen_at": "2026-10-29T17:58:11.885Z"
+      "first_seen_at": "2026-11-10T08:37:15.815Z",
+      "last_seen_at": "2026-11-10T08:37:15.815Z"
     },
     {
-      "pair_id": "KXMVECROSSCATEGORY0-S2026IFBFQF3Y2746TZCJ-BA347OW7I|will-candidate-i-win-the-2026-los-angeles-mayoral-election",
-      "title": "Will Candidate I win the 2026 Los Angeles mayoral election?",
+      "pair_id": "KXMVECROSSCATEGORY-S2026THYHOFH4WUOGCFBH-3O5YHHIAN|will-jalen-brunson-win-the-2028-us-presidential-election",
+      "title": "Will Jalen Brunson win the 2028 US Presidential Election?",
       "category": "politics",
       "source": "discovery",
       "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY0-S2026IFBFQF3Y2746TZCJ-BA347OW7I",
-        "title": "yes Buffalo,yes Pittsburgh,yes Jacksonville,yes Los Angeles R,yes Las Vegas,yes Minnesota,yes Cincinnati,yes New England wins by over 6.5 points",
+        "ticker": "KXMVECROSSCATEGORY-S2026THYHOFH4WUOGCFBH-3O5YHHIAN",
+        "title": "yes New York wins by over 1.5 points,yes Jalen Brunson: 4+,yes Phoenix,no Jayson Tatum: 35+,yes Tyrese Maxey: 20+,yes New York wins by over 5.5 points,yes New York over 109.5 points",
         "resolution_at": null,
         "rules_excerpt": null
       },
       "polymarket": {
-        "slug": "will-candidate-i-win-the-2026-los-angeles-mayoral-election",
-        "question": "Will Candidate I win the 2026 Los Angeles mayoral election?",
-        "resolution_at": "2026-12-31T23:59:00.000Z",
+        "slug": "will-jalen-brunson-win-the-2028-us-presidential-election",
+        "question": "Will Jalen Brunson win the 2028 US Presidential Election?",
+        "resolution_at": "2028-11-08T04:59:00.000Z",
         "rules_excerpt": null
       },
       "resolution_gap_days": null,
       "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=los,angeles,win;anchors=los,angeles",
+      "rule_screen_detail": "shared=win,jalen,brunson;anchors=jalen,brunson",
       "rule_review": "none",
       "review": null,
       "hedged": false,
@@ -3186,29 +1870,29 @@
         "executable_size": null,
         "status": "rejected"
       },
-      "first_seen_at": "2026-10-29T17:58:11.885Z",
-      "last_seen_at": "2026-10-29T17:58:11.885Z"
+      "first_seen_at": "2026-11-10T08:37:15.815Z",
+      "last_seen_at": "2026-11-10T08:37:15.815Z"
     },
     {
-      "pair_id": "KXMVECROSSCATEGORY0-S2026IFBFQF3Y2746TZCJ-BA347OW7I|will-candidate-j-win-the-2026-los-angeles-mayoral-election",
-      "title": "Will Candidate J win the 2026 Los Angeles mayoral election?",
+      "pair_id": "KXMVECROSSCATEGORY-S2026W77O3IDY3B6K2AB3-NDIGW7MJT|will-jalen-brunson-win-the-2028-us-presidential-election",
+      "title": "Will Jalen Brunson win the 2028 US Presidential Election?",
       "category": "politics",
       "source": "discovery",
       "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY0-S2026IFBFQF3Y2746TZCJ-BA347OW7I",
-        "title": "yes Buffalo,yes Pittsburgh,yes Jacksonville,yes Los Angeles R,yes Las Vegas,yes Minnesota,yes Cincinnati,yes New England wins by over 6.5 points",
+        "ticker": "KXMVECROSSCATEGORY-S2026W77O3IDY3B6K2AB3-NDIGW7MJT",
+        "title": "yes Bam Adebayo: 2+,yes Tyrese Maxey: 20+,yes Davion Mitchell: 10+,yes Jalen Brunson: 20+,yes Miami wins by over 9.5 points,yes New York wins by over 10.5 points",
         "resolution_at": null,
         "rules_excerpt": null
       },
       "polymarket": {
-        "slug": "will-candidate-j-win-the-2026-los-angeles-mayoral-election",
-        "question": "Will Candidate J win the 2026 Los Angeles mayoral election?",
-        "resolution_at": "2026-12-31T23:59:00.000Z",
+        "slug": "will-jalen-brunson-win-the-2028-us-presidential-election",
+        "question": "Will Jalen Brunson win the 2028 US Presidential Election?",
+        "resolution_at": "2028-11-08T04:59:00.000Z",
         "rules_excerpt": null
       },
       "resolution_gap_days": null,
       "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=los,angeles,win;anchors=los,angeles",
+      "rule_screen_detail": "shared=jalen,brunson,win;anchors=jalen,brunson",
       "rule_review": "none",
       "review": null,
       "hedged": false,
@@ -3219,8 +1903,8 @@
         "executable_size": null,
         "status": "rejected"
       },
-      "first_seen_at": "2026-10-29T17:58:11.885Z",
-      "last_seen_at": "2026-10-29T17:58:11.885Z"
+      "first_seen_at": "2026-11-10T08:37:15.815Z",
+      "last_seen_at": "2026-11-10T08:37:15.815Z"
     },
     {
       "pair_id": "KXPRESPERSON-28-DTRU|will-donald-trump-win-the-2028-us-presidential-election",
@@ -3268,7 +1952,7 @@
         "status": "rejected"
       },
       "first_seen_at": "2026-09-05T17:23:26.743Z",
-      "last_seen_at": "2026-10-29T17:58:11.885Z"
+      "last_seen_at": "2026-11-10T08:37:15.815Z"
     },
     {
       "pair_id": "KXPRESPERSON-28-MRUB|will-marco-rubio-win-the-2028-us-presidential-election",
@@ -3316,1492 +2000,7 @@
         "status": "rejected"
       },
       "first_seen_at": "2026-09-05T17:23:26.743Z",
-      "last_seen_at": "2026-10-29T17:58:11.885Z"
-    },
-    {
-      "pair_id": "KXMVECROSSCATEGORY-S20264IPFE4CVQ5W26JBR-VXIMYFW35|will-candidate-h-win-the-2026-los-angeles-mayoral-election",
-      "title": "Will Candidate H win the 2026 Los Angeles mayoral election?",
-      "category": "politics",
-      "source": "discovery",
-      "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY-S20264IPFE4CVQ5W26JBR-VXIMYFW35",
-        "title": "yes New Orleans,yes Dallas,yes Los Angeles R,yes New England,yes Cincinnati,yes Atlanta wins by over 17.5 points",
-        "resolution_at": null,
-        "rules_excerpt": null
-      },
-      "polymarket": {
-        "slug": "will-candidate-h-win-the-2026-los-angeles-mayoral-election",
-        "question": "Will Candidate H win the 2026 Los Angeles mayoral election?",
-        "resolution_at": "2026-12-31T23:59:00.000Z",
-        "rules_excerpt": null
-      },
-      "resolution_gap_days": null,
-      "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=los,angeles,win;anchors=los,angeles",
-      "rule_review": "none",
-      "review": null,
-      "hedged": false,
-      "last": {
-        "gross_cents": null,
-        "net_cents": null,
-        "annualized_pct": null,
-        "executable_size": null,
-        "status": "rejected"
-      },
-      "first_seen_at": "2026-10-29T17:52:48.827Z",
-      "last_seen_at": "2026-10-29T17:52:48.827Z"
-    },
-    {
-      "pair_id": "KXMVECROSSCATEGORY-S20264IPFE4CVQ5W26JBR-VXIMYFW35|will-candidate-i-win-the-2026-los-angeles-mayoral-election",
-      "title": "Will Candidate I win the 2026 Los Angeles mayoral election?",
-      "category": "politics",
-      "source": "discovery",
-      "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY-S20264IPFE4CVQ5W26JBR-VXIMYFW35",
-        "title": "yes New Orleans,yes Dallas,yes Los Angeles R,yes New England,yes Cincinnati,yes Atlanta wins by over 17.5 points",
-        "resolution_at": null,
-        "rules_excerpt": null
-      },
-      "polymarket": {
-        "slug": "will-candidate-i-win-the-2026-los-angeles-mayoral-election",
-        "question": "Will Candidate I win the 2026 Los Angeles mayoral election?",
-        "resolution_at": "2026-12-31T23:59:00.000Z",
-        "rules_excerpt": null
-      },
-      "resolution_gap_days": null,
-      "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=los,angeles,win;anchors=los,angeles",
-      "rule_review": "none",
-      "review": null,
-      "hedged": false,
-      "last": {
-        "gross_cents": null,
-        "net_cents": null,
-        "annualized_pct": null,
-        "executable_size": null,
-        "status": "rejected"
-      },
-      "first_seen_at": "2026-10-29T17:52:48.827Z",
-      "last_seen_at": "2026-10-29T17:52:48.827Z"
-    },
-    {
-      "pair_id": "KXMVECROSSCATEGORY-S20264IPFE4CVQ5W26JBR-VXIMYFW35|will-candidate-j-win-the-2026-los-angeles-mayoral-election",
-      "title": "Will Candidate J win the 2026 Los Angeles mayoral election?",
-      "category": "politics",
-      "source": "discovery",
-      "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY-S20264IPFE4CVQ5W26JBR-VXIMYFW35",
-        "title": "yes New Orleans,yes Dallas,yes Los Angeles R,yes New England,yes Cincinnati,yes Atlanta wins by over 17.5 points",
-        "resolution_at": null,
-        "rules_excerpt": null
-      },
-      "polymarket": {
-        "slug": "will-candidate-j-win-the-2026-los-angeles-mayoral-election",
-        "question": "Will Candidate J win the 2026 Los Angeles mayoral election?",
-        "resolution_at": "2026-12-31T23:59:00.000Z",
-        "rules_excerpt": null
-      },
-      "resolution_gap_days": null,
-      "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=los,angeles,win;anchors=los,angeles",
-      "rule_review": "none",
-      "review": null,
-      "hedged": false,
-      "last": {
-        "gross_cents": null,
-        "net_cents": null,
-        "annualized_pct": null,
-        "executable_size": null,
-        "status": "rejected"
-      },
-      "first_seen_at": "2026-10-29T17:52:48.827Z",
-      "last_seen_at": "2026-10-29T17:52:48.827Z"
-    },
-    {
-      "pair_id": "KXMVECROSSCATEGORY-S20266VKXBVXF5UNU3PTW-AA5ISITCC|will-ted-cruz-win-the-2028-us-presidential-election",
-      "title": "Will Ted Cruz win the 2028 US Presidential Election?",
-      "category": "politics",
-      "source": "discovery",
-      "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY-S20266VKXBVXF5UNU3PTW-AA5ISITCC",
-        "title": "no Dortmund,no Frankfurt wins by more than 2.5 goals,no Union Berlin wins by more than 2.5 goals,no Mainz wins by more than 2.5 goals,no M´gladbach wins by more than 2.5 goals,no Freiburg wins by more than 2.5 goals,no Leipzig wins by more than 2.5 goals,no Hoffenheim wins by more than 2.5 goals,no Over 5.5 goals scored,no Charlton,no Watford,no QPR,no West Bromwich,no Cardiff,no Sheffield United wins by more than 2.5 goals,no Bristol City wins by more than 2.5 goals,no Burnley wins by more than 2.5 goals,no Birmingham wins by more than 2.5 goals,no Millwall wins by more than 2.5 goals,no Norwich wins by more than 2.5 goals,no Southampton wins by more than 2.5 goals,no Stoke wins by more than 2.5 goals,no Swansea wins by more than 2.5 goals,no Brighton,no Arsenal wins by more than 2.5 goals,no Newcastle wins by more than 2.5 goals,no Aston Villa wins by more than 2.5 goals,no Bournemouth wins by more than 2.5 goals,no Brentford wins by more than 2.5 goals,no Chelsea wins by more than 2.5 goals,no Sunderland wins by more than 2.5 goals,no Hull City wins by more than 2.5 goals,no Tottenham wins by more than 2.5 goals,yes 9+ corners,yes Real Madrid,no Espanyol,yes Real Betis,no Bilbao wins by more than 2.5 goals,no Elche wins by more than 2.5 goals,no Sevilla wins by more than 2.5 goals,no Deportivo De La Coruna wins by more than 2.5 goals,yes Barcelona wins by more than 1.5 goals,no Atletico wins by more than 2.5 goals,no Vallecano wins by more than 2.5 goals,yes Alaves: 3+,yes Over 1.5 goals scored,yes Over 1.5 goals scored,no Atlante,no Tijuana,no Cruz Azul wins by more than 2.5 goals,no Santos Laguna wins by more than 2.5 goals,no San Luis wins by more than 2.5 goals,no Queretaro wins by more than 2.5 goals,no Pumas UNAM wins by more than 2.5 goals,no Toluca wins by more than 2.5 goals,no Pachuca wins by more than 2.5 goals,no Auxerre,yes PSG,no Angers,no Marseille wins by more than 2.5 goals,no Paris FC wins by more than 2.5 goals,no Troyes wins by more than 2.5 goals,no Lorient wins by more than 2.5 goals,no Stade Rennais wins by more than 2.5 goals,no Venezia,no Cagliari,no Lecce,no Udinese,no Frosinone wins by more than 2.5 goals,no Genoa wins by more than 2.5 goals,no Fiorentina wins by more than 2.5 goals,no Fiorentina wins by more than 2.5 goals,no Bologna wins by more than 2.5 goals,yes Over 1.5 goals scored",
-        "resolution_at": null,
-        "rules_excerpt": null
-      },
-      "polymarket": {
-        "slug": "will-ted-cruz-win-the-2028-us-presidential-election",
-        "question": "Will Ted Cruz win the 2028 US Presidential Election?",
-        "resolution_at": "2028-11-08T04:59:00.000Z",
-        "rules_excerpt": null
-      },
-      "resolution_gap_days": null,
-      "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=win,us,cruz;anchors=us,cruz",
-      "rule_review": "none",
-      "review": null,
-      "hedged": false,
-      "last": {
-        "gross_cents": null,
-        "net_cents": null,
-        "annualized_pct": null,
-        "executable_size": null,
-        "status": "rejected"
-      },
-      "first_seen_at": "2026-10-29T17:52:48.827Z",
-      "last_seen_at": "2026-10-29T17:52:48.827Z"
-    },
-    {
-      "pair_id": "KXMVECROSSCATEGORY-S2026B3KUAMMXW2KGFK2C-V7MMD3DDZ|will-ted-cruz-win-the-2028-us-presidential-election",
-      "title": "Will Ted Cruz win the 2028 US Presidential Election?",
-      "category": "politics",
-      "source": "discovery",
-      "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY-S2026B3KUAMMXW2KGFK2C-V7MMD3DDZ",
-        "title": "no Dortmund,no Frankfurt wins by more than 2.5 goals,no Union Berlin wins by more than 2.5 goals,no Mainz wins by more than 2.5 goals,no M´gladbach wins by more than 2.5 goals,no Freiburg wins by more than 2.5 goals,no Leipzig wins by more than 2.5 goals,no Hoffenheim wins by more than 2.5 goals,no Over 5.5 goals scored,no Charlton,no Watford,no QPR,no West Bromwich,no Cardiff,no Sheffield United wins by more than 2.5 goals,no Bristol City wins by more than 2.5 goals,no Burnley wins by more than 2.5 goals,no Birmingham wins by more than 2.5 goals,no Millwall wins by more than 2.5 goals,no Norwich wins by more than 2.5 goals,no Southampton wins by more than 2.5 goals,no Stoke wins by more than 2.5 goals,no Swansea wins by more than 2.5 goals,no Brighton,no Arsenal wins by more than 2.5 goals,no Newcastle wins by more than 2.5 goals,no Aston Villa wins by more than 2.5 goals,no Bournemouth wins by more than 2.5 goals,no Brentford wins by more than 2.5 goals,no Chelsea wins by more than 2.5 goals,no Sunderland wins by more than 2.5 goals,no Hull City wins by more than 2.5 goals,no Tottenham wins by more than 2.5 goals,yes 9+ corners,no 12+ corners,yes Real Madrid,no Espanyol,yes Real Betis,no Bilbao wins by more than 2.5 goals,no Elche wins by more than 2.5 goals,no Sevilla wins by more than 2.5 goals,no Deportivo De La Coruna wins by more than 2.5 goals,yes Barcelona wins by more than 1.5 goals,no Atletico wins by more than 2.5 goals,no Vallecano wins by more than 2.5 goals,yes Alaves: 3+,yes Over 1.5 goals scored,yes Over 1.5 goals scored,no Atlante,no Tijuana,no Cruz Azul wins by more than 2.5 goals,no Santos Laguna wins by more than 2.5 goals,no San Luis wins by more than 2.5 goals,no Queretaro wins by more than 2.5 goals,no Pumas UNAM wins by more than 2.5 goals,no Toluca wins by more than 2.5 goals,no Pachuca wins by more than 2.5 goals,no Auxerre,yes PSG,no Angers,no Marseille wins by more than 2.5 goals,no Paris FC wins by more than 2.5 goals,no Troyes wins by more than 2.5 goals,no Lorient wins by more than 2.5 goals,no Stade Rennais wins by more than 2.5 goals,no Venezia,no Cagliari,no Lecce,no Udinese,no Frosinone wins by more than 2.5 goals,no Genoa wins by more than 2.5 goals,no Fiorentina wins by more than 2.5 goals,no Fiorentina wins by more than 2.5 goals,no Bologna wins by more than 2.5 goals,yes Over 0.5 goals scored,yes Over 1.5 goals scored",
-        "resolution_at": null,
-        "rules_excerpt": null
-      },
-      "polymarket": {
-        "slug": "will-ted-cruz-win-the-2028-us-presidential-election",
-        "question": "Will Ted Cruz win the 2028 US Presidential Election?",
-        "resolution_at": "2028-11-08T04:59:00.000Z",
-        "rules_excerpt": null
-      },
-      "resolution_gap_days": null,
-      "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=win,us,cruz;anchors=us,cruz",
-      "rule_review": "none",
-      "review": null,
-      "hedged": false,
-      "last": {
-        "gross_cents": null,
-        "net_cents": null,
-        "annualized_pct": null,
-        "executable_size": null,
-        "status": "rejected"
-      },
-      "first_seen_at": "2026-10-29T17:52:48.827Z",
-      "last_seen_at": "2026-10-29T17:52:48.827Z"
-    },
-    {
-      "pair_id": "KXMVECROSSCATEGORY-S2026CX2RR6KFSTBHT773-RCJPAW5SZ|will-candidate-h-win-the-2026-los-angeles-mayoral-election",
-      "title": "Will Candidate H win the 2026 Los Angeles mayoral election?",
-      "category": "politics",
-      "source": "discovery",
-      "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY-S2026CX2RR6KFSTBHT773-RCJPAW5SZ",
-        "title": "yes Denver,yes Indiana,yes Los Angeles L,no Sacramento wins by over 14.5 points,no Chicago wins by over 10.5 points,no Over 255.5 points",
-        "resolution_at": null,
-        "rules_excerpt": null
-      },
-      "polymarket": {
-        "slug": "will-candidate-h-win-the-2026-los-angeles-mayoral-election",
-        "question": "Will Candidate H win the 2026 Los Angeles mayoral election?",
-        "resolution_at": "2026-12-31T23:59:00.000Z",
-        "rules_excerpt": null
-      },
-      "resolution_gap_days": null,
-      "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=los,angeles,win;anchors=los,angeles",
-      "rule_review": "none",
-      "review": null,
-      "hedged": false,
-      "last": {
-        "gross_cents": null,
-        "net_cents": null,
-        "annualized_pct": null,
-        "executable_size": null,
-        "status": "rejected"
-      },
-      "first_seen_at": "2026-10-29T17:52:48.827Z",
-      "last_seen_at": "2026-10-29T17:52:48.827Z"
-    },
-    {
-      "pair_id": "KXMVECROSSCATEGORY-S2026CX2RR6KFSTBHT773-RCJPAW5SZ|will-candidate-i-win-the-2026-los-angeles-mayoral-election",
-      "title": "Will Candidate I win the 2026 Los Angeles mayoral election?",
-      "category": "politics",
-      "source": "discovery",
-      "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY-S2026CX2RR6KFSTBHT773-RCJPAW5SZ",
-        "title": "yes Denver,yes Indiana,yes Los Angeles L,no Sacramento wins by over 14.5 points,no Chicago wins by over 10.5 points,no Over 255.5 points",
-        "resolution_at": null,
-        "rules_excerpt": null
-      },
-      "polymarket": {
-        "slug": "will-candidate-i-win-the-2026-los-angeles-mayoral-election",
-        "question": "Will Candidate I win the 2026 Los Angeles mayoral election?",
-        "resolution_at": "2026-12-31T23:59:00.000Z",
-        "rules_excerpt": null
-      },
-      "resolution_gap_days": null,
-      "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=los,angeles,win;anchors=los,angeles",
-      "rule_review": "none",
-      "review": null,
-      "hedged": false,
-      "last": {
-        "gross_cents": null,
-        "net_cents": null,
-        "annualized_pct": null,
-        "executable_size": null,
-        "status": "rejected"
-      },
-      "first_seen_at": "2026-10-29T17:52:48.827Z",
-      "last_seen_at": "2026-10-29T17:52:48.827Z"
-    },
-    {
-      "pair_id": "KXMVECROSSCATEGORY-S2026CX2RR6KFSTBHT773-RCJPAW5SZ|will-candidate-j-win-the-2026-los-angeles-mayoral-election",
-      "title": "Will Candidate J win the 2026 Los Angeles mayoral election?",
-      "category": "politics",
-      "source": "discovery",
-      "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY-S2026CX2RR6KFSTBHT773-RCJPAW5SZ",
-        "title": "yes Denver,yes Indiana,yes Los Angeles L,no Sacramento wins by over 14.5 points,no Chicago wins by over 10.5 points,no Over 255.5 points",
-        "resolution_at": null,
-        "rules_excerpt": null
-      },
-      "polymarket": {
-        "slug": "will-candidate-j-win-the-2026-los-angeles-mayoral-election",
-        "question": "Will Candidate J win the 2026 Los Angeles mayoral election?",
-        "resolution_at": "2026-12-31T23:59:00.000Z",
-        "rules_excerpt": null
-      },
-      "resolution_gap_days": null,
-      "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=los,angeles,win;anchors=los,angeles",
-      "rule_review": "none",
-      "review": null,
-      "hedged": false,
-      "last": {
-        "gross_cents": null,
-        "net_cents": null,
-        "annualized_pct": null,
-        "executable_size": null,
-        "status": "rejected"
-      },
-      "first_seen_at": "2026-10-29T17:52:48.827Z",
-      "last_seen_at": "2026-10-29T17:52:48.827Z"
-    },
-    {
-      "pair_id": "KXMVECROSSCATEGORY-S2026VC4UAYSWS4KABC2K-6Q66B4HN7|will-ted-cruz-win-the-2028-us-presidential-election",
-      "title": "Will Ted Cruz win the 2028 US Presidential Election?",
-      "category": "politics",
-      "source": "discovery",
-      "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY-S2026VC4UAYSWS4KABC2K-6Q66B4HN7",
-        "title": "no Dortmund,no Frankfurt wins by more than 2.5 goals,no Union Berlin wins by more than 2.5 goals,no Mainz wins by more than 2.5 goals,no M´gladbach wins by more than 2.5 goals,no Freiburg wins by more than 2.5 goals,no Leipzig wins by more than 2.5 goals,no Hoffenheim wins by more than 2.5 goals,no Over 5.5 goals scored,no Charlton,no Watford,no QPR,no West Bromwich,no Cardiff,no Sheffield United wins by more than 2.5 goals,no Bristol City wins by more than 2.5 goals,no Burnley wins by more than 2.5 goals,no Birmingham wins by more than 2.5 goals,no Millwall wins by more than 2.5 goals,no Norwich wins by more than 2.5 goals,no Southampton wins by more than 2.5 goals,no Stoke wins by more than 2.5 goals,no Swansea wins by more than 2.5 goals,no Brighton,no Arsenal wins by more than 2.5 goals,no Newcastle wins by more than 2.5 goals,no Aston Villa wins by more than 2.5 goals,no Bournemouth wins by more than 2.5 goals,no Brentford wins by more than 2.5 goals,no Chelsea wins by more than 2.5 goals,no Sunderland wins by more than 2.5 goals,no Hull City wins by more than 2.5 goals,no Tottenham wins by more than 2.5 goals,yes 9+ corners,no 12+ corners,yes Real Madrid,no Espanyol,yes Real Betis,no Bilbao wins by more than 2.5 goals,no Elche wins by more than 2.5 goals,no Sevilla wins by more than 2.5 goals,no Deportivo De La Coruna wins by more than 2.5 goals,yes Barcelona wins by more than 1.5 goals,no Atletico wins by more than 2.5 goals,no Vallecano wins by more than 2.5 goals,yes Alaves: 3+,yes Over 1.5 goals scored,yes Over 1.5 goals scored,no Atlante,no Tijuana,no Cruz Azul wins by more than 2.5 goals,no Santos Laguna wins by more than 2.5 goals,no San Luis wins by more than 2.5 goals,no Queretaro wins by more than 2.5 goals,no Pumas UNAM wins by more than 2.5 goals,no Toluca wins by more than 2.5 goals,no Pachuca wins by more than 2.5 goals,no Auxerre,yes PSG,no Angers,no Marseille wins by more than 2.5 goals,no Paris FC wins by more than 2.5 goals,no Troyes wins by more than 2.5 goals,no Lorient wins by more than 2.5 goals,no Stade Rennais wins by more than 2.5 goals,no Venezia,no Cagliari,no Lecce,no Udinese,no Frosinone wins by more than 2.5 goals,no Genoa wins by more than 2.5 goals,no Fiorentina wins by more than 2.5 goals,no Fiorentina wins by more than 2.5 goals,no Bologna wins by more than 2.5 goals,yes Over 1.5 goals scored",
-        "resolution_at": null,
-        "rules_excerpt": null
-      },
-      "polymarket": {
-        "slug": "will-ted-cruz-win-the-2028-us-presidential-election",
-        "question": "Will Ted Cruz win the 2028 US Presidential Election?",
-        "resolution_at": "2028-11-08T04:59:00.000Z",
-        "rules_excerpt": null
-      },
-      "resolution_gap_days": null,
-      "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=win,us,cruz;anchors=us,cruz",
-      "rule_review": "none",
-      "review": null,
-      "hedged": false,
-      "last": {
-        "gross_cents": null,
-        "net_cents": null,
-        "annualized_pct": null,
-        "executable_size": null,
-        "status": "rejected"
-      },
-      "first_seen_at": "2026-10-29T17:52:48.827Z",
-      "last_seen_at": "2026-10-29T17:52:48.827Z"
-    },
-    {
-      "pair_id": "KXMVECROSSCATEGORY-S2026VUAZYSV2BJCECVLI-54LICOEFT|will-ted-cruz-win-the-2028-us-presidential-election",
-      "title": "Will Ted Cruz win the 2028 US Presidential Election?",
-      "category": "politics",
-      "source": "discovery",
-      "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY-S2026VUAZYSV2BJCECVLI-54LICOEFT",
-        "title": "no Dortmund,no Frankfurt wins by more than 2.5 goals,no Union Berlin wins by more than 2.5 goals,no Mainz wins by more than 2.5 goals,no M´gladbach wins by more than 2.5 goals,no Freiburg wins by more than 2.5 goals,no Leipzig wins by more than 2.5 goals,no Hoffenheim wins by more than 2.5 goals,no Over 5.5 goals scored,no Charlton,no Watford,no QPR,no West Bromwich,no Cardiff,no Sheffield United wins by more than 2.5 goals,no Bristol City wins by more than 2.5 goals,no Burnley wins by more than 2.5 goals,no Birmingham wins by more than 2.5 goals,no Millwall wins by more than 2.5 goals,no Norwich wins by more than 2.5 goals,no Southampton wins by more than 2.5 goals,no Stoke wins by more than 2.5 goals,no Swansea wins by more than 2.5 goals,no Brighton,no Arsenal wins by more than 2.5 goals,no Newcastle wins by more than 2.5 goals,no Aston Villa wins by more than 2.5 goals,no Bournemouth wins by more than 2.5 goals,no Brentford wins by more than 2.5 goals,no Chelsea wins by more than 2.5 goals,no Sunderland wins by more than 2.5 goals,no Hull City wins by more than 2.5 goals,no Tottenham wins by more than 2.5 goals,yes 9+ corners,no 12+ corners,yes Real Madrid,no Espanyol,yes Real Betis,no Bilbao wins by more than 2.5 goals,no Elche wins by more than 2.5 goals,no Sevilla wins by more than 2.5 goals,no Deportivo De La Coruna wins by more than 2.5 goals,yes Barcelona wins by more than 1.5 goals,no Atletico wins by more than 2.5 goals,no Vallecano wins by more than 2.5 goals,yes Alaves: 3+,yes Over 1.5 goals scored,yes Over 1.5 goals scored,no Atlante,no Tijuana,no Cruz Azul wins by more than 2.5 goals,no Santos Laguna wins by more than 2.5 goals,no San Luis wins by more than 2.5 goals,no Queretaro wins by more than 2.5 goals,no Pumas UNAM wins by more than 2.5 goals,no Toluca wins by more than 2.5 goals,no Pachuca wins by more than 2.5 goals,no Auxerre,yes PSG,no Angers,no Marseille wins by more than 2.5 goals,no Paris FC wins by more than 2.5 goals,no Lille wins by more than 2.5 goals,no Troyes wins by more than 2.5 goals,no Lorient wins by more than 2.5 goals,no Stade Rennais wins by more than 2.5 goals,no Venezia,no Cagliari,no Lecce,no Udinese,no Frosinone wins by more than 2.5 goals,no Genoa wins by more than 2.5 goals,no Fiorentina wins by more than 2.5 goals,no Fiorentina wins by more than 2.5 goals,no Bologna wins by more than 2.5 goals,yes Over 0.5 goals scored,yes Over 1.5 goals scored",
-        "resolution_at": null,
-        "rules_excerpt": null
-      },
-      "polymarket": {
-        "slug": "will-ted-cruz-win-the-2028-us-presidential-election",
-        "question": "Will Ted Cruz win the 2028 US Presidential Election?",
-        "resolution_at": "2028-11-08T04:59:00.000Z",
-        "rules_excerpt": null
-      },
-      "resolution_gap_days": null,
-      "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=win,us,cruz;anchors=us,cruz",
-      "rule_review": "none",
-      "review": null,
-      "hedged": false,
-      "last": {
-        "gross_cents": null,
-        "net_cents": null,
-        "annualized_pct": null,
-        "executable_size": null,
-        "status": "rejected"
-      },
-      "first_seen_at": "2026-10-29T17:52:48.827Z",
-      "last_seen_at": "2026-10-29T17:52:48.827Z"
-    },
-    {
-      "pair_id": "KXMVECROSSCATEGORY-S20265WD2RGYLOW6R3FMV-KC72YUQ2E|will-candidate-h-win-the-2026-los-angeles-mayoral-election",
-      "title": "Will Candidate H win the 2026 Los Angeles mayoral election?",
-      "category": "politics",
-      "source": "discovery",
-      "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY-S20265WD2RGYLOW6R3FMV-KC72YUQ2E",
-        "title": "no Sacramento wins by over 6.5 points,yes Josh Jacobs: 80+,yes Buffalo,no Los Angeles wins by over 1.5 goals,no Utah wins by over 1.5 goals,no Winnipeg wins by over 1.5 goals,yes Over 5.5 goals scored,yes Over 3.5 goals scored,no Over 7.5 goals scored,no Over 7.5 goals scored,no Over 7.5 goals scored,yes Over 4.5 goals scored",
-        "resolution_at": null,
-        "rules_excerpt": null
-      },
-      "polymarket": {
-        "slug": "will-candidate-h-win-the-2026-los-angeles-mayoral-election",
-        "question": "Will Candidate H win the 2026 Los Angeles mayoral election?",
-        "resolution_at": "2026-12-31T23:59:00.000Z",
-        "rules_excerpt": null
-      },
-      "resolution_gap_days": null,
-      "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=win,los,angeles;anchors=los,angeles",
-      "rule_review": "none",
-      "review": null,
-      "hedged": false,
-      "last": {
-        "gross_cents": null,
-        "net_cents": null,
-        "annualized_pct": null,
-        "executable_size": null,
-        "status": "rejected"
-      },
-      "first_seen_at": "2026-10-29T17:47:31.992Z",
-      "last_seen_at": "2026-10-29T17:47:31.992Z"
-    },
-    {
-      "pair_id": "KXMVECROSSCATEGORY-S20265WD2RGYLOW6R3FMV-KC72YUQ2E|will-candidate-i-win-the-2026-los-angeles-mayoral-election",
-      "title": "Will Candidate I win the 2026 Los Angeles mayoral election?",
-      "category": "politics",
-      "source": "discovery",
-      "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY-S20265WD2RGYLOW6R3FMV-KC72YUQ2E",
-        "title": "no Sacramento wins by over 6.5 points,yes Josh Jacobs: 80+,yes Buffalo,no Los Angeles wins by over 1.5 goals,no Utah wins by over 1.5 goals,no Winnipeg wins by over 1.5 goals,yes Over 5.5 goals scored,yes Over 3.5 goals scored,no Over 7.5 goals scored,no Over 7.5 goals scored,no Over 7.5 goals scored,yes Over 4.5 goals scored",
-        "resolution_at": null,
-        "rules_excerpt": null
-      },
-      "polymarket": {
-        "slug": "will-candidate-i-win-the-2026-los-angeles-mayoral-election",
-        "question": "Will Candidate I win the 2026 Los Angeles mayoral election?",
-        "resolution_at": "2026-12-31T23:59:00.000Z",
-        "rules_excerpt": null
-      },
-      "resolution_gap_days": null,
-      "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=win,los,angeles;anchors=los,angeles",
-      "rule_review": "none",
-      "review": null,
-      "hedged": false,
-      "last": {
-        "gross_cents": null,
-        "net_cents": null,
-        "annualized_pct": null,
-        "executable_size": null,
-        "status": "rejected"
-      },
-      "first_seen_at": "2026-10-29T17:47:31.992Z",
-      "last_seen_at": "2026-10-29T17:47:31.992Z"
-    },
-    {
-      "pair_id": "KXMVECROSSCATEGORY-S20265WD2RGYLOW6R3FMV-KC72YUQ2E|will-candidate-j-win-the-2026-los-angeles-mayoral-election",
-      "title": "Will Candidate J win the 2026 Los Angeles mayoral election?",
-      "category": "politics",
-      "source": "discovery",
-      "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY-S20265WD2RGYLOW6R3FMV-KC72YUQ2E",
-        "title": "no Sacramento wins by over 6.5 points,yes Josh Jacobs: 80+,yes Buffalo,no Los Angeles wins by over 1.5 goals,no Utah wins by over 1.5 goals,no Winnipeg wins by over 1.5 goals,yes Over 5.5 goals scored,yes Over 3.5 goals scored,no Over 7.5 goals scored,no Over 7.5 goals scored,no Over 7.5 goals scored,yes Over 4.5 goals scored",
-        "resolution_at": null,
-        "rules_excerpt": null
-      },
-      "polymarket": {
-        "slug": "will-candidate-j-win-the-2026-los-angeles-mayoral-election",
-        "question": "Will Candidate J win the 2026 Los Angeles mayoral election?",
-        "resolution_at": "2026-12-31T23:59:00.000Z",
-        "rules_excerpt": null
-      },
-      "resolution_gap_days": null,
-      "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=win,los,angeles;anchors=los,angeles",
-      "rule_review": "none",
-      "review": null,
-      "hedged": false,
-      "last": {
-        "gross_cents": null,
-        "net_cents": null,
-        "annualized_pct": null,
-        "executable_size": null,
-        "status": "rejected"
-      },
-      "first_seen_at": "2026-10-29T17:47:31.992Z",
-      "last_seen_at": "2026-10-29T17:47:31.992Z"
-    },
-    {
-      "pair_id": "KXMVECROSSCATEGORY-S2026C2SQRWQKOYOIHVVI-ID4F6GNQD|will-jon-ossoff-win-the-2028-democratic-presidential-nomination-885",
-      "title": "Will Jon Ossoff win the 2028 Democratic presidential nomination?",
-      "category": "politics",
-      "source": "discovery",
-      "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY-S2026C2SQRWQKOYOIHVVI-ID4F6GNQD",
-        "title": "yes Democratic Party,yes Katie Hobbs,yes Rob Sand,yes Jim Pillen,yes Kelly Ayotte,yes Kathy Hochul,yes Amy Acton,yes Tina Kotek,yes Marsha Blackburn,yes David Crowley,yes Xavier Becerra,yes Democratic party,yes Jared Moskowitz,yes Ashley Moody,yes Jon Ossoff,yes Peggy Flanagan,yes Cindy Hyde-Smith,yes Kurt Alme,yes Roy Cooper,yes Chris Pappas",
-        "resolution_at": null,
-        "rules_excerpt": null
-      },
-      "polymarket": {
-        "slug": "will-jon-ossoff-win-the-2028-democratic-presidential-nomination-885",
-        "question": "Will Jon Ossoff win the 2028 Democratic presidential nomination?",
-        "resolution_at": "2029-11-07T15:00:00.000Z",
-        "rules_excerpt": null
-      },
-      "resolution_gap_days": null,
-      "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=democratic,jon,ossoff;anchors=democratic,jon,ossoff",
-      "rule_review": "none",
-      "review": null,
-      "hedged": false,
-      "last": {
-        "gross_cents": null,
-        "net_cents": null,
-        "annualized_pct": null,
-        "executable_size": null,
-        "status": "rejected"
-      },
-      "first_seen_at": "2026-10-29T17:47:31.992Z",
-      "last_seen_at": "2026-10-29T17:47:31.992Z"
-    },
-    {
-      "pair_id": "KXMVECROSSCATEGORY-S2026C2SQRWQKOYOIHVVI-ID4F6GNQD|will-roy-cooper-win-the-2028-democratic-presidential-nomination-286",
-      "title": "Will Roy Cooper win the 2028 Democratic presidential nomination?",
-      "category": "politics",
-      "source": "discovery",
-      "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY-S2026C2SQRWQKOYOIHVVI-ID4F6GNQD",
-        "title": "yes Democratic Party,yes Katie Hobbs,yes Rob Sand,yes Jim Pillen,yes Kelly Ayotte,yes Kathy Hochul,yes Amy Acton,yes Tina Kotek,yes Marsha Blackburn,yes David Crowley,yes Xavier Becerra,yes Democratic party,yes Jared Moskowitz,yes Ashley Moody,yes Jon Ossoff,yes Peggy Flanagan,yes Cindy Hyde-Smith,yes Kurt Alme,yes Roy Cooper,yes Chris Pappas",
-        "resolution_at": null,
-        "rules_excerpt": null
-      },
-      "polymarket": {
-        "slug": "will-roy-cooper-win-the-2028-democratic-presidential-nomination-286",
-        "question": "Will Roy Cooper win the 2028 Democratic presidential nomination?",
-        "resolution_at": "2029-11-07T15:00:00.000Z",
-        "rules_excerpt": null
-      },
-      "resolution_gap_days": null,
-      "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=democratic,roy,cooper;anchors=democratic,roy,cooper",
-      "rule_review": "none",
-      "review": null,
-      "hedged": false,
-      "last": {
-        "gross_cents": null,
-        "net_cents": null,
-        "annualized_pct": null,
-        "executable_size": null,
-        "status": "rejected"
-      },
-      "first_seen_at": "2026-10-29T17:47:31.992Z",
-      "last_seen_at": "2026-10-29T17:47:31.992Z"
-    },
-    {
-      "pair_id": "KXMVECROSSCATEGORY-S2026TPPVWFDVOLGZRFA3-ES7DNGD7Z|will-jon-ossoff-win-the-2028-democratic-presidential-nomination-885",
-      "title": "Will Jon Ossoff win the 2028 Democratic presidential nomination?",
-      "category": "politics",
-      "source": "discovery",
-      "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY-S2026TPPVWFDVOLGZRFA3-ES7DNGD7Z",
-        "title": "yes Democratic Party,yes Katie Hobbs,yes Rob Sand,yes Jim Pillen,yes Kelly Ayotte,yes Kathy Hochul,yes Amy Acton,yes Tina Kotek,yes Marsha Blackburn,yes David Crowley,yes Xavier Becerra,yes Democratic party,yes Jamie Ager,yes Jared Moskowitz,yes Ashley Moody,yes Jon Ossoff,yes Peggy Flanagan,yes Cindy Hyde-Smith,yes Kurt Alme,yes Roy Cooper,yes Chris Pappas",
-        "resolution_at": null,
-        "rules_excerpt": null
-      },
-      "polymarket": {
-        "slug": "will-jon-ossoff-win-the-2028-democratic-presidential-nomination-885",
-        "question": "Will Jon Ossoff win the 2028 Democratic presidential nomination?",
-        "resolution_at": "2029-11-07T15:00:00.000Z",
-        "rules_excerpt": null
-      },
-      "resolution_gap_days": null,
-      "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=democratic,jon,ossoff;anchors=democratic,jon,ossoff",
-      "rule_review": "none",
-      "review": null,
-      "hedged": false,
-      "last": {
-        "gross_cents": null,
-        "net_cents": null,
-        "annualized_pct": null,
-        "executable_size": null,
-        "status": "rejected"
-      },
-      "first_seen_at": "2026-10-29T17:47:31.992Z",
-      "last_seen_at": "2026-10-29T17:47:31.992Z"
-    },
-    {
-      "pair_id": "KXMVECROSSCATEGORY-S2026TPPVWFDVOLGZRFA3-ES7DNGD7Z|will-roy-cooper-win-the-2028-democratic-presidential-nomination-286",
-      "title": "Will Roy Cooper win the 2028 Democratic presidential nomination?",
-      "category": "politics",
-      "source": "discovery",
-      "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY-S2026TPPVWFDVOLGZRFA3-ES7DNGD7Z",
-        "title": "yes Democratic Party,yes Katie Hobbs,yes Rob Sand,yes Jim Pillen,yes Kelly Ayotte,yes Kathy Hochul,yes Amy Acton,yes Tina Kotek,yes Marsha Blackburn,yes David Crowley,yes Xavier Becerra,yes Democratic party,yes Jamie Ager,yes Jared Moskowitz,yes Ashley Moody,yes Jon Ossoff,yes Peggy Flanagan,yes Cindy Hyde-Smith,yes Kurt Alme,yes Roy Cooper,yes Chris Pappas",
-        "resolution_at": null,
-        "rules_excerpt": null
-      },
-      "polymarket": {
-        "slug": "will-roy-cooper-win-the-2028-democratic-presidential-nomination-286",
-        "question": "Will Roy Cooper win the 2028 Democratic presidential nomination?",
-        "resolution_at": "2029-11-07T15:00:00.000Z",
-        "rules_excerpt": null
-      },
-      "resolution_gap_days": null,
-      "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=democratic,roy,cooper;anchors=democratic,roy,cooper",
-      "rule_review": "none",
-      "review": null,
-      "hedged": false,
-      "last": {
-        "gross_cents": null,
-        "net_cents": null,
-        "annualized_pct": null,
-        "executable_size": null,
-        "status": "rejected"
-      },
-      "first_seen_at": "2026-10-29T17:47:31.992Z",
-      "last_seen_at": "2026-10-29T17:47:31.992Z"
-    },
-    {
-      "pair_id": "KXMVECROSSCATEGORY0-S2026HHCAPHMOFKED23NL-R7WBDZBLN|will-candidate-h-win-the-2026-los-angeles-mayoral-election",
-      "title": "Will Candidate H win the 2026 Los Angeles mayoral election?",
-      "category": "politics",
-      "source": "discovery",
-      "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY0-S2026HHCAPHMOFKED23NL-R7WBDZBLN",
-        "title": "yes Los Angeles R,yes Detroit,yes New England,yes Cincinnati,no Jacksonville wins by over 10.5 points,no New York J wins by over 1.5 points,no Green Bay wins by over 3.5 points",
-        "resolution_at": null,
-        "rules_excerpt": null
-      },
-      "polymarket": {
-        "slug": "will-candidate-h-win-the-2026-los-angeles-mayoral-election",
-        "question": "Will Candidate H win the 2026 Los Angeles mayoral election?",
-        "resolution_at": "2026-12-31T23:59:00.000Z",
-        "rules_excerpt": null
-      },
-      "resolution_gap_days": null,
-      "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=los,angeles,win;anchors=los,angeles",
-      "rule_review": "none",
-      "review": null,
-      "hedged": false,
-      "last": {
-        "gross_cents": null,
-        "net_cents": null,
-        "annualized_pct": null,
-        "executable_size": null,
-        "status": "rejected"
-      },
-      "first_seen_at": "2026-10-29T17:47:31.992Z",
-      "last_seen_at": "2026-10-29T17:47:31.992Z"
-    },
-    {
-      "pair_id": "KXMVECROSSCATEGORY0-S2026HHCAPHMOFKED23NL-R7WBDZBLN|will-candidate-i-win-the-2026-los-angeles-mayoral-election",
-      "title": "Will Candidate I win the 2026 Los Angeles mayoral election?",
-      "category": "politics",
-      "source": "discovery",
-      "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY0-S2026HHCAPHMOFKED23NL-R7WBDZBLN",
-        "title": "yes Los Angeles R,yes Detroit,yes New England,yes Cincinnati,no Jacksonville wins by over 10.5 points,no New York J wins by over 1.5 points,no Green Bay wins by over 3.5 points",
-        "resolution_at": null,
-        "rules_excerpt": null
-      },
-      "polymarket": {
-        "slug": "will-candidate-i-win-the-2026-los-angeles-mayoral-election",
-        "question": "Will Candidate I win the 2026 Los Angeles mayoral election?",
-        "resolution_at": "2026-12-31T23:59:00.000Z",
-        "rules_excerpt": null
-      },
-      "resolution_gap_days": null,
-      "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=los,angeles,win;anchors=los,angeles",
-      "rule_review": "none",
-      "review": null,
-      "hedged": false,
-      "last": {
-        "gross_cents": null,
-        "net_cents": null,
-        "annualized_pct": null,
-        "executable_size": null,
-        "status": "rejected"
-      },
-      "first_seen_at": "2026-10-29T17:47:31.992Z",
-      "last_seen_at": "2026-10-29T17:47:31.992Z"
-    },
-    {
-      "pair_id": "KXMVECROSSCATEGORY0-S2026HHCAPHMOFKED23NL-R7WBDZBLN|will-candidate-j-win-the-2026-los-angeles-mayoral-election",
-      "title": "Will Candidate J win the 2026 Los Angeles mayoral election?",
-      "category": "politics",
-      "source": "discovery",
-      "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY0-S2026HHCAPHMOFKED23NL-R7WBDZBLN",
-        "title": "yes Los Angeles R,yes Detroit,yes New England,yes Cincinnati,no Jacksonville wins by over 10.5 points,no New York J wins by over 1.5 points,no Green Bay wins by over 3.5 points",
-        "resolution_at": null,
-        "rules_excerpt": null
-      },
-      "polymarket": {
-        "slug": "will-candidate-j-win-the-2026-los-angeles-mayoral-election",
-        "question": "Will Candidate J win the 2026 Los Angeles mayoral election?",
-        "resolution_at": "2026-12-31T23:59:00.000Z",
-        "rules_excerpt": null
-      },
-      "resolution_gap_days": null,
-      "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=los,angeles,win;anchors=los,angeles",
-      "rule_review": "none",
-      "review": null,
-      "hedged": false,
-      "last": {
-        "gross_cents": null,
-        "net_cents": null,
-        "annualized_pct": null,
-        "executable_size": null,
-        "status": "rejected"
-      },
-      "first_seen_at": "2026-10-29T17:47:31.992Z",
-      "last_seen_at": "2026-10-29T17:47:31.992Z"
-    },
-    {
-      "pair_id": "KXMVECROSSCATEGORY-S2026SQSNQLR2I4JNEEEZ-Q2QGEHDJW|will-option-a-win-the-new-york-governor-race-in-2026",
-      "title": "Will Option A win the New York governor race in 2026?",
-      "category": "politics",
-      "source": "discovery",
-      "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY-S2026SQSNQLR2I4JNEEEZ-Q2QGEHDJW",
-        "title": "yes New York J wins by over 2.5 points,yes New York J wins by over 1.5 points",
-        "resolution_at": null,
-        "rules_excerpt": null
-      },
-      "polymarket": {
-        "slug": "will-option-a-win-the-new-york-governor-race-in-2026",
-        "question": "Will Option A win the New York governor race in 2026?",
-        "resolution_at": "2026-11-04T04:59:00.000Z",
-        "rules_excerpt": null
-      },
-      "resolution_gap_days": null,
-      "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=new,york,win;anchors=new,york",
-      "rule_review": "none",
-      "review": null,
-      "hedged": false,
-      "last": {
-        "gross_cents": null,
-        "net_cents": null,
-        "annualized_pct": null,
-        "executable_size": null,
-        "status": "rejected"
-      },
-      "first_seen_at": "2026-10-29T17:42:02.684Z",
-      "last_seen_at": "2026-10-29T17:42:02.684Z"
-    },
-    {
-      "pair_id": "KXMVECROSSCATEGORY-S2026SQSNQLR2I4JNEEEZ-Q2QGEHDJW|will-option-b-win-the-new-york-governor-race-in-2026",
-      "title": "Will Option B win the New York governor race in 2026?",
-      "category": "politics",
-      "source": "discovery",
-      "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY-S2026SQSNQLR2I4JNEEEZ-Q2QGEHDJW",
-        "title": "yes New York J wins by over 2.5 points,yes New York J wins by over 1.5 points",
-        "resolution_at": null,
-        "rules_excerpt": null
-      },
-      "polymarket": {
-        "slug": "will-option-b-win-the-new-york-governor-race-in-2026",
-        "question": "Will Option B win the New York governor race in 2026?",
-        "resolution_at": "2026-11-04T04:59:00.000Z",
-        "rules_excerpt": null
-      },
-      "resolution_gap_days": null,
-      "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=new,york,win;anchors=new,york",
-      "rule_review": "none",
-      "review": null,
-      "hedged": false,
-      "last": {
-        "gross_cents": null,
-        "net_cents": null,
-        "annualized_pct": null,
-        "executable_size": null,
-        "status": "rejected"
-      },
-      "first_seen_at": "2026-10-29T17:42:02.684Z",
-      "last_seen_at": "2026-10-29T17:42:02.684Z"
-    },
-    {
-      "pair_id": "KXMVECROSSCATEGORY-S2026SQSNQLR2I4JNEEEZ-Q2QGEHDJW|will-option-c-win-the-new-york-governor-race-in-2026",
-      "title": "Will Option C win the New York governor race in 2026?",
-      "category": "politics",
-      "source": "discovery",
-      "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY-S2026SQSNQLR2I4JNEEEZ-Q2QGEHDJW",
-        "title": "yes New York J wins by over 2.5 points,yes New York J wins by over 1.5 points",
-        "resolution_at": null,
-        "rules_excerpt": null
-      },
-      "polymarket": {
-        "slug": "will-option-c-win-the-new-york-governor-race-in-2026",
-        "question": "Will Option C win the New York governor race in 2026?",
-        "resolution_at": "2026-11-04T04:59:00.000Z",
-        "rules_excerpt": null
-      },
-      "resolution_gap_days": null,
-      "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=new,york,win;anchors=new,york",
-      "rule_review": "none",
-      "review": null,
-      "hedged": false,
-      "last": {
-        "gross_cents": null,
-        "net_cents": null,
-        "annualized_pct": null,
-        "executable_size": null,
-        "status": "rejected"
-      },
-      "first_seen_at": "2026-10-29T17:42:02.684Z",
-      "last_seen_at": "2026-10-29T17:42:02.684Z"
-    },
-    {
-      "pair_id": "KXMVECROSSCATEGORY-S2026SQSNQLR2I4JNEEEZ-Q2QGEHDJW|will-option-d-win-the-new-york-governor-race-in-2026",
-      "title": "Will Option D win the New York governor race in 2026?",
-      "category": "politics",
-      "source": "discovery",
-      "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY-S2026SQSNQLR2I4JNEEEZ-Q2QGEHDJW",
-        "title": "yes New York J wins by over 2.5 points,yes New York J wins by over 1.5 points",
-        "resolution_at": null,
-        "rules_excerpt": null
-      },
-      "polymarket": {
-        "slug": "will-option-d-win-the-new-york-governor-race-in-2026",
-        "question": "Will Option D win the New York governor race in 2026?",
-        "resolution_at": "2026-11-04T04:59:00.000Z",
-        "rules_excerpt": null
-      },
-      "resolution_gap_days": null,
-      "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=new,york,win;anchors=new,york",
-      "rule_review": "none",
-      "review": null,
-      "hedged": false,
-      "last": {
-        "gross_cents": null,
-        "net_cents": null,
-        "annualized_pct": null,
-        "executable_size": null,
-        "status": "rejected"
-      },
-      "first_seen_at": "2026-10-29T17:42:02.684Z",
-      "last_seen_at": "2026-10-29T17:42:02.684Z"
-    },
-    {
-      "pair_id": "KXMVECROSSCATEGORY-S2026SQSNQLR2I4JNEEEZ-Q2QGEHDJW|will-option-e-win-the-new-york-governor-race-in-2026",
-      "title": "Will Option E win the New York governor race in 2026?",
-      "category": "politics",
-      "source": "discovery",
-      "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY-S2026SQSNQLR2I4JNEEEZ-Q2QGEHDJW",
-        "title": "yes New York J wins by over 2.5 points,yes New York J wins by over 1.5 points",
-        "resolution_at": null,
-        "rules_excerpt": null
-      },
-      "polymarket": {
-        "slug": "will-option-e-win-the-new-york-governor-race-in-2026",
-        "question": "Will Option E win the New York governor race in 2026?",
-        "resolution_at": "2026-11-04T04:59:00.000Z",
-        "rules_excerpt": null
-      },
-      "resolution_gap_days": null,
-      "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=new,york,win;anchors=new,york",
-      "rule_review": "none",
-      "review": null,
-      "hedged": false,
-      "last": {
-        "gross_cents": null,
-        "net_cents": null,
-        "annualized_pct": null,
-        "executable_size": null,
-        "status": "rejected"
-      },
-      "first_seen_at": "2026-10-29T17:42:02.684Z",
-      "last_seen_at": "2026-10-29T17:42:02.684Z"
-    },
-    {
-      "pair_id": "KXMVECROSSCATEGORY-S2026SQSNQLR2I4JNEEEZ-Q2QGEHDJW|will-option-f-win-the-new-york-governor-race-in-2026",
-      "title": "Will Option F win the New York governor race in 2026?",
-      "category": "politics",
-      "source": "discovery",
-      "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY-S2026SQSNQLR2I4JNEEEZ-Q2QGEHDJW",
-        "title": "yes New York J wins by over 2.5 points,yes New York J wins by over 1.5 points",
-        "resolution_at": null,
-        "rules_excerpt": null
-      },
-      "polymarket": {
-        "slug": "will-option-f-win-the-new-york-governor-race-in-2026",
-        "question": "Will Option F win the New York governor race in 2026?",
-        "resolution_at": "2026-11-04T04:59:00.000Z",
-        "rules_excerpt": null
-      },
-      "resolution_gap_days": null,
-      "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=new,york,win;anchors=new,york",
-      "rule_review": "none",
-      "review": null,
-      "hedged": false,
-      "last": {
-        "gross_cents": null,
-        "net_cents": null,
-        "annualized_pct": null,
-        "executable_size": null,
-        "status": "rejected"
-      },
-      "first_seen_at": "2026-10-29T17:42:02.684Z",
-      "last_seen_at": "2026-10-29T17:42:02.684Z"
-    },
-    {
-      "pair_id": "KXMVECROSSCATEGORY-S2026SQSNQLR2I4JNEEEZ-Q2QGEHDJW|will-option-g-win-the-new-york-governor-race-in-2026",
-      "title": "Will Option G win the New York governor race in 2026?",
-      "category": "politics",
-      "source": "discovery",
-      "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY-S2026SQSNQLR2I4JNEEEZ-Q2QGEHDJW",
-        "title": "yes New York J wins by over 2.5 points,yes New York J wins by over 1.5 points",
-        "resolution_at": null,
-        "rules_excerpt": null
-      },
-      "polymarket": {
-        "slug": "will-option-g-win-the-new-york-governor-race-in-2026",
-        "question": "Will Option G win the New York governor race in 2026?",
-        "resolution_at": "2026-11-04T04:59:00.000Z",
-        "rules_excerpt": null
-      },
-      "resolution_gap_days": null,
-      "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=new,york,win;anchors=new,york",
-      "rule_review": "none",
-      "review": null,
-      "hedged": false,
-      "last": {
-        "gross_cents": null,
-        "net_cents": null,
-        "annualized_pct": null,
-        "executable_size": null,
-        "status": "rejected"
-      },
-      "first_seen_at": "2026-10-29T17:42:02.684Z",
-      "last_seen_at": "2026-10-29T17:42:02.684Z"
-    },
-    {
-      "pair_id": "KXMVECROSSCATEGORY-S2026SQSNQLR2I4JNEEEZ-Q2QGEHDJW|will-option-h-win-the-new-york-governor-race-in-2026",
-      "title": "Will Option H win the New York governor race in 2026?",
-      "category": "politics",
-      "source": "discovery",
-      "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY-S2026SQSNQLR2I4JNEEEZ-Q2QGEHDJW",
-        "title": "yes New York J wins by over 2.5 points,yes New York J wins by over 1.5 points",
-        "resolution_at": null,
-        "rules_excerpt": null
-      },
-      "polymarket": {
-        "slug": "will-option-h-win-the-new-york-governor-race-in-2026",
-        "question": "Will Option H win the New York governor race in 2026?",
-        "resolution_at": "2026-11-04T04:59:00.000Z",
-        "rules_excerpt": null
-      },
-      "resolution_gap_days": null,
-      "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=new,york,win;anchors=new,york",
-      "rule_review": "none",
-      "review": null,
-      "hedged": false,
-      "last": {
-        "gross_cents": null,
-        "net_cents": null,
-        "annualized_pct": null,
-        "executable_size": null,
-        "status": "rejected"
-      },
-      "first_seen_at": "2026-10-29T17:42:02.684Z",
-      "last_seen_at": "2026-10-29T17:42:02.684Z"
-    },
-    {
-      "pair_id": "KXMVECROSSCATEGORY-S2026SQSNQLR2I4JNEEEZ-Q2QGEHDJW|will-option-i-win-the-new-york-governor-race-in-2026",
-      "title": "Will Option I win the New York governor race in 2026?",
-      "category": "politics",
-      "source": "discovery",
-      "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY-S2026SQSNQLR2I4JNEEEZ-Q2QGEHDJW",
-        "title": "yes New York J wins by over 2.5 points,yes New York J wins by over 1.5 points",
-        "resolution_at": null,
-        "rules_excerpt": null
-      },
-      "polymarket": {
-        "slug": "will-option-i-win-the-new-york-governor-race-in-2026",
-        "question": "Will Option I win the New York governor race in 2026?",
-        "resolution_at": "2026-11-04T04:59:00.000Z",
-        "rules_excerpt": null
-      },
-      "resolution_gap_days": null,
-      "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=new,york,win;anchors=new,york",
-      "rule_review": "none",
-      "review": null,
-      "hedged": false,
-      "last": {
-        "gross_cents": null,
-        "net_cents": null,
-        "annualized_pct": null,
-        "executable_size": null,
-        "status": "rejected"
-      },
-      "first_seen_at": "2026-10-29T17:42:02.684Z",
-      "last_seen_at": "2026-10-29T17:42:02.684Z"
-    },
-    {
-      "pair_id": "KXMVECROSSCATEGORY-S2026SQSNQLR2I4JNEEEZ-Q2QGEHDJW|will-option-j-win-the-new-york-governor-race-in-2026",
-      "title": "Will Option J win the New York governor race in 2026?",
-      "category": "politics",
-      "source": "discovery",
-      "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY-S2026SQSNQLR2I4JNEEEZ-Q2QGEHDJW",
-        "title": "yes New York J wins by over 2.5 points,yes New York J wins by over 1.5 points",
-        "resolution_at": null,
-        "rules_excerpt": null
-      },
-      "polymarket": {
-        "slug": "will-option-j-win-the-new-york-governor-race-in-2026",
-        "question": "Will Option J win the New York governor race in 2026?",
-        "resolution_at": "2026-11-04T04:59:00.000Z",
-        "rules_excerpt": null
-      },
-      "resolution_gap_days": null,
-      "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=new,york,win;anchors=new,york",
-      "rule_review": "none",
-      "review": null,
-      "hedged": false,
-      "last": {
-        "gross_cents": null,
-        "net_cents": null,
-        "annualized_pct": null,
-        "executable_size": null,
-        "status": "rejected"
-      },
-      "first_seen_at": "2026-10-29T17:42:02.684Z",
-      "last_seen_at": "2026-10-29T17:42:02.684Z"
-    },
-    {
-      "pair_id": "KXMVECROSSCATEGORY-S2026RBKZJXXG7VPC6PJM-LUXSRBC4B|will-option-a-win-the-new-york-governor-race-in-2026",
-      "title": "Will Option A win the New York governor race in 2026?",
-      "category": "politics",
-      "source": "discovery",
-      "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY-S2026RBKZJXXG7VPC6PJM-LUXSRBC4B",
-        "title": "yes Portland,no New York wins by over 2.5 points",
-        "resolution_at": null,
-        "rules_excerpt": null
-      },
-      "polymarket": {
-        "slug": "will-option-a-win-the-new-york-governor-race-in-2026",
-        "question": "Will Option A win the New York governor race in 2026?",
-        "resolution_at": "2026-11-04T04:59:00.000Z",
-        "rules_excerpt": null
-      },
-      "resolution_gap_days": null,
-      "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=new,york,win;anchors=new,york",
-      "rule_review": "none",
-      "review": null,
-      "hedged": false,
-      "last": {
-        "gross_cents": null,
-        "net_cents": null,
-        "annualized_pct": null,
-        "executable_size": null,
-        "status": "rejected"
-      },
-      "first_seen_at": "2026-10-29T17:36:38.125Z",
-      "last_seen_at": "2026-10-29T17:36:38.125Z"
-    },
-    {
-      "pair_id": "KXMVECROSSCATEGORY-S2026RBKZJXXG7VPC6PJM-LUXSRBC4B|will-option-b-win-the-new-york-governor-race-in-2026",
-      "title": "Will Option B win the New York governor race in 2026?",
-      "category": "politics",
-      "source": "discovery",
-      "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY-S2026RBKZJXXG7VPC6PJM-LUXSRBC4B",
-        "title": "yes Portland,no New York wins by over 2.5 points",
-        "resolution_at": null,
-        "rules_excerpt": null
-      },
-      "polymarket": {
-        "slug": "will-option-b-win-the-new-york-governor-race-in-2026",
-        "question": "Will Option B win the New York governor race in 2026?",
-        "resolution_at": "2026-11-04T04:59:00.000Z",
-        "rules_excerpt": null
-      },
-      "resolution_gap_days": null,
-      "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=new,york,win;anchors=new,york",
-      "rule_review": "none",
-      "review": null,
-      "hedged": false,
-      "last": {
-        "gross_cents": null,
-        "net_cents": null,
-        "annualized_pct": null,
-        "executable_size": null,
-        "status": "rejected"
-      },
-      "first_seen_at": "2026-10-29T17:36:38.125Z",
-      "last_seen_at": "2026-10-29T17:36:38.125Z"
-    },
-    {
-      "pair_id": "KXMVECROSSCATEGORY-S2026RBKZJXXG7VPC6PJM-LUXSRBC4B|will-option-c-win-the-new-york-governor-race-in-2026",
-      "title": "Will Option C win the New York governor race in 2026?",
-      "category": "politics",
-      "source": "discovery",
-      "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY-S2026RBKZJXXG7VPC6PJM-LUXSRBC4B",
-        "title": "yes Portland,no New York wins by over 2.5 points",
-        "resolution_at": null,
-        "rules_excerpt": null
-      },
-      "polymarket": {
-        "slug": "will-option-c-win-the-new-york-governor-race-in-2026",
-        "question": "Will Option C win the New York governor race in 2026?",
-        "resolution_at": "2026-11-04T04:59:00.000Z",
-        "rules_excerpt": null
-      },
-      "resolution_gap_days": null,
-      "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=new,york,win;anchors=new,york",
-      "rule_review": "none",
-      "review": null,
-      "hedged": false,
-      "last": {
-        "gross_cents": null,
-        "net_cents": null,
-        "annualized_pct": null,
-        "executable_size": null,
-        "status": "rejected"
-      },
-      "first_seen_at": "2026-10-29T17:36:38.125Z",
-      "last_seen_at": "2026-10-29T17:36:38.125Z"
-    },
-    {
-      "pair_id": "KXMVECROSSCATEGORY-S2026RBKZJXXG7VPC6PJM-LUXSRBC4B|will-option-d-win-the-new-york-governor-race-in-2026",
-      "title": "Will Option D win the New York governor race in 2026?",
-      "category": "politics",
-      "source": "discovery",
-      "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY-S2026RBKZJXXG7VPC6PJM-LUXSRBC4B",
-        "title": "yes Portland,no New York wins by over 2.5 points",
-        "resolution_at": null,
-        "rules_excerpt": null
-      },
-      "polymarket": {
-        "slug": "will-option-d-win-the-new-york-governor-race-in-2026",
-        "question": "Will Option D win the New York governor race in 2026?",
-        "resolution_at": "2026-11-04T04:59:00.000Z",
-        "rules_excerpt": null
-      },
-      "resolution_gap_days": null,
-      "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=new,york,win;anchors=new,york",
-      "rule_review": "none",
-      "review": null,
-      "hedged": false,
-      "last": {
-        "gross_cents": null,
-        "net_cents": null,
-        "annualized_pct": null,
-        "executable_size": null,
-        "status": "rejected"
-      },
-      "first_seen_at": "2026-10-29T17:36:38.125Z",
-      "last_seen_at": "2026-10-29T17:36:38.125Z"
-    },
-    {
-      "pair_id": "KXMVECROSSCATEGORY-S2026RBKZJXXG7VPC6PJM-LUXSRBC4B|will-option-e-win-the-new-york-governor-race-in-2026",
-      "title": "Will Option E win the New York governor race in 2026?",
-      "category": "politics",
-      "source": "discovery",
-      "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY-S2026RBKZJXXG7VPC6PJM-LUXSRBC4B",
-        "title": "yes Portland,no New York wins by over 2.5 points",
-        "resolution_at": null,
-        "rules_excerpt": null
-      },
-      "polymarket": {
-        "slug": "will-option-e-win-the-new-york-governor-race-in-2026",
-        "question": "Will Option E win the New York governor race in 2026?",
-        "resolution_at": "2026-11-04T04:59:00.000Z",
-        "rules_excerpt": null
-      },
-      "resolution_gap_days": null,
-      "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=new,york,win;anchors=new,york",
-      "rule_review": "none",
-      "review": null,
-      "hedged": false,
-      "last": {
-        "gross_cents": null,
-        "net_cents": null,
-        "annualized_pct": null,
-        "executable_size": null,
-        "status": "rejected"
-      },
-      "first_seen_at": "2026-10-29T17:36:38.125Z",
-      "last_seen_at": "2026-10-29T17:36:38.125Z"
-    },
-    {
-      "pair_id": "KXMVECROSSCATEGORY-S2026RBKZJXXG7VPC6PJM-LUXSRBC4B|will-option-f-win-the-new-york-governor-race-in-2026",
-      "title": "Will Option F win the New York governor race in 2026?",
-      "category": "politics",
-      "source": "discovery",
-      "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY-S2026RBKZJXXG7VPC6PJM-LUXSRBC4B",
-        "title": "yes Portland,no New York wins by over 2.5 points",
-        "resolution_at": null,
-        "rules_excerpt": null
-      },
-      "polymarket": {
-        "slug": "will-option-f-win-the-new-york-governor-race-in-2026",
-        "question": "Will Option F win the New York governor race in 2026?",
-        "resolution_at": "2026-11-04T04:59:00.000Z",
-        "rules_excerpt": null
-      },
-      "resolution_gap_days": null,
-      "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=new,york,win;anchors=new,york",
-      "rule_review": "none",
-      "review": null,
-      "hedged": false,
-      "last": {
-        "gross_cents": null,
-        "net_cents": null,
-        "annualized_pct": null,
-        "executable_size": null,
-        "status": "rejected"
-      },
-      "first_seen_at": "2026-10-29T17:36:38.125Z",
-      "last_seen_at": "2026-10-29T17:36:38.125Z"
-    },
-    {
-      "pair_id": "KXMVECROSSCATEGORY-S2026RBKZJXXG7VPC6PJM-LUXSRBC4B|will-option-g-win-the-new-york-governor-race-in-2026",
-      "title": "Will Option G win the New York governor race in 2026?",
-      "category": "politics",
-      "source": "discovery",
-      "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY-S2026RBKZJXXG7VPC6PJM-LUXSRBC4B",
-        "title": "yes Portland,no New York wins by over 2.5 points",
-        "resolution_at": null,
-        "rules_excerpt": null
-      },
-      "polymarket": {
-        "slug": "will-option-g-win-the-new-york-governor-race-in-2026",
-        "question": "Will Option G win the New York governor race in 2026?",
-        "resolution_at": "2026-11-04T04:59:00.000Z",
-        "rules_excerpt": null
-      },
-      "resolution_gap_days": null,
-      "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=new,york,win;anchors=new,york",
-      "rule_review": "none",
-      "review": null,
-      "hedged": false,
-      "last": {
-        "gross_cents": null,
-        "net_cents": null,
-        "annualized_pct": null,
-        "executable_size": null,
-        "status": "rejected"
-      },
-      "first_seen_at": "2026-10-29T17:36:38.125Z",
-      "last_seen_at": "2026-10-29T17:36:38.125Z"
-    },
-    {
-      "pair_id": "KXMVECROSSCATEGORY0-S2026TZZMB7QLDXSVQHJX-QTZUKPW4C|will-candidate-h-win-the-2026-los-angeles-mayoral-election",
-      "title": "Will Candidate H win the 2026 Los Angeles mayoral election?",
-      "category": "politics",
-      "source": "discovery",
-      "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY0-S2026TZZMB7QLDXSVQHJX-QTZUKPW4C",
-        "title": "no Denver wins by over 5.5 points,yes Los Angeles R wins by over 5.5 points",
-        "resolution_at": null,
-        "rules_excerpt": null
-      },
-      "polymarket": {
-        "slug": "will-candidate-h-win-the-2026-los-angeles-mayoral-election",
-        "question": "Will Candidate H win the 2026 Los Angeles mayoral election?",
-        "resolution_at": "2026-12-31T23:59:00.000Z",
-        "rules_excerpt": null
-      },
-      "resolution_gap_days": null,
-      "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=win,los,angeles;anchors=los,angeles",
-      "rule_review": "none",
-      "review": null,
-      "hedged": false,
-      "last": {
-        "gross_cents": null,
-        "net_cents": null,
-        "annualized_pct": null,
-        "executable_size": null,
-        "status": "rejected"
-      },
-      "first_seen_at": "2026-10-29T17:36:38.125Z",
-      "last_seen_at": "2026-10-29T17:36:38.125Z"
-    },
-    {
-      "pair_id": "KXMVECROSSCATEGORY0-S2026TZZMB7QLDXSVQHJX-QTZUKPW4C|will-candidate-i-win-the-2026-los-angeles-mayoral-election",
-      "title": "Will Candidate I win the 2026 Los Angeles mayoral election?",
-      "category": "politics",
-      "source": "discovery",
-      "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY0-S2026TZZMB7QLDXSVQHJX-QTZUKPW4C",
-        "title": "no Denver wins by over 5.5 points,yes Los Angeles R wins by over 5.5 points",
-        "resolution_at": null,
-        "rules_excerpt": null
-      },
-      "polymarket": {
-        "slug": "will-candidate-i-win-the-2026-los-angeles-mayoral-election",
-        "question": "Will Candidate I win the 2026 Los Angeles mayoral election?",
-        "resolution_at": "2026-12-31T23:59:00.000Z",
-        "rules_excerpt": null
-      },
-      "resolution_gap_days": null,
-      "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=win,los,angeles;anchors=los,angeles",
-      "rule_review": "none",
-      "review": null,
-      "hedged": false,
-      "last": {
-        "gross_cents": null,
-        "net_cents": null,
-        "annualized_pct": null,
-        "executable_size": null,
-        "status": "rejected"
-      },
-      "first_seen_at": "2026-10-29T17:36:38.125Z",
-      "last_seen_at": "2026-10-29T17:36:38.125Z"
-    },
-    {
-      "pair_id": "KXMVECROSSCATEGORY0-S2026TZZMB7QLDXSVQHJX-QTZUKPW4C|will-candidate-j-win-the-2026-los-angeles-mayoral-election",
-      "title": "Will Candidate J win the 2026 Los Angeles mayoral election?",
-      "category": "politics",
-      "source": "discovery",
-      "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY0-S2026TZZMB7QLDXSVQHJX-QTZUKPW4C",
-        "title": "no Denver wins by over 5.5 points,yes Los Angeles R wins by over 5.5 points",
-        "resolution_at": null,
-        "rules_excerpt": null
-      },
-      "polymarket": {
-        "slug": "will-candidate-j-win-the-2026-los-angeles-mayoral-election",
-        "question": "Will Candidate J win the 2026 Los Angeles mayoral election?",
-        "resolution_at": "2026-12-31T23:59:00.000Z",
-        "rules_excerpt": null
-      },
-      "resolution_gap_days": null,
-      "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=win,los,angeles;anchors=los,angeles",
-      "rule_review": "none",
-      "review": null,
-      "hedged": false,
-      "last": {
-        "gross_cents": null,
-        "net_cents": null,
-        "annualized_pct": null,
-        "executable_size": null,
-        "status": "rejected"
-      },
-      "first_seen_at": "2026-10-29T17:36:38.125Z",
-      "last_seen_at": "2026-10-29T17:36:38.125Z"
-    },
-    {
-      "pair_id": "KXMVECROSSCATEGORY-S202654QPNCT7QBPKFDWH-GZFCZZWEY|will-person-cp-win-the-2028-us-presidential-election",
-      "title": "Will Person CP win the 2028 US Presidential Election?",
-      "category": "politics",
-      "source": "discovery",
-      "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY-S202654QPNCT7QBPKFDWH-GZFCZZWEY",
-        "title": "no Stuttgart wins by more than 1.5 goals,yes Over 1.5 goals scored,yes Over 1.5 goals scored,no Leeds United wins by more than 1.5 goals,no Nottingham Forest wins by more than 1.5 goals,no Manchester United wins by more than 1.5 goals,no Brighton wins by more than 1.5 goals,yes Barcelona,no Levante wins by more than 1.5 goals,yes Over 2.5 goals scored,no Udinese wins by more than 1.5 goals,yes Over 1.5 goals scored,yes Over 1.5 goals scored,yes Real Madrid,yes Liverpool,yes Arsenal,no Stuttgart wins by more than 1.5 goals,no Manchester United wins by more than 1.5 goals,no Sporting CP wins by more than 1.5 goals,yes Over 2.5 goals scored,yes Over 1.5 goals scored,yes Over 2.5 goals scored",
-        "resolution_at": null,
-        "rules_excerpt": null
-      },
-      "polymarket": {
-        "slug": "will-person-cp-win-the-2028-us-presidential-election",
-        "question": "Will Person CP win the 2028 US Presidential Election?",
-        "resolution_at": "2028-11-07T00:00:00.000Z",
-        "rules_excerpt": null
-      },
-      "resolution_gap_days": null,
-      "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=win,us,cp;anchors=us,cp",
-      "rule_review": "none",
-      "review": null,
-      "hedged": false,
-      "last": {
-        "gross_cents": null,
-        "net_cents": null,
-        "annualized_pct": null,
-        "executable_size": null,
-        "status": "rejected"
-      },
-      "first_seen_at": "2026-10-29T17:30:59.953Z",
-      "last_seen_at": "2026-10-29T17:30:59.953Z"
-    },
-    {
-      "pair_id": "KXMVECROSSCATEGORY-S2026LWYCLTFAUP63NJ5M-YNX7IITQC|will-option-a-win-the-south-carolina-governor-race-in-2026",
-      "title": "Will Option A win the South Carolina governor race in 2026?",
-      "category": "politics",
-      "source": "discovery",
-      "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY-S2026LWYCLTFAUP63NJ5M-YNX7IITQC",
-        "title": "yes Taylor Fritz wins 2-0,yes South Carolina St.",
-        "resolution_at": null,
-        "rules_excerpt": null
-      },
-      "polymarket": {
-        "slug": "will-option-a-win-the-south-carolina-governor-race-in-2026",
-        "question": "Will Option A win the South Carolina governor race in 2026?",
-        "resolution_at": "2026-11-12T14:10:00.000Z",
-        "rules_excerpt": null
-      },
-      "resolution_gap_days": null,
-      "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=win,south,carolina;anchors=south,carolina;resolution=weak_shared_resolution_terms",
-      "rule_review": "none",
-      "review": null,
-      "hedged": false,
-      "last": {
-        "gross_cents": null,
-        "net_cents": null,
-        "annualized_pct": null,
-        "executable_size": null,
-        "status": "rejected"
-      },
-      "first_seen_at": "2026-10-29T17:30:59.953Z",
-      "last_seen_at": "2026-10-29T17:30:59.953Z"
-    },
-    {
-      "pair_id": "KXMVECROSSCATEGORY-S2026LWYCLTFAUP63NJ5M-YNX7IITQC|will-option-b-win-the-south-carolina-governor-race-in-2026",
-      "title": "Will Option B win the South Carolina governor race in 2026?",
-      "category": "politics",
-      "source": "discovery",
-      "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY-S2026LWYCLTFAUP63NJ5M-YNX7IITQC",
-        "title": "yes Taylor Fritz wins 2-0,yes South Carolina St.",
-        "resolution_at": null,
-        "rules_excerpt": null
-      },
-      "polymarket": {
-        "slug": "will-option-b-win-the-south-carolina-governor-race-in-2026",
-        "question": "Will Option B win the South Carolina governor race in 2026?",
-        "resolution_at": "2026-11-12T14:10:00.000Z",
-        "rules_excerpt": null
-      },
-      "resolution_gap_days": null,
-      "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=win,south,carolina;anchors=south,carolina;resolution=weak_shared_resolution_terms",
-      "rule_review": "none",
-      "review": null,
-      "hedged": false,
-      "last": {
-        "gross_cents": null,
-        "net_cents": null,
-        "annualized_pct": null,
-        "executable_size": null,
-        "status": "rejected"
-      },
-      "first_seen_at": "2026-10-29T17:30:59.953Z",
-      "last_seen_at": "2026-10-29T17:30:59.953Z"
-    },
-    {
-      "pair_id": "KXMVECROSSCATEGORY-S2026LWYCLTFAUP63NJ5M-YNX7IITQC|will-option-c-win-the-south-carolina-governor-race-in-2026",
-      "title": "Will Option C win the South Carolina governor race in 2026?",
-      "category": "politics",
-      "source": "discovery",
-      "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY-S2026LWYCLTFAUP63NJ5M-YNX7IITQC",
-        "title": "yes Taylor Fritz wins 2-0,yes South Carolina St.",
-        "resolution_at": null,
-        "rules_excerpt": null
-      },
-      "polymarket": {
-        "slug": "will-option-c-win-the-south-carolina-governor-race-in-2026",
-        "question": "Will Option C win the South Carolina governor race in 2026?",
-        "resolution_at": "2026-11-12T14:10:00.000Z",
-        "rules_excerpt": null
-      },
-      "resolution_gap_days": null,
-      "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=win,south,carolina;anchors=south,carolina;resolution=weak_shared_resolution_terms",
-      "rule_review": "none",
-      "review": null,
-      "hedged": false,
-      "last": {
-        "gross_cents": null,
-        "net_cents": null,
-        "annualized_pct": null,
-        "executable_size": null,
-        "status": "rejected"
-      },
-      "first_seen_at": "2026-10-29T17:30:59.953Z",
-      "last_seen_at": "2026-10-29T17:30:59.953Z"
-    },
-    {
-      "pair_id": "KXMVECROSSCATEGORY-S2026LWYCLTFAUP63NJ5M-YNX7IITQC|will-option-d-win-the-south-carolina-governor-race-in-2026",
-      "title": "Will Option D win the South Carolina governor race in 2026?",
-      "category": "politics",
-      "source": "discovery",
-      "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY-S2026LWYCLTFAUP63NJ5M-YNX7IITQC",
-        "title": "yes Taylor Fritz wins 2-0,yes South Carolina St.",
-        "resolution_at": null,
-        "rules_excerpt": null
-      },
-      "polymarket": {
-        "slug": "will-option-d-win-the-south-carolina-governor-race-in-2026",
-        "question": "Will Option D win the South Carolina governor race in 2026?",
-        "resolution_at": "2026-11-12T14:10:00.000Z",
-        "rules_excerpt": null
-      },
-      "resolution_gap_days": null,
-      "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=win,south,carolina;anchors=south,carolina;resolution=weak_shared_resolution_terms",
-      "rule_review": "none",
-      "review": null,
-      "hedged": false,
-      "last": {
-        "gross_cents": null,
-        "net_cents": null,
-        "annualized_pct": null,
-        "executable_size": null,
-        "status": "rejected"
-      },
-      "first_seen_at": "2026-10-29T17:30:59.953Z",
-      "last_seen_at": "2026-10-29T17:30:59.953Z"
+      "last_seen_at": "2026-11-10T08:37:15.815Z"
     }
   ],
   "paper_positions": [
@@ -5089,9 +2288,9 @@
       "opened_at": "2026-05-19T17:11:12.308Z",
       "capital_usd": 1,
       "expected_edge_bps": null,
-      "status": "open",
-      "pnl_usd": null,
-      "resolution_reason": null
+      "status": "resolved",
+      "pnl_usd": 61.5,
+      "resolution_reason": "final_outcome_prices"
     },
     {
       "trade_id": "17792b31-d1ac-4ef1-abcc-d93e37f0c708",
@@ -5137,9 +2336,9 @@
       "opened_at": "2026-05-19T17:11:12.255Z",
       "capital_usd": 1,
       "expected_edge_bps": null,
-      "status": "open",
-      "pnl_usd": null,
-      "resolution_reason": null
+      "status": "resolved",
+      "pnl_usd": 5.21,
+      "resolution_reason": "final_outcome_prices"
     },
     {
       "trade_id": "42704813-be26-4522-999b-6de93f6e73f0",
@@ -5161,9 +2360,9 @@
       "opened_at": "2026-05-19T17:11:12.235Z",
       "capital_usd": 1,
       "expected_edge_bps": null,
-      "status": "open",
-      "pnl_usd": null,
-      "resolution_reason": null
+      "status": "resolved",
+      "pnl_usd": 1.91,
+      "resolution_reason": "final_outcome_prices"
     },
     {
       "trade_id": "b6f701ff-5255-4c20-90be-a979ebe9ca1c",
@@ -5173,9 +2372,9 @@
       "opened_at": "2026-05-19T17:11:12.226Z",
       "capital_usd": 1,
       "expected_edge_bps": null,
-      "status": "open",
-      "pnl_usd": null,
-      "resolution_reason": null
+      "status": "resolved",
+      "pnl_usd": 0.12,
+      "resolution_reason": "final_outcome_prices"
     },
     {
       "trade_id": "28cc516a-c062-4c4f-b111-d09d8466c3b5",
@@ -5185,9 +2384,9 @@
       "opened_at": "2026-05-19T17:11:12.217Z",
       "capital_usd": 1,
       "expected_edge_bps": null,
-      "status": "open",
-      "pnl_usd": null,
-      "resolution_reason": null
+      "status": "resolved",
+      "pnl_usd": 10.43,
+      "resolution_reason": "final_outcome_prices"
     },
     {
       "trade_id": "0df45993-ab53-47ec-b4ba-10a247ba75da",
@@ -5197,9 +2396,9 @@
       "opened_at": "2026-05-19T17:11:12.207Z",
       "capital_usd": 1,
       "expected_edge_bps": null,
-      "status": "open",
-      "pnl_usd": null,
-      "resolution_reason": null
+      "status": "resolved",
+      "pnl_usd": 10.43,
+      "resolution_reason": "final_outcome_prices"
     },
     {
       "trade_id": "376a0ceb-5656-4ba6-abe0-7f5c74b3fd1e",
@@ -5209,9 +2408,9 @@
       "opened_at": "2026-05-19T17:11:12.198Z",
       "capital_usd": 1,
       "expected_edge_bps": null,
-      "status": "open",
-      "pnl_usd": null,
-      "resolution_reason": null
+      "status": "resolved",
+      "pnl_usd": 2.33,
+      "resolution_reason": "final_outcome_prices"
     },
     {
       "trade_id": "b4eebe9a-538a-4557-abb2-5786f2642df4",
