@@ -1,6 +1,6 @@
 {
   "schema": "arb_scan/2",
-  "generated_at": "2026-11-10T08:40:06.592Z",
+  "generated_at": "2026-11-16T04:28:24.738Z",
   "generator": {
     "repo": "prediction-alpha-bot",
     "git_sha": "e546d107c0ef",
@@ -8,10 +8,10 @@
   },
   "disclaimer": "Paper-only research. Not trading advice.",
   "health": {
-    "last_cycle_at": "2026-11-10T08:40:06.585Z",
-    "cycles_24h": 17,
-    "errors_24h": 0,
-    "scan_interval_ms": 120893,
+    "last_cycle_at": "2026-11-16T04:28:24.731Z",
+    "cycles_24h": 1719,
+    "errors_24h": 14,
+    "scan_interval_ms": 17763,
     "configured_interval_ms": 10000,
     "alive": true
   },
@@ -27,8 +27,8 @@
     "fee_model_version": "2026-07-30"
   },
   "summary": {
-    "raw_candidates_24h": 32,
-    "near_miss_24h": 13549,
+    "raw_candidates_24h": 4014,
+    "near_miss_24h": 1326621,
     "validated_24h": 0,
     "candidates_24h": 0,
     "paper_fired_24h": 0,
@@ -42,23 +42,23 @@
       "id": "neg_risk_bracket_arb",
       "label": "NEG_RISK bracket sum-arb (Polymarket)",
       "class": "neg_risk_no_basket",
-      "raw_24h": 17,
+      "raw_24h": 1714,
       "near_miss_24h": 0,
       "validated_24h": 0,
       "candidates_24h": 0,
       "paper_24h": 0,
-      "top_rejection": "nested_temporal_basket"
+      "top_rejection": "not_neg_risk_event"
     },
     {
       "id": "within_market_fast_arb",
       "label": "Within-market YES+NO (Polymarket)",
       "class": "same_market_complement",
-      "raw_24h": 0,
-      "near_miss_24h": 13549,
+      "raw_24h": 15,
+      "near_miss_24h": 1326621,
       "validated_24h": 0,
       "candidates_24h": 0,
       "paper_24h": 0,
-      "top_rejection": null
+      "top_rejection": "non_positive_executable_edge"
     },
     {
       "id": "clear_win_watch",
@@ -75,7 +75,7 @@
       "id": "cross_venue_yes_no_arb",
       "label": "Cross-venue YES/NO (Kalshi x Polymarket)",
       "class": "cross_venue_complement",
-      "raw_24h": 15,
+      "raw_24h": 2285,
       "near_miss_24h": 0,
       "validated_24h": 0,
       "candidates_24h": 0,
@@ -85,40 +85,46 @@
   ],
   "rejections_24h": [
     {
-      "reason": "nested_temporal_basket",
-      "label": "legs are nested by date, not exclusive",
+      "reason": "not_neg_risk_event",
+      "label": "venue does not flag the event as mutually exclusive",
       "gate": 1,
-      "count": 17
+      "count": 1715
     },
     {
       "reason": "compound_kalshi_market",
       "label": "Kalshi market bundles several outcomes",
       "gate": 1,
-      "count": 10
+      "count": 1520
     },
     {
       "reason": "rule_review_not_equivalent",
       "label": "a person found the two rulebooks not equivalent",
       "gate": 1,
-      "count": 2
+      "count": 306
     },
     {
       "reason": "resolution_time_mismatch",
       "label": "resolution times differ",
       "gate": 1,
-      "count": 1
+      "count": 153
     },
     {
       "reason": "non_positive_executable_edge",
       "label": "edge gone at executable prices",
       "gate": 3,
-      "count": 1
+      "count": 153
     },
     {
-      "reason": "below_min_net_edge",
-      "label": "net edge below the configured floor",
+      "reason": "below_annualized_hurdle",
+      "label": "annualised net return below the hurdle rate",
+      "gate": 4,
+      "count": 153
+    },
+    {
+      "reason": "non_positive_net_edge_after_fees",
+      "label": "edge gone after venue fees",
       "gate": 3,
-      "count": 1
+      "count": 15
     }
   ],
   "vocabulary": {
@@ -463,14 +469,541 @@
   },
   "opportunities": [
     {
-      "id": "1a12f7af-2c38-4fb3-9f13-60c6e7f415dc",
+      "id": "596a7d44-9632-42ee-8af9-09ade035a677",
+      "strategy": "cross_venue_yes_no_arb",
+      "class": "cross_venue_complement",
+      "venues": [
+        "polymarket",
+        "kalshi"
+      ],
+      "title": "Will J.B. Pritzker win the 2028 Democratic presidential nomination?",
+      "market_ref": "will-jb-pritzker-win-the-2028-democratic-presidential-nomination-288",
+      "legs": [
+        {
+          "venue": "polymarket",
+          "side": "YES",
+          "price": 0.016182,
+          "size_usd": 603.7244,
+          "role": "taker",
+          "fee_usd": 23.7582
+        },
+        {
+          "venue": "kalshi",
+          "side": "NO",
+          "price": 0.97598,
+          "size_usd": 36412.2425,
+          "role": "taker",
+          "fee_usd": 61.23
+        }
+      ],
+      "gross_edge_bps": 79,
+      "executable_net_edge_bps": 56.04,
+      "net_profit_usd": 207.43,
+      "depth_usd": 36897.9977,
+      "capital_usd": 37015.9668,
+      "days_to_resolution": 722.4393,
+      "annualized_pct": 0.28,
+      "hurdle_met": false,
+      "capital_lock_class": "long",
+      "resolution_at_by_venue": {
+        "kalshi": "2028-11-07T15:00:00.000Z",
+        "polymarket": "2028-11-07T00:00:00.000Z"
+      },
+      "status": "rejected",
+      "rejection_reason": "below_annualized_hurdle",
+      "gate_failed": 4,
+      "rule_match": "unverified",
+      "rule_screen": "passed",
+      "rule_review": "pending",
+      "first_seen_at": "2026-11-15T14:37:14.425Z",
+      "last_seen_at": "2026-11-16T04:28:23.223Z",
+      "open_seconds": 49868
+    },
+    {
+      "id": "0cc9eb51-a992-456e-8b2e-3a7bb6e4f4c1",
+      "strategy": "cross_venue_yes_no_arb",
+      "class": "cross_venue_complement",
+      "venues": [
+        "kalshi",
+        "polymarket"
+      ],
+      "title": "Will Drake release a new song in 2026?",
+      "market_ref": "will-drake-release-a-new-song-in-2026",
+      "legs": [],
+      "gross_edge_bps": null,
+      "executable_net_edge_bps": null,
+      "net_profit_usd": null,
+      "depth_usd": 0,
+      "capital_usd": 0,
+      "days_to_resolution": 44.8136,
+      "annualized_pct": null,
+      "hurdle_met": null,
+      "capital_lock_class": "long",
+      "resolution_at_by_venue": {
+        "kalshi": null,
+        "polymarket": null
+      },
+      "status": "rejected",
+      "rejection_reason": "compound_kalshi_market",
+      "gate_failed": 1,
+      "rule_match": "mismatch",
+      "rule_screen": "compound_market",
+      "rule_review": "none",
+      "first_seen_at": "2026-11-16T04:28:23.223Z",
+      "last_seen_at": "2026-11-16T04:28:23.223Z",
+      "open_seconds": 0
+    },
+    {
+      "id": "222dcd31-b489-46f9-80f3-caf04791cfc3",
+      "strategy": "cross_venue_yes_no_arb",
+      "class": "cross_venue_complement",
+      "venues": [
+        "kalshi",
+        "polymarket"
+      ],
+      "title": "Will North Korea invade South Korea before 2027?",
+      "market_ref": "will-north-korea-invade-south-korea-before-2027",
+      "legs": [],
+      "gross_edge_bps": null,
+      "executable_net_edge_bps": null,
+      "net_profit_usd": null,
+      "depth_usd": 0,
+      "capital_usd": 0,
+      "days_to_resolution": 46.0213,
+      "annualized_pct": null,
+      "hurdle_met": null,
+      "capital_lock_class": "long",
+      "resolution_at_by_venue": {
+        "kalshi": null,
+        "polymarket": null
+      },
+      "status": "rejected",
+      "rejection_reason": "compound_kalshi_market",
+      "gate_failed": 1,
+      "rule_match": "mismatch",
+      "rule_screen": "compound_market",
+      "rule_review": "none",
+      "first_seen_at": "2026-11-16T04:28:23.223Z",
+      "last_seen_at": "2026-11-16T04:28:23.223Z",
+      "open_seconds": 0
+    },
+    {
+      "id": "26aa539a-003d-4dc9-b03e-badb9b26de63",
+      "strategy": "cross_venue_yes_no_arb",
+      "class": "cross_venue_complement",
+      "venues": [
+        "kalshi",
+        "polymarket"
+      ],
+      "title": "Will Azerbaijan join the Abraham Accords before 2027?",
+      "market_ref": "will-azerbaijan-join-the-abraham-accords-before-2027",
+      "legs": [],
+      "gross_edge_bps": null,
+      "executable_net_edge_bps": null,
+      "net_profit_usd": null,
+      "depth_usd": 0,
+      "capital_usd": 0,
+      "days_to_resolution": 46.0213,
+      "annualized_pct": null,
+      "hurdle_met": null,
+      "capital_lock_class": "long",
+      "resolution_at_by_venue": {
+        "kalshi": null,
+        "polymarket": null
+      },
+      "status": "rejected",
+      "rejection_reason": "compound_kalshi_market",
+      "gate_failed": 1,
+      "rule_match": "mismatch",
+      "rule_screen": "compound_market",
+      "rule_review": "none",
+      "first_seen_at": "2026-11-16T04:28:23.223Z",
+      "last_seen_at": "2026-11-16T04:28:23.223Z",
+      "open_seconds": 0
+    },
+    {
+      "id": "3a97f877-4c1c-48ac-89ce-52c1d5bbc94a",
+      "strategy": "cross_venue_yes_no_arb",
+      "class": "cross_venue_complement",
+      "venues": [
+        "kalshi",
+        "polymarket"
+      ],
+      "title": "Will North Korea invade South Korea before 2027?",
+      "market_ref": "will-north-korea-invade-south-korea-before-2027",
+      "legs": [],
+      "gross_edge_bps": null,
+      "executable_net_edge_bps": null,
+      "net_profit_usd": null,
+      "depth_usd": 0,
+      "capital_usd": 0,
+      "days_to_resolution": 46.0213,
+      "annualized_pct": null,
+      "hurdle_met": null,
+      "capital_lock_class": "long",
+      "resolution_at_by_venue": {
+        "kalshi": null,
+        "polymarket": null
+      },
+      "status": "rejected",
+      "rejection_reason": "compound_kalshi_market",
+      "gate_failed": 1,
+      "rule_match": "mismatch",
+      "rule_screen": "compound_market",
+      "rule_review": "none",
+      "first_seen_at": "2026-11-16T04:28:23.223Z",
+      "last_seen_at": "2026-11-16T04:28:23.223Z",
+      "open_seconds": 0
+    },
+    {
+      "id": "48e0ed10-6db1-49aa-84bb-f0eac85749ee",
+      "strategy": "cross_venue_yes_no_arb",
+      "class": "cross_venue_complement",
+      "venues": [
+        "kalshi",
+        "polymarket"
+      ],
+      "title": "Will Azerbaijan join the Abraham Accords before 2027?",
+      "market_ref": "will-azerbaijan-join-the-abraham-accords-before-2027",
+      "legs": [],
+      "gross_edge_bps": null,
+      "executable_net_edge_bps": null,
+      "net_profit_usd": null,
+      "depth_usd": 0,
+      "capital_usd": 0,
+      "days_to_resolution": 46.0213,
+      "annualized_pct": null,
+      "hurdle_met": null,
+      "capital_lock_class": "long",
+      "resolution_at_by_venue": {
+        "kalshi": null,
+        "polymarket": null
+      },
+      "status": "rejected",
+      "rejection_reason": "compound_kalshi_market",
+      "gate_failed": 1,
+      "rule_match": "mismatch",
+      "rule_screen": "compound_market",
+      "rule_review": "none",
+      "first_seen_at": "2026-11-16T04:28:23.223Z",
+      "last_seen_at": "2026-11-16T04:28:23.223Z",
+      "open_seconds": 0
+    },
+    {
+      "id": "5786193d-f099-46d4-9e34-b4d2515736a2",
+      "strategy": "cross_venue_yes_no_arb",
+      "class": "cross_venue_complement",
+      "venues": [
+        "kalshi",
+        "polymarket"
+      ],
+      "title": "Will Donald Trump win the 2028 US Presidential Election?",
+      "market_ref": "will-donald-trump-win-the-2028-us-presidential-election",
+      "legs": [],
+      "gross_edge_bps": null,
+      "executable_net_edge_bps": null,
+      "net_profit_usd": null,
+      "depth_usd": 0,
+      "capital_usd": 0,
+      "days_to_resolution": 797.4386,
+      "annualized_pct": null,
+      "hurdle_met": null,
+      "capital_lock_class": "long",
+      "resolution_at_by_venue": {
+        "kalshi": "2029-01-21T15:00:00.000Z",
+        "polymarket": "2028-11-07T00:00:00.000Z"
+      },
+      "status": "rejected",
+      "rejection_reason": "rule_review_not_equivalent",
+      "gate_failed": 1,
+      "rule_match": "mismatch",
+      "rule_screen": "resolution_time_mismatch",
+      "rule_review": "not_equivalent",
+      "first_seen_at": "2026-11-15T14:37:14.425Z",
+      "last_seen_at": "2026-11-16T04:28:23.223Z",
+      "open_seconds": 49868
+    },
+    {
+      "id": "59f10d08-a7a4-4f96-a959-e415dac5d227",
+      "strategy": "cross_venue_yes_no_arb",
+      "class": "cross_venue_complement",
+      "venues": [
+        "kalshi",
+        "polymarket"
+      ],
+      "title": "Will Marco Rubio win the 2028 US Presidential Election?",
+      "market_ref": "will-marco-rubio-win-the-2028-us-presidential-election",
+      "legs": [],
+      "gross_edge_bps": null,
+      "executable_net_edge_bps": null,
+      "net_profit_usd": null,
+      "depth_usd": 0,
+      "capital_usd": 0,
+      "days_to_resolution": 797.4386,
+      "annualized_pct": null,
+      "hurdle_met": null,
+      "capital_lock_class": "long",
+      "resolution_at_by_venue": {
+        "kalshi": "2029-01-21T15:00:00.000Z",
+        "polymarket": "2028-11-07T00:00:00.000Z"
+      },
+      "status": "rejected",
+      "rejection_reason": "rule_review_not_equivalent",
+      "gate_failed": 1,
+      "rule_match": "mismatch",
+      "rule_screen": "resolution_time_mismatch",
+      "rule_review": "not_equivalent",
+      "first_seen_at": "2026-11-15T14:37:14.425Z",
+      "last_seen_at": "2026-11-16T04:28:23.223Z",
+      "open_seconds": 49868
+    },
+    {
+      "id": "5f0a090e-1e2c-4588-8c86-f2fc3f84aae8",
+      "strategy": "cross_venue_yes_no_arb",
+      "class": "cross_venue_complement",
+      "venues": [
+        "kalshi",
+        "polymarket"
+      ],
+      "title": "Will North Korea invade South Korea before 2027?",
+      "market_ref": "will-north-korea-invade-south-korea-before-2027",
+      "legs": [],
+      "gross_edge_bps": null,
+      "executable_net_edge_bps": null,
+      "net_profit_usd": null,
+      "depth_usd": 0,
+      "capital_usd": 0,
+      "days_to_resolution": 46.0213,
+      "annualized_pct": null,
+      "hurdle_met": null,
+      "capital_lock_class": "long",
+      "resolution_at_by_venue": {
+        "kalshi": null,
+        "polymarket": null
+      },
+      "status": "rejected",
+      "rejection_reason": "compound_kalshi_market",
+      "gate_failed": 1,
+      "rule_match": "mismatch",
+      "rule_screen": "compound_market",
+      "rule_review": "none",
+      "first_seen_at": "2026-11-16T04:28:23.223Z",
+      "last_seen_at": "2026-11-16T04:28:23.223Z",
+      "open_seconds": 0
+    },
+    {
+      "id": "607d5513-4a66-4363-9796-b5a59e404cb3",
+      "strategy": "cross_venue_yes_no_arb",
+      "class": "cross_venue_complement",
+      "venues": [
+        "kalshi",
+        "polymarket"
+      ],
+      "title": "Will North Korea invade South Korea before 2027?",
+      "market_ref": "will-north-korea-invade-south-korea-before-2027",
+      "legs": [],
+      "gross_edge_bps": null,
+      "executable_net_edge_bps": null,
+      "net_profit_usd": null,
+      "depth_usd": 0,
+      "capital_usd": 0,
+      "days_to_resolution": 46.0213,
+      "annualized_pct": null,
+      "hurdle_met": null,
+      "capital_lock_class": "long",
+      "resolution_at_by_venue": {
+        "kalshi": null,
+        "polymarket": null
+      },
+      "status": "rejected",
+      "rejection_reason": "compound_kalshi_market",
+      "gate_failed": 1,
+      "rule_match": "mismatch",
+      "rule_screen": "compound_market",
+      "rule_review": "none",
+      "first_seen_at": "2026-11-16T04:28:23.223Z",
+      "last_seen_at": "2026-11-16T04:28:23.223Z",
+      "open_seconds": 0
+    },
+    {
+      "id": "63d55ff7-2d9f-4727-a1be-b07edadfc302",
+      "strategy": "cross_venue_yes_no_arb",
+      "class": "cross_venue_complement",
+      "venues": [
+        "kalshi",
+        "polymarket"
+      ],
+      "title": "Will Pakistan join the Abraham Accords before 2027?",
+      "market_ref": "will-pakistan-join-the-abraham-accords-before-2027",
+      "legs": [],
+      "gross_edge_bps": null,
+      "executable_net_edge_bps": null,
+      "net_profit_usd": null,
+      "depth_usd": 0,
+      "capital_usd": 0,
+      "days_to_resolution": 46.0213,
+      "annualized_pct": null,
+      "hurdle_met": null,
+      "capital_lock_class": "long",
+      "resolution_at_by_venue": {
+        "kalshi": null,
+        "polymarket": null
+      },
+      "status": "rejected",
+      "rejection_reason": "compound_kalshi_market",
+      "gate_failed": 1,
+      "rule_match": "mismatch",
+      "rule_screen": "compound_market",
+      "rule_review": "none",
+      "first_seen_at": "2026-11-16T04:28:23.223Z",
+      "last_seen_at": "2026-11-16T04:28:23.223Z",
+      "open_seconds": 0
+    },
+    {
+      "id": "8619c38d-4bef-4231-887f-8e1cdc260fcd",
+      "strategy": "cross_venue_yes_no_arb",
+      "class": "cross_venue_complement",
+      "venues": [
+        "kalshi",
+        "polymarket"
+      ],
+      "title": "Will North Korea invade South Korea before 2027?",
+      "market_ref": "will-north-korea-invade-south-korea-before-2027",
+      "legs": [],
+      "gross_edge_bps": null,
+      "executable_net_edge_bps": null,
+      "net_profit_usd": null,
+      "depth_usd": 0,
+      "capital_usd": 0,
+      "days_to_resolution": 46.0213,
+      "annualized_pct": null,
+      "hurdle_met": null,
+      "capital_lock_class": "long",
+      "resolution_at_by_venue": {
+        "kalshi": null,
+        "polymarket": null
+      },
+      "status": "rejected",
+      "rejection_reason": "compound_kalshi_market",
+      "gate_failed": 1,
+      "rule_match": "mismatch",
+      "rule_screen": "compound_market",
+      "rule_review": "none",
+      "first_seen_at": "2026-11-16T04:28:23.223Z",
+      "last_seen_at": "2026-11-16T04:28:23.223Z",
+      "open_seconds": 0
+    },
+    {
+      "id": "ab6aa17d-3262-4998-b6e6-bb6069da70cd",
+      "strategy": "cross_venue_yes_no_arb",
+      "class": "cross_venue_complement",
+      "venues": [
+        "kalshi",
+        "polymarket"
+      ],
+      "title": "Will Trump recognize Somaliland before 2027?",
+      "market_ref": "will-trump-recognize-somaliland-before-2027",
+      "legs": [],
+      "gross_edge_bps": -10,
+      "executable_net_edge_bps": -38,
+      "net_profit_usd": null,
+      "depth_usd": 0,
+      "capital_usd": 0,
+      "days_to_resolution": 46.4386,
+      "annualized_pct": null,
+      "hurdle_met": null,
+      "capital_lock_class": "long",
+      "resolution_at_by_venue": {
+        "kalshi": "2027-01-01T15:00:00.000Z",
+        "polymarket": "2027-01-01T04:59:00.000Z"
+      },
+      "status": "rejected",
+      "rejection_reason": "non_positive_executable_edge",
+      "gate_failed": 3,
+      "rule_match": "unverified",
+      "rule_screen": "passed",
+      "rule_review": "pending",
+      "first_seen_at": "2026-11-15T14:37:14.425Z",
+      "last_seen_at": "2026-11-16T04:28:23.223Z",
+      "open_seconds": 49868
+    },
+    {
+      "id": "bacec8e2-2319-4807-b656-91a7284e4e31",
+      "strategy": "cross_venue_yes_no_arb",
+      "class": "cross_venue_complement",
+      "venues": [
+        "kalshi",
+        "polymarket"
+      ],
+      "title": "Will Marine Le Pen win the 2027 French presidential election?",
+      "market_ref": "will-marine-le-pen-win-the-2027-french-presidential-election",
+      "legs": [],
+      "gross_edge_bps": null,
+      "executable_net_edge_bps": null,
+      "net_profit_usd": null,
+      "depth_usd": 0,
+      "capital_usd": 0,
+      "days_to_resolution": 196.397,
+      "annualized_pct": null,
+      "hurdle_met": null,
+      "capital_lock_class": "long",
+      "resolution_at_by_venue": {
+        "kalshi": "2027-05-31T14:00:00.000Z",
+        "polymarket": "2027-04-30T00:00:00.000Z"
+      },
+      "status": "rejected",
+      "rejection_reason": "resolution_time_mismatch",
+      "gate_failed": 1,
+      "rule_match": "mismatch",
+      "rule_screen": "resolution_time_mismatch",
+      "rule_review": "pending",
+      "first_seen_at": "2026-11-15T14:37:14.425Z",
+      "last_seen_at": "2026-11-16T04:28:23.223Z",
+      "open_seconds": 49868
+    },
+    {
+      "id": "ec5c2d52-5154-4fed-93fe-c620401c354c",
+      "strategy": "cross_venue_yes_no_arb",
+      "class": "cross_venue_complement",
+      "venues": [
+        "kalshi",
+        "polymarket"
+      ],
+      "title": "Will Azerbaijan join the Abraham Accords before 2027?",
+      "market_ref": "will-azerbaijan-join-the-abraham-accords-before-2027",
+      "legs": [],
+      "gross_edge_bps": null,
+      "executable_net_edge_bps": null,
+      "net_profit_usd": null,
+      "depth_usd": 0,
+      "capital_usd": 0,
+      "days_to_resolution": 46.0213,
+      "annualized_pct": null,
+      "hurdle_met": null,
+      "capital_lock_class": "long",
+      "resolution_at_by_venue": {
+        "kalshi": null,
+        "polymarket": null
+      },
+      "status": "rejected",
+      "rejection_reason": "compound_kalshi_market",
+      "gate_failed": 1,
+      "rule_match": "mismatch",
+      "rule_screen": "compound_market",
+      "rule_review": "none",
+      "first_seen_at": "2026-11-16T04:28:23.223Z",
+      "last_seen_at": "2026-11-16T04:28:23.223Z",
+      "open_seconds": 0
+    },
+    {
+      "id": "1bf6c755-f15c-4469-9120-91471b61a53c",
       "strategy": "neg_risk_bracket_arb",
       "class": "neg_risk_no_basket",
       "venues": [
         "polymarket"
       ],
-      "title": "kraken-ipo-in-2025",
-      "market_ref": "kraken-ipo-in-2025",
+      "title": "will-trump-be-impeached-by-december-31-2026",
+      "market_ref": "will-trump-be-impeached-by-december-31-2026",
       "legs": [],
       "gross_edge_bps": null,
       "executable_net_edge_bps": null,
@@ -486,32 +1019,32 @@
         "polymarket": "2028-01-01T04:59:00.000Z"
       },
       "status": "rejected",
-      "rejection_reason": "nested_temporal_basket",
+      "rejection_reason": "not_neg_risk_event",
       "gate_failed": 1,
       "rule_match": "unverified",
       "rule_screen": null,
       "rule_review": null,
-      "first_seen_at": "2026-11-10T08:36:04.028Z",
-      "last_seen_at": "2026-11-10T08:40:04.740Z",
-      "open_seconds": 240
+      "first_seen_at": "2026-11-15T14:35:33.187Z",
+      "last_seen_at": "2026-11-16T04:27:24.636Z",
+      "open_seconds": 49911
     },
     {
-      "id": "088e5d97-3294-4c6d-8d74-f138e64dc367",
+      "id": "3654e2e3-49c8-4b9e-8f46-fde49fb0fecf",
       "strategy": "cross_venue_yes_no_arb",
       "class": "cross_venue_complement",
       "venues": [
         "kalshi",
         "polymarket"
       ],
-      "title": "Will LeBron James win the 2028 US Presidential Election?",
-      "market_ref": "will-lebron-james-win-the-2028-us-presidential-election",
+      "title": "Will North Korea invade South Korea before 2027?",
+      "market_ref": "will-north-korea-invade-south-korea-before-2027",
       "legs": [],
       "gross_edge_bps": null,
       "executable_net_edge_bps": null,
       "net_profit_usd": null,
       "depth_usd": 0,
       "capital_usd": 0,
-      "days_to_resolution": 728.8484,
+      "days_to_resolution": 46.0247,
       "annualized_pct": null,
       "hurdle_met": null,
       "capital_lock_class": "long",
@@ -525,95 +1058,27 @@
       "rule_match": "mismatch",
       "rule_screen": "compound_market",
       "rule_review": "none",
-      "first_seen_at": "2026-11-10T08:37:15.815Z",
-      "last_seen_at": "2026-11-10T08:37:15.815Z",
+      "first_seen_at": "2026-11-16T04:23:27.658Z",
+      "last_seen_at": "2026-11-16T04:23:27.658Z",
       "open_seconds": 0
     },
     {
-      "id": "12717ec5-faa0-4cb9-aa9b-03078f2569a4",
+      "id": "3cae60c0-813b-4e4a-95b4-e6c03c033fa3",
       "strategy": "cross_venue_yes_no_arb",
       "class": "cross_venue_complement",
       "venues": [
         "kalshi",
         "polymarket"
       ],
-      "title": "Will J.B. Pritzker win the 2028 Democratic presidential nomination?",
-      "market_ref": "will-jb-pritzker-win-the-2028-democratic-presidential-nomination-288",
-      "legs": [],
-      "gross_edge_bps": 70,
-      "executable_net_edge_bps": 48,
-      "net_profit_usd": null,
-      "depth_usd": 0,
-      "capital_usd": 0,
-      "days_to_resolution": 728.2658,
-      "annualized_pct": null,
-      "hurdle_met": null,
-      "capital_lock_class": "long",
-      "resolution_at_by_venue": {
-        "kalshi": "2028-11-07T15:00:00.000Z",
-        "polymarket": "2028-11-07T00:00:00.000Z"
-      },
-      "status": "rejected",
-      "rejection_reason": "below_min_net_edge",
-      "gate_failed": 3,
-      "rule_match": "unverified",
-      "rule_screen": "passed",
-      "rule_review": "pending",
-      "first_seen_at": "2026-11-10T08:37:15.815Z",
-      "last_seen_at": "2026-11-10T08:37:15.815Z",
-      "open_seconds": 0
-    },
-    {
-      "id": "1ea7e456-3b0f-4b14-8794-c49426f55941",
-      "strategy": "cross_venue_yes_no_arb",
-      "class": "cross_venue_complement",
-      "venues": [
-        "kalshi",
-        "polymarket"
-      ],
-      "title": "Will Donald Trump win the 2028 US Presidential Election?",
-      "market_ref": "will-donald-trump-win-the-2028-us-presidential-election",
+      "title": "Will North Korea invade South Korea before 2027?",
+      "market_ref": "will-north-korea-invade-south-korea-before-2027",
       "legs": [],
       "gross_edge_bps": null,
       "executable_net_edge_bps": null,
       "net_profit_usd": null,
       "depth_usd": 0,
       "capital_usd": 0,
-      "days_to_resolution": 803.2658,
-      "annualized_pct": null,
-      "hurdle_met": null,
-      "capital_lock_class": "long",
-      "resolution_at_by_venue": {
-        "kalshi": "2029-01-21T15:00:00.000Z",
-        "polymarket": "2028-11-07T00:00:00.000Z"
-      },
-      "status": "rejected",
-      "rejection_reason": "rule_review_not_equivalent",
-      "gate_failed": 1,
-      "rule_match": "mismatch",
-      "rule_screen": "resolution_time_mismatch",
-      "rule_review": "not_equivalent",
-      "first_seen_at": "2026-11-10T08:37:15.815Z",
-      "last_seen_at": "2026-11-10T08:37:15.815Z",
-      "open_seconds": 0
-    },
-    {
-      "id": "1fb48a3f-556b-4bde-b2fa-55d2b04f131d",
-      "strategy": "cross_venue_yes_no_arb",
-      "class": "cross_venue_complement",
-      "venues": [
-        "kalshi",
-        "polymarket"
-      ],
-      "title": "Will Jalen Brunson win the 2028 US Presidential Election?",
-      "market_ref": "will-jalen-brunson-win-the-2028-us-presidential-election",
-      "legs": [],
-      "gross_edge_bps": null,
-      "executable_net_edge_bps": null,
-      "net_profit_usd": null,
-      "depth_usd": 0,
-      "capital_usd": 0,
-      "days_to_resolution": 728.8484,
+      "days_to_resolution": 46.0247,
       "annualized_pct": null,
       "hurdle_met": null,
       "capital_lock_class": "long",
@@ -627,27 +1092,27 @@
       "rule_match": "mismatch",
       "rule_screen": "compound_market",
       "rule_review": "none",
-      "first_seen_at": "2026-11-10T08:37:15.815Z",
-      "last_seen_at": "2026-11-10T08:37:15.815Z",
+      "first_seen_at": "2026-11-16T04:23:27.658Z",
+      "last_seen_at": "2026-11-16T04:23:27.658Z",
       "open_seconds": 0
     },
     {
-      "id": "2939d907-4b9b-4741-b0d2-7f605f36a20a",
+      "id": "5e745340-fdbb-4075-ae96-0b8d81a265a5",
       "strategy": "cross_venue_yes_no_arb",
       "class": "cross_venue_complement",
       "venues": [
         "kalshi",
         "polymarket"
       ],
-      "title": "Will LeBron James win the 2028 US Presidential Election?",
-      "market_ref": "will-lebron-james-win-the-2028-us-presidential-election",
+      "title": "Will Pakistan join the Abraham Accords before 2027?",
+      "market_ref": "will-pakistan-join-the-abraham-accords-before-2027",
       "legs": [],
       "gross_edge_bps": null,
       "executable_net_edge_bps": null,
       "net_profit_usd": null,
       "depth_usd": 0,
       "capital_usd": 0,
-      "days_to_resolution": 728.8484,
+      "days_to_resolution": 352.442,
       "annualized_pct": null,
       "hurdle_met": null,
       "capital_lock_class": "long",
@@ -661,27 +1126,27 @@
       "rule_match": "mismatch",
       "rule_screen": "compound_market",
       "rule_review": "none",
-      "first_seen_at": "2026-11-10T08:37:15.815Z",
-      "last_seen_at": "2026-11-10T08:37:15.815Z",
+      "first_seen_at": "2026-11-16T04:23:27.658Z",
+      "last_seen_at": "2026-11-16T04:23:27.658Z",
       "open_seconds": 0
     },
     {
-      "id": "3f3dd55e-5d5d-4c0c-9c14-0f3632a33dff",
+      "id": "65847e15-a4ad-48cb-9602-4ad1f798033e",
       "strategy": "cross_venue_yes_no_arb",
       "class": "cross_venue_complement",
       "venues": [
         "kalshi",
         "polymarket"
       ],
-      "title": "Will LeBron James win the 2028 US Presidential Election?",
-      "market_ref": "will-lebron-james-win-the-2028-us-presidential-election",
+      "title": "Will Pakistan join the Abraham Accords before 2027?",
+      "market_ref": "will-pakistan-join-the-abraham-accords-before-2027",
       "legs": [],
       "gross_edge_bps": null,
       "executable_net_edge_bps": null,
       "net_profit_usd": null,
       "depth_usd": 0,
       "capital_usd": 0,
-      "days_to_resolution": 728.8484,
+      "days_to_resolution": 46.0247,
       "annualized_pct": null,
       "hurdle_met": null,
       "capital_lock_class": "long",
@@ -695,61 +1160,27 @@
       "rule_match": "mismatch",
       "rule_screen": "compound_market",
       "rule_review": "none",
-      "first_seen_at": "2026-11-10T08:37:15.815Z",
-      "last_seen_at": "2026-11-10T08:37:15.815Z",
+      "first_seen_at": "2026-11-16T04:23:27.658Z",
+      "last_seen_at": "2026-11-16T04:23:27.658Z",
       "open_seconds": 0
     },
     {
-      "id": "744ec0a4-71fd-44fb-b022-cdde62619db5",
+      "id": "6cf7972e-32e8-4eec-836b-3bc2535c3f0a",
       "strategy": "cross_venue_yes_no_arb",
       "class": "cross_venue_complement",
       "venues": [
         "kalshi",
         "polymarket"
       ],
-      "title": "Will Marine Le Pen win the 2027 French presidential election?",
-      "market_ref": "will-marine-le-pen-win-the-2027-french-presidential-election",
+      "title": "Will Pakistan join the Abraham Accords before 2027?",
+      "market_ref": "will-pakistan-join-the-abraham-accords-before-2027",
       "legs": [],
       "gross_edge_bps": null,
       "executable_net_edge_bps": null,
       "net_profit_usd": null,
       "depth_usd": 0,
       "capital_usd": 0,
-      "days_to_resolution": 202.2241,
-      "annualized_pct": null,
-      "hurdle_met": null,
-      "capital_lock_class": "long",
-      "resolution_at_by_venue": {
-        "kalshi": "2027-05-31T14:00:00.000Z",
-        "polymarket": "2027-04-30T00:00:00.000Z"
-      },
-      "status": "rejected",
-      "rejection_reason": "resolution_time_mismatch",
-      "gate_failed": 1,
-      "rule_match": "mismatch",
-      "rule_screen": "resolution_time_mismatch",
-      "rule_review": "pending",
-      "first_seen_at": "2026-11-10T08:37:15.815Z",
-      "last_seen_at": "2026-11-10T08:37:15.815Z",
-      "open_seconds": 0
-    },
-    {
-      "id": "a1737db2-e2f6-4ded-b6b6-ea7197b1943f",
-      "strategy": "cross_venue_yes_no_arb",
-      "class": "cross_venue_complement",
-      "venues": [
-        "kalshi",
-        "polymarket"
-      ],
-      "title": "Will Jalen Brunson win the 2028 US Presidential Election?",
-      "market_ref": "will-jalen-brunson-win-the-2028-us-presidential-election",
-      "legs": [],
-      "gross_edge_bps": null,
-      "executable_net_edge_bps": null,
-      "net_profit_usd": null,
-      "depth_usd": 0,
-      "capital_usd": 0,
-      "days_to_resolution": 728.8484,
+      "days_to_resolution": 352.442,
       "annualized_pct": null,
       "hurdle_met": null,
       "capital_lock_class": "long",
@@ -763,27 +1194,27 @@
       "rule_match": "mismatch",
       "rule_screen": "compound_market",
       "rule_review": "none",
-      "first_seen_at": "2026-11-10T08:37:15.815Z",
-      "last_seen_at": "2026-11-10T08:37:15.815Z",
+      "first_seen_at": "2026-11-16T04:23:27.658Z",
+      "last_seen_at": "2026-11-16T04:23:27.658Z",
       "open_seconds": 0
     },
     {
-      "id": "b2a5e198-7dc4-4cc6-af14-01acde6035ba",
+      "id": "6d020065-d335-45ce-af4e-a756d692f248",
       "strategy": "cross_venue_yes_no_arb",
       "class": "cross_venue_complement",
       "venues": [
         "kalshi",
         "polymarket"
       ],
-      "title": "Will Jalen Brunson win the 2028 US Presidential Election?",
-      "market_ref": "will-jalen-brunson-win-the-2028-us-presidential-election",
+      "title": "Will North Korea invade South Korea before 2027?",
+      "market_ref": "will-north-korea-invade-south-korea-before-2027",
       "legs": [],
       "gross_edge_bps": null,
       "executable_net_edge_bps": null,
       "net_profit_usd": null,
       "depth_usd": 0,
       "capital_usd": 0,
-      "days_to_resolution": 728.8484,
+      "days_to_resolution": 46.0247,
       "annualized_pct": null,
       "hurdle_met": null,
       "capital_lock_class": "long",
@@ -797,27 +1228,27 @@
       "rule_match": "mismatch",
       "rule_screen": "compound_market",
       "rule_review": "none",
-      "first_seen_at": "2026-11-10T08:37:15.815Z",
-      "last_seen_at": "2026-11-10T08:37:15.815Z",
+      "first_seen_at": "2026-11-16T04:23:27.658Z",
+      "last_seen_at": "2026-11-16T04:23:27.658Z",
       "open_seconds": 0
     },
     {
-      "id": "ccd845c3-5517-4b2b-92a0-aaab119dd05f",
+      "id": "76625f13-28a2-411a-9749-f7a2d9cccd46",
       "strategy": "cross_venue_yes_no_arb",
       "class": "cross_venue_complement",
       "venues": [
         "kalshi",
         "polymarket"
       ],
-      "title": "Will Jalen Brunson win the 2028 US Presidential Election?",
-      "market_ref": "will-jalen-brunson-win-the-2028-us-presidential-election",
+      "title": "Will Azerbaijan join the Abraham Accords before 2027?",
+      "market_ref": "will-azerbaijan-join-the-abraham-accords-before-2027",
       "legs": [],
       "gross_edge_bps": null,
       "executable_net_edge_bps": null,
       "net_profit_usd": null,
       "depth_usd": 0,
       "capital_usd": 0,
-      "days_to_resolution": 728.8484,
+      "days_to_resolution": 46.0247,
       "annualized_pct": null,
       "hurdle_met": null,
       "capital_lock_class": "long",
@@ -831,61 +1262,27 @@
       "rule_match": "mismatch",
       "rule_screen": "compound_market",
       "rule_review": "none",
-      "first_seen_at": "2026-11-10T08:37:15.815Z",
-      "last_seen_at": "2026-11-10T08:37:15.815Z",
+      "first_seen_at": "2026-11-16T04:23:27.658Z",
+      "last_seen_at": "2026-11-16T04:23:27.658Z",
       "open_seconds": 0
     },
     {
-      "id": "e0e1cbf9-c66b-468c-8a3f-84813d785814",
+      "id": "899f8f6a-49e0-469b-9a34-6d02c7c33f14",
       "strategy": "cross_venue_yes_no_arb",
       "class": "cross_venue_complement",
       "venues": [
         "kalshi",
         "polymarket"
       ],
-      "title": "Will Trump recognize Somaliland before 2027?",
-      "market_ref": "will-trump-recognize-somaliland-before-2027",
-      "legs": [],
-      "gross_edge_bps": -30,
-      "executable_net_edge_bps": -58,
-      "net_profit_usd": null,
-      "depth_usd": 0,
-      "capital_usd": 0,
-      "days_to_resolution": 52.2658,
-      "annualized_pct": null,
-      "hurdle_met": null,
-      "capital_lock_class": "long",
-      "resolution_at_by_venue": {
-        "kalshi": "2027-01-01T15:00:00.000Z",
-        "polymarket": "2027-01-01T04:59:00.000Z"
-      },
-      "status": "rejected",
-      "rejection_reason": "non_positive_executable_edge",
-      "gate_failed": 3,
-      "rule_match": "unverified",
-      "rule_screen": "passed",
-      "rule_review": "pending",
-      "first_seen_at": "2026-11-10T08:37:15.815Z",
-      "last_seen_at": "2026-11-10T08:37:15.815Z",
-      "open_seconds": 0
-    },
-    {
-      "id": "e285b89e-aed0-47e0-8c2e-549141019adf",
-      "strategy": "cross_venue_yes_no_arb",
-      "class": "cross_venue_complement",
-      "venues": [
-        "kalshi",
-        "polymarket"
-      ],
-      "title": "Will Jalen Brunson win the 2028 US Presidential Election?",
-      "market_ref": "will-jalen-brunson-win-the-2028-us-presidential-election",
+      "title": "Will North Korea invade South Korea before 2027?",
+      "market_ref": "will-north-korea-invade-south-korea-before-2027",
       "legs": [],
       "gross_edge_bps": null,
       "executable_net_edge_bps": null,
       "net_profit_usd": null,
       "depth_usd": 0,
       "capital_usd": 0,
-      "days_to_resolution": 728.8484,
+      "days_to_resolution": 46.0247,
       "annualized_pct": null,
       "hurdle_met": null,
       "capital_lock_class": "long",
@@ -899,27 +1296,27 @@
       "rule_match": "mismatch",
       "rule_screen": "compound_market",
       "rule_review": "none",
-      "first_seen_at": "2026-11-10T08:37:15.815Z",
-      "last_seen_at": "2026-11-10T08:37:15.815Z",
+      "first_seen_at": "2026-11-16T04:23:27.658Z",
+      "last_seen_at": "2026-11-16T04:23:27.658Z",
       "open_seconds": 0
     },
     {
-      "id": "eabb1789-391c-4696-8353-9b2523dfc999",
+      "id": "bc7dae37-c6f4-45e9-b54d-327d52836b58",
       "strategy": "cross_venue_yes_no_arb",
       "class": "cross_venue_complement",
       "venues": [
         "kalshi",
         "polymarket"
       ],
-      "title": "Will Jalen Brunson win the 2028 US Presidential Election?",
-      "market_ref": "will-jalen-brunson-win-the-2028-us-presidential-election",
+      "title": "Will North Korea invade South Korea before 2027?",
+      "market_ref": "will-north-korea-invade-south-korea-before-2027",
       "legs": [],
       "gross_edge_bps": null,
       "executable_net_edge_bps": null,
       "net_profit_usd": null,
       "depth_usd": 0,
       "capital_usd": 0,
-      "days_to_resolution": 728.8484,
+      "days_to_resolution": 46.0247,
       "annualized_pct": null,
       "hurdle_met": null,
       "capital_lock_class": "long",
@@ -933,61 +1330,27 @@
       "rule_match": "mismatch",
       "rule_screen": "compound_market",
       "rule_review": "none",
-      "first_seen_at": "2026-11-10T08:37:15.815Z",
-      "last_seen_at": "2026-11-10T08:37:15.815Z",
+      "first_seen_at": "2026-11-16T04:23:27.658Z",
+      "last_seen_at": "2026-11-16T04:23:27.658Z",
       "open_seconds": 0
     },
     {
-      "id": "f3989e35-88b5-4c48-a199-f668fd09b2ab",
+      "id": "efb34dd6-5d0f-405e-8eb2-03c6265110d4",
       "strategy": "cross_venue_yes_no_arb",
       "class": "cross_venue_complement",
       "venues": [
         "kalshi",
         "polymarket"
       ],
-      "title": "Will Marco Rubio win the 2028 US Presidential Election?",
-      "market_ref": "will-marco-rubio-win-the-2028-us-presidential-election",
+      "title": "Will North Korea invade South Korea before 2027?",
+      "market_ref": "will-north-korea-invade-south-korea-before-2027",
       "legs": [],
       "gross_edge_bps": null,
       "executable_net_edge_bps": null,
       "net_profit_usd": null,
       "depth_usd": 0,
       "capital_usd": 0,
-      "days_to_resolution": 803.2658,
-      "annualized_pct": null,
-      "hurdle_met": null,
-      "capital_lock_class": "long",
-      "resolution_at_by_venue": {
-        "kalshi": "2029-01-21T15:00:00.000Z",
-        "polymarket": "2028-11-07T00:00:00.000Z"
-      },
-      "status": "rejected",
-      "rejection_reason": "rule_review_not_equivalent",
-      "gate_failed": 1,
-      "rule_match": "mismatch",
-      "rule_screen": "resolution_time_mismatch",
-      "rule_review": "not_equivalent",
-      "first_seen_at": "2026-11-10T08:37:15.815Z",
-      "last_seen_at": "2026-11-10T08:37:15.815Z",
-      "open_seconds": 0
-    },
-    {
-      "id": "fa304db8-f591-42b7-b202-626b00699905",
-      "strategy": "cross_venue_yes_no_arb",
-      "class": "cross_venue_complement",
-      "venues": [
-        "kalshi",
-        "polymarket"
-      ],
-      "title": "Will Jalen Brunson win the 2028 US Presidential Election?",
-      "market_ref": "will-jalen-brunson-win-the-2028-us-presidential-election",
-      "legs": [],
-      "gross_edge_bps": null,
-      "executable_net_edge_bps": null,
-      "net_profit_usd": null,
-      "depth_usd": 0,
-      "capital_usd": 0,
-      "days_to_resolution": 728.8484,
+      "days_to_resolution": 46.0247,
       "annualized_pct": null,
       "hurdle_met": null,
       "capital_lock_class": "long",
@@ -1001,8 +1364,824 @@
       "rule_match": "mismatch",
       "rule_screen": "compound_market",
       "rule_review": "none",
-      "first_seen_at": "2026-11-10T08:37:15.815Z",
-      "last_seen_at": "2026-11-10T08:37:15.815Z",
+      "first_seen_at": "2026-11-16T04:23:27.658Z",
+      "last_seen_at": "2026-11-16T04:23:27.658Z",
+      "open_seconds": 0
+    },
+    {
+      "id": "036642ca-e0fd-4725-b0b7-12aeb99eb710",
+      "strategy": "cross_venue_yes_no_arb",
+      "class": "cross_venue_complement",
+      "venues": [
+        "kalshi",
+        "polymarket"
+      ],
+      "title": "Will North Korea invade South Korea before 2027?",
+      "market_ref": "will-north-korea-invade-south-korea-before-2027",
+      "legs": [],
+      "gross_edge_bps": null,
+      "executable_net_edge_bps": null,
+      "net_profit_usd": null,
+      "depth_usd": 0,
+      "capital_usd": 0,
+      "days_to_resolution": 46.0282,
+      "annualized_pct": null,
+      "hurdle_met": null,
+      "capital_lock_class": "long",
+      "resolution_at_by_venue": {
+        "kalshi": null,
+        "polymarket": null
+      },
+      "status": "rejected",
+      "rejection_reason": "compound_kalshi_market",
+      "gate_failed": 1,
+      "rule_match": "mismatch",
+      "rule_screen": "compound_market",
+      "rule_review": "none",
+      "first_seen_at": "2026-11-16T04:18:19.278Z",
+      "last_seen_at": "2026-11-16T04:18:19.278Z",
+      "open_seconds": 0
+    },
+    {
+      "id": "0fecda33-efed-4363-af30-16f969f1a6f6",
+      "strategy": "cross_venue_yes_no_arb",
+      "class": "cross_venue_complement",
+      "venues": [
+        "kalshi",
+        "polymarket"
+      ],
+      "title": "Will North Korea invade South Korea before 2027?",
+      "market_ref": "will-north-korea-invade-south-korea-before-2027",
+      "legs": [],
+      "gross_edge_bps": null,
+      "executable_net_edge_bps": null,
+      "net_profit_usd": null,
+      "depth_usd": 0,
+      "capital_usd": 0,
+      "days_to_resolution": 46.0282,
+      "annualized_pct": null,
+      "hurdle_met": null,
+      "capital_lock_class": "long",
+      "resolution_at_by_venue": {
+        "kalshi": null,
+        "polymarket": null
+      },
+      "status": "rejected",
+      "rejection_reason": "compound_kalshi_market",
+      "gate_failed": 1,
+      "rule_match": "mismatch",
+      "rule_screen": "compound_market",
+      "rule_review": "none",
+      "first_seen_at": "2026-11-16T04:18:19.278Z",
+      "last_seen_at": "2026-11-16T04:18:19.278Z",
+      "open_seconds": 0
+    },
+    {
+      "id": "157c408a-c1c9-4a85-b77f-a1fdaec8d756",
+      "strategy": "cross_venue_yes_no_arb",
+      "class": "cross_venue_complement",
+      "venues": [
+        "kalshi",
+        "polymarket"
+      ],
+      "title": "Will Pakistan join the Abraham Accords before 2027?",
+      "market_ref": "will-pakistan-join-the-abraham-accords-before-2027",
+      "legs": [],
+      "gross_edge_bps": null,
+      "executable_net_edge_bps": null,
+      "net_profit_usd": null,
+      "depth_usd": 0,
+      "capital_usd": 0,
+      "days_to_resolution": 46.0282,
+      "annualized_pct": null,
+      "hurdle_met": null,
+      "capital_lock_class": "long",
+      "resolution_at_by_venue": {
+        "kalshi": null,
+        "polymarket": null
+      },
+      "status": "rejected",
+      "rejection_reason": "compound_kalshi_market",
+      "gate_failed": 1,
+      "rule_match": "mismatch",
+      "rule_screen": "compound_market",
+      "rule_review": "none",
+      "first_seen_at": "2026-11-16T04:18:19.278Z",
+      "last_seen_at": "2026-11-16T04:18:19.278Z",
+      "open_seconds": 0
+    },
+    {
+      "id": "3d532ded-039e-4b7c-942c-e8fa6c6e5706",
+      "strategy": "cross_venue_yes_no_arb",
+      "class": "cross_venue_complement",
+      "venues": [
+        "kalshi",
+        "polymarket"
+      ],
+      "title": "Will Party E win the 2028 US Presidential Election?",
+      "market_ref": "will-party-e-win-the-2028-us-presidential-election",
+      "legs": [],
+      "gross_edge_bps": null,
+      "executable_net_edge_bps": null,
+      "net_profit_usd": null,
+      "depth_usd": 0,
+      "capital_usd": 0,
+      "days_to_resolution": 721.8206,
+      "annualized_pct": null,
+      "hurdle_met": null,
+      "capital_lock_class": "long",
+      "resolution_at_by_venue": {
+        "kalshi": null,
+        "polymarket": null
+      },
+      "status": "rejected",
+      "rejection_reason": "compound_kalshi_market",
+      "gate_failed": 1,
+      "rule_match": "mismatch",
+      "rule_screen": "compound_market",
+      "rule_review": "none",
+      "first_seen_at": "2026-11-16T04:18:19.278Z",
+      "last_seen_at": "2026-11-16T04:18:19.278Z",
+      "open_seconds": 0
+    },
+    {
+      "id": "8b3868a2-a505-4852-8c7b-2723a2cb7d3c",
+      "strategy": "cross_venue_yes_no_arb",
+      "class": "cross_venue_complement",
+      "venues": [
+        "kalshi",
+        "polymarket"
+      ],
+      "title": "Will North Korea invade South Korea before 2027?",
+      "market_ref": "will-north-korea-invade-south-korea-before-2027",
+      "legs": [],
+      "gross_edge_bps": null,
+      "executable_net_edge_bps": null,
+      "net_profit_usd": null,
+      "depth_usd": 0,
+      "capital_usd": 0,
+      "days_to_resolution": 46.0282,
+      "annualized_pct": null,
+      "hurdle_met": null,
+      "capital_lock_class": "long",
+      "resolution_at_by_venue": {
+        "kalshi": null,
+        "polymarket": null
+      },
+      "status": "rejected",
+      "rejection_reason": "compound_kalshi_market",
+      "gate_failed": 1,
+      "rule_match": "mismatch",
+      "rule_screen": "compound_market",
+      "rule_review": "none",
+      "first_seen_at": "2026-11-16T04:18:19.278Z",
+      "last_seen_at": "2026-11-16T04:18:19.278Z",
+      "open_seconds": 0
+    },
+    {
+      "id": "b932c220-379d-4bab-a97a-a69c1dee57c6",
+      "strategy": "cross_venue_yes_no_arb",
+      "class": "cross_venue_complement",
+      "venues": [
+        "kalshi",
+        "polymarket"
+      ],
+      "title": "Will Party C win the 2028 US Presidential Election?",
+      "market_ref": "will-party-c-win-the-2028-us-presidential-election",
+      "legs": [],
+      "gross_edge_bps": null,
+      "executable_net_edge_bps": null,
+      "net_profit_usd": null,
+      "depth_usd": 0,
+      "capital_usd": 0,
+      "days_to_resolution": 721.8206,
+      "annualized_pct": null,
+      "hurdle_met": null,
+      "capital_lock_class": "long",
+      "resolution_at_by_venue": {
+        "kalshi": null,
+        "polymarket": null
+      },
+      "status": "rejected",
+      "rejection_reason": "compound_kalshi_market",
+      "gate_failed": 1,
+      "rule_match": "mismatch",
+      "rule_screen": "compound_market",
+      "rule_review": "none",
+      "first_seen_at": "2026-11-16T04:18:19.278Z",
+      "last_seen_at": "2026-11-16T04:18:19.278Z",
+      "open_seconds": 0
+    },
+    {
+      "id": "bf3688d1-b21d-40c5-b2d0-d43866eef9f5",
+      "strategy": "cross_venue_yes_no_arb",
+      "class": "cross_venue_complement",
+      "venues": [
+        "kalshi",
+        "polymarket"
+      ],
+      "title": "Will Pakistan join the Abraham Accords before 2027?",
+      "market_ref": "will-pakistan-join-the-abraham-accords-before-2027",
+      "legs": [],
+      "gross_edge_bps": null,
+      "executable_net_edge_bps": null,
+      "net_profit_usd": null,
+      "depth_usd": 0,
+      "capital_usd": 0,
+      "days_to_resolution": 46.0282,
+      "annualized_pct": null,
+      "hurdle_met": null,
+      "capital_lock_class": "long",
+      "resolution_at_by_venue": {
+        "kalshi": null,
+        "polymarket": null
+      },
+      "status": "rejected",
+      "rejection_reason": "compound_kalshi_market",
+      "gate_failed": 1,
+      "rule_match": "mismatch",
+      "rule_screen": "compound_market",
+      "rule_review": "none",
+      "first_seen_at": "2026-11-16T04:18:19.278Z",
+      "last_seen_at": "2026-11-16T04:18:19.278Z",
+      "open_seconds": 0
+    },
+    {
+      "id": "d7e1d4d3-9c19-4c6a-b738-62e363934a83",
+      "strategy": "cross_venue_yes_no_arb",
+      "class": "cross_venue_complement",
+      "venues": [
+        "kalshi",
+        "polymarket"
+      ],
+      "title": "Will Party B win the 2028 US Presidential Election?",
+      "market_ref": "will-party-b-win-the-2028-us-presidential-election",
+      "legs": [],
+      "gross_edge_bps": null,
+      "executable_net_edge_bps": null,
+      "net_profit_usd": null,
+      "depth_usd": 0,
+      "capital_usd": 0,
+      "days_to_resolution": 721.8206,
+      "annualized_pct": null,
+      "hurdle_met": null,
+      "capital_lock_class": "long",
+      "resolution_at_by_venue": {
+        "kalshi": null,
+        "polymarket": null
+      },
+      "status": "rejected",
+      "rejection_reason": "compound_kalshi_market",
+      "gate_failed": 1,
+      "rule_match": "mismatch",
+      "rule_screen": "compound_market",
+      "rule_review": "none",
+      "first_seen_at": "2026-11-16T04:18:19.278Z",
+      "last_seen_at": "2026-11-16T04:18:19.278Z",
+      "open_seconds": 0
+    },
+    {
+      "id": "db91b911-1654-48e9-b890-84f53f34ad50",
+      "strategy": "cross_venue_yes_no_arb",
+      "class": "cross_venue_complement",
+      "venues": [
+        "kalshi",
+        "polymarket"
+      ],
+      "title": "Will Party D win the 2028 US Presidential Election?",
+      "market_ref": "will-party-d-win-the-2028-us-presidential-election",
+      "legs": [],
+      "gross_edge_bps": null,
+      "executable_net_edge_bps": null,
+      "net_profit_usd": null,
+      "depth_usd": 0,
+      "capital_usd": 0,
+      "days_to_resolution": 721.8206,
+      "annualized_pct": null,
+      "hurdle_met": null,
+      "capital_lock_class": "long",
+      "resolution_at_by_venue": {
+        "kalshi": null,
+        "polymarket": null
+      },
+      "status": "rejected",
+      "rejection_reason": "compound_kalshi_market",
+      "gate_failed": 1,
+      "rule_match": "mismatch",
+      "rule_screen": "compound_market",
+      "rule_review": "none",
+      "first_seen_at": "2026-11-16T04:18:19.278Z",
+      "last_seen_at": "2026-11-16T04:18:19.278Z",
+      "open_seconds": 0
+    },
+    {
+      "id": "ea7c8785-fdaa-4ce0-88a5-ef0b190d4a96",
+      "strategy": "cross_venue_yes_no_arb",
+      "class": "cross_venue_complement",
+      "venues": [
+        "kalshi",
+        "polymarket"
+      ],
+      "title": "Will Party A win the 2028 US Presidential Election?",
+      "market_ref": "will-party-a-win-the-2028-us-presidential-election",
+      "legs": [],
+      "gross_edge_bps": null,
+      "executable_net_edge_bps": null,
+      "net_profit_usd": null,
+      "depth_usd": 0,
+      "capital_usd": 0,
+      "days_to_resolution": 721.8206,
+      "annualized_pct": null,
+      "hurdle_met": null,
+      "capital_lock_class": "long",
+      "resolution_at_by_venue": {
+        "kalshi": null,
+        "polymarket": null
+      },
+      "status": "rejected",
+      "rejection_reason": "compound_kalshi_market",
+      "gate_failed": 1,
+      "rule_match": "mismatch",
+      "rule_screen": "compound_market",
+      "rule_review": "none",
+      "first_seen_at": "2026-11-16T04:18:19.278Z",
+      "last_seen_at": "2026-11-16T04:18:19.278Z",
+      "open_seconds": 0
+    },
+    {
+      "id": "14cc1574-e01d-4c42-ab64-b258335ccc02",
+      "strategy": "cross_venue_yes_no_arb",
+      "class": "cross_venue_complement",
+      "venues": [
+        "kalshi",
+        "polymarket"
+      ],
+      "title": "Will Drake release a new song in 2026?",
+      "market_ref": "will-drake-release-a-new-song-in-2026",
+      "legs": [],
+      "gross_edge_bps": null,
+      "executable_net_edge_bps": null,
+      "net_profit_usd": null,
+      "depth_usd": 0,
+      "capital_usd": 0,
+      "days_to_resolution": 44.8241,
+      "annualized_pct": null,
+      "hurdle_met": null,
+      "capital_lock_class": "long",
+      "resolution_at_by_venue": {
+        "kalshi": null,
+        "polymarket": null
+      },
+      "status": "rejected",
+      "rejection_reason": "compound_kalshi_market",
+      "gate_failed": 1,
+      "rule_match": "mismatch",
+      "rule_screen": "compound_market",
+      "rule_review": "none",
+      "first_seen_at": "2026-11-16T04:13:15.979Z",
+      "last_seen_at": "2026-11-16T04:13:15.979Z",
+      "open_seconds": 0
+    },
+    {
+      "id": "49f07ad3-cc4c-4f3f-91e1-49b35a74628d",
+      "strategy": "cross_venue_yes_no_arb",
+      "class": "cross_venue_complement",
+      "venues": [
+        "kalshi",
+        "polymarket"
+      ],
+      "title": "Will North Korea invade South Korea before 2027?",
+      "market_ref": "will-north-korea-invade-south-korea-before-2027",
+      "legs": [],
+      "gross_edge_bps": null,
+      "executable_net_edge_bps": null,
+      "net_profit_usd": null,
+      "depth_usd": 0,
+      "capital_usd": 0,
+      "days_to_resolution": 46.0318,
+      "annualized_pct": null,
+      "hurdle_met": null,
+      "capital_lock_class": "long",
+      "resolution_at_by_venue": {
+        "kalshi": null,
+        "polymarket": null
+      },
+      "status": "rejected",
+      "rejection_reason": "compound_kalshi_market",
+      "gate_failed": 1,
+      "rule_match": "mismatch",
+      "rule_screen": "compound_market",
+      "rule_review": "none",
+      "first_seen_at": "2026-11-16T04:13:15.979Z",
+      "last_seen_at": "2026-11-16T04:13:15.979Z",
+      "open_seconds": 0
+    },
+    {
+      "id": "4a3554e5-b779-41ae-a72d-e9c3f3c21ec6",
+      "strategy": "cross_venue_yes_no_arb",
+      "class": "cross_venue_complement",
+      "venues": [
+        "kalshi",
+        "polymarket"
+      ],
+      "title": "Will North Korea invade South Korea before 2027?",
+      "market_ref": "will-north-korea-invade-south-korea-before-2027",
+      "legs": [],
+      "gross_edge_bps": null,
+      "executable_net_edge_bps": null,
+      "net_profit_usd": null,
+      "depth_usd": 0,
+      "capital_usd": 0,
+      "days_to_resolution": 46.0318,
+      "annualized_pct": null,
+      "hurdle_met": null,
+      "capital_lock_class": "long",
+      "resolution_at_by_venue": {
+        "kalshi": null,
+        "polymarket": null
+      },
+      "status": "rejected",
+      "rejection_reason": "compound_kalshi_market",
+      "gate_failed": 1,
+      "rule_match": "mismatch",
+      "rule_screen": "compound_market",
+      "rule_review": "none",
+      "first_seen_at": "2026-11-16T04:13:15.979Z",
+      "last_seen_at": "2026-11-16T04:13:15.979Z",
+      "open_seconds": 0
+    },
+    {
+      "id": "4cebc3a8-b1a2-4c2e-85d4-3646b750f24b",
+      "strategy": "cross_venue_yes_no_arb",
+      "class": "cross_venue_complement",
+      "venues": [
+        "kalshi",
+        "polymarket"
+      ],
+      "title": "Will North Korea invade South Korea before 2027?",
+      "market_ref": "will-north-korea-invade-south-korea-before-2027",
+      "legs": [],
+      "gross_edge_bps": null,
+      "executable_net_edge_bps": null,
+      "net_profit_usd": null,
+      "depth_usd": 0,
+      "capital_usd": 0,
+      "days_to_resolution": 46.0318,
+      "annualized_pct": null,
+      "hurdle_met": null,
+      "capital_lock_class": "long",
+      "resolution_at_by_venue": {
+        "kalshi": null,
+        "polymarket": null
+      },
+      "status": "rejected",
+      "rejection_reason": "compound_kalshi_market",
+      "gate_failed": 1,
+      "rule_match": "mismatch",
+      "rule_screen": "compound_market",
+      "rule_review": "none",
+      "first_seen_at": "2026-11-16T04:13:15.979Z",
+      "last_seen_at": "2026-11-16T04:13:15.979Z",
+      "open_seconds": 0
+    },
+    {
+      "id": "4dc1d3c0-e8d5-461f-81ed-e63af97a137f",
+      "strategy": "cross_venue_yes_no_arb",
+      "class": "cross_venue_complement",
+      "venues": [
+        "kalshi",
+        "polymarket"
+      ],
+      "title": "Will Pakistan join the Abraham Accords before 2027?",
+      "market_ref": "will-pakistan-join-the-abraham-accords-before-2027",
+      "legs": [],
+      "gross_edge_bps": null,
+      "executable_net_edge_bps": null,
+      "net_profit_usd": null,
+      "depth_usd": 0,
+      "capital_usd": 0,
+      "days_to_resolution": 46.0318,
+      "annualized_pct": null,
+      "hurdle_met": null,
+      "capital_lock_class": "long",
+      "resolution_at_by_venue": {
+        "kalshi": null,
+        "polymarket": null
+      },
+      "status": "rejected",
+      "rejection_reason": "compound_kalshi_market",
+      "gate_failed": 1,
+      "rule_match": "mismatch",
+      "rule_screen": "compound_market",
+      "rule_review": "none",
+      "first_seen_at": "2026-11-16T04:13:15.979Z",
+      "last_seen_at": "2026-11-16T04:13:15.979Z",
+      "open_seconds": 0
+    },
+    {
+      "id": "94df0414-0d1f-493e-bb27-ca0c8dab78d2",
+      "strategy": "cross_venue_yes_no_arb",
+      "class": "cross_venue_complement",
+      "venues": [
+        "kalshi",
+        "polymarket"
+      ],
+      "title": "Will North Korea invade South Korea before 2027?",
+      "market_ref": "will-north-korea-invade-south-korea-before-2027",
+      "legs": [],
+      "gross_edge_bps": null,
+      "executable_net_edge_bps": null,
+      "net_profit_usd": null,
+      "depth_usd": 0,
+      "capital_usd": 0,
+      "days_to_resolution": 46.0318,
+      "annualized_pct": null,
+      "hurdle_met": null,
+      "capital_lock_class": "long",
+      "resolution_at_by_venue": {
+        "kalshi": null,
+        "polymarket": null
+      },
+      "status": "rejected",
+      "rejection_reason": "compound_kalshi_market",
+      "gate_failed": 1,
+      "rule_match": "mismatch",
+      "rule_screen": "compound_market",
+      "rule_review": "none",
+      "first_seen_at": "2026-11-16T04:13:15.979Z",
+      "last_seen_at": "2026-11-16T04:13:15.979Z",
+      "open_seconds": 0
+    },
+    {
+      "id": "d0cda93a-5b56-4e69-9583-f84cc62b2dea",
+      "strategy": "cross_venue_yes_no_arb",
+      "class": "cross_venue_complement",
+      "venues": [
+        "kalshi",
+        "polymarket"
+      ],
+      "title": "Will North Korea invade South Korea before 2027?",
+      "market_ref": "will-north-korea-invade-south-korea-before-2027",
+      "legs": [],
+      "gross_edge_bps": null,
+      "executable_net_edge_bps": null,
+      "net_profit_usd": null,
+      "depth_usd": 0,
+      "capital_usd": 0,
+      "days_to_resolution": 46.0318,
+      "annualized_pct": null,
+      "hurdle_met": null,
+      "capital_lock_class": "long",
+      "resolution_at_by_venue": {
+        "kalshi": null,
+        "polymarket": null
+      },
+      "status": "rejected",
+      "rejection_reason": "compound_kalshi_market",
+      "gate_failed": 1,
+      "rule_match": "mismatch",
+      "rule_screen": "compound_market",
+      "rule_review": "none",
+      "first_seen_at": "2026-11-16T04:13:15.979Z",
+      "last_seen_at": "2026-11-16T04:13:15.979Z",
+      "open_seconds": 0
+    },
+    {
+      "id": "dabafa62-72a4-4488-b65d-67694a77b5c2",
+      "strategy": "cross_venue_yes_no_arb",
+      "class": "cross_venue_complement",
+      "venues": [
+        "kalshi",
+        "polymarket"
+      ],
+      "title": "Will North Korea invade South Korea before 2027?",
+      "market_ref": "will-north-korea-invade-south-korea-before-2027",
+      "legs": [],
+      "gross_edge_bps": null,
+      "executable_net_edge_bps": null,
+      "net_profit_usd": null,
+      "depth_usd": 0,
+      "capital_usd": 0,
+      "days_to_resolution": 46.0318,
+      "annualized_pct": null,
+      "hurdle_met": null,
+      "capital_lock_class": "long",
+      "resolution_at_by_venue": {
+        "kalshi": null,
+        "polymarket": null
+      },
+      "status": "rejected",
+      "rejection_reason": "compound_kalshi_market",
+      "gate_failed": 1,
+      "rule_match": "mismatch",
+      "rule_screen": "compound_market",
+      "rule_review": "none",
+      "first_seen_at": "2026-11-16T04:13:15.979Z",
+      "last_seen_at": "2026-11-16T04:13:15.979Z",
+      "open_seconds": 0
+    },
+    {
+      "id": "e7678165-30e0-419f-9842-4d76da5ca374",
+      "strategy": "cross_venue_yes_no_arb",
+      "class": "cross_venue_complement",
+      "venues": [
+        "kalshi",
+        "polymarket"
+      ],
+      "title": "Will Azerbaijan join the Abraham Accords before 2027?",
+      "market_ref": "will-azerbaijan-join-the-abraham-accords-before-2027",
+      "legs": [],
+      "gross_edge_bps": null,
+      "executable_net_edge_bps": null,
+      "net_profit_usd": null,
+      "depth_usd": 0,
+      "capital_usd": 0,
+      "days_to_resolution": 46.0318,
+      "annualized_pct": null,
+      "hurdle_met": null,
+      "capital_lock_class": "long",
+      "resolution_at_by_venue": {
+        "kalshi": null,
+        "polymarket": null
+      },
+      "status": "rejected",
+      "rejection_reason": "compound_kalshi_market",
+      "gate_failed": 1,
+      "rule_match": "mismatch",
+      "rule_screen": "compound_market",
+      "rule_review": "none",
+      "first_seen_at": "2026-11-16T04:13:15.979Z",
+      "last_seen_at": "2026-11-16T04:13:15.979Z",
+      "open_seconds": 0
+    },
+    {
+      "id": "f719e88f-9153-44c6-995c-457628b27793",
+      "strategy": "cross_venue_yes_no_arb",
+      "class": "cross_venue_complement",
+      "venues": [
+        "kalshi",
+        "polymarket"
+      ],
+      "title": "Will North Korea invade South Korea before 2027?",
+      "market_ref": "will-north-korea-invade-south-korea-before-2027",
+      "legs": [],
+      "gross_edge_bps": null,
+      "executable_net_edge_bps": null,
+      "net_profit_usd": null,
+      "depth_usd": 0,
+      "capital_usd": 0,
+      "days_to_resolution": 46.0318,
+      "annualized_pct": null,
+      "hurdle_met": null,
+      "capital_lock_class": "long",
+      "resolution_at_by_venue": {
+        "kalshi": null,
+        "polymarket": null
+      },
+      "status": "rejected",
+      "rejection_reason": "compound_kalshi_market",
+      "gate_failed": 1,
+      "rule_match": "mismatch",
+      "rule_screen": "compound_market",
+      "rule_review": "none",
+      "first_seen_at": "2026-11-16T04:13:15.979Z",
+      "last_seen_at": "2026-11-16T04:13:15.979Z",
+      "open_seconds": 0
+    },
+    {
+      "id": "170c76aa-0c0a-4dcd-91cf-b190dc5b2d30",
+      "strategy": "cross_venue_yes_no_arb",
+      "class": "cross_venue_complement",
+      "venues": [
+        "kalshi",
+        "polymarket"
+      ],
+      "title": "Will Party B win the 2028 US Presidential Election?",
+      "market_ref": "will-party-b-win-the-2028-us-presidential-election",
+      "legs": [],
+      "gross_edge_bps": null,
+      "executable_net_edge_bps": null,
+      "net_profit_usd": null,
+      "depth_usd": 0,
+      "capital_usd": 0,
+      "days_to_resolution": 721.8275,
+      "annualized_pct": null,
+      "hurdle_met": null,
+      "capital_lock_class": "long",
+      "resolution_at_by_venue": {
+        "kalshi": null,
+        "polymarket": null
+      },
+      "status": "rejected",
+      "rejection_reason": "compound_kalshi_market",
+      "gate_failed": 1,
+      "rule_match": "mismatch",
+      "rule_screen": "compound_market",
+      "rule_review": "none",
+      "first_seen_at": "2026-11-16T04:08:26.450Z",
+      "last_seen_at": "2026-11-16T04:08:26.450Z",
+      "open_seconds": 0
+    },
+    {
+      "id": "6cf33a9d-c669-4a02-97e6-090775fd1f3f",
+      "strategy": "cross_venue_yes_no_arb",
+      "class": "cross_venue_complement",
+      "venues": [
+        "kalshi",
+        "polymarket"
+      ],
+      "title": "Will North Korea invade South Korea before 2027?",
+      "market_ref": "will-north-korea-invade-south-korea-before-2027",
+      "legs": [],
+      "gross_edge_bps": null,
+      "executable_net_edge_bps": null,
+      "net_profit_usd": null,
+      "depth_usd": 0,
+      "capital_usd": 0,
+      "days_to_resolution": 46.0351,
+      "annualized_pct": null,
+      "hurdle_met": null,
+      "capital_lock_class": "long",
+      "resolution_at_by_venue": {
+        "kalshi": null,
+        "polymarket": null
+      },
+      "status": "rejected",
+      "rejection_reason": "compound_kalshi_market",
+      "gate_failed": 1,
+      "rule_match": "mismatch",
+      "rule_screen": "compound_market",
+      "rule_review": "none",
+      "first_seen_at": "2026-11-16T04:08:26.450Z",
+      "last_seen_at": "2026-11-16T04:08:26.450Z",
+      "open_seconds": 0
+    },
+    {
+      "id": "6cf72b65-3aed-4a43-91a2-fa881ac38b40",
+      "strategy": "cross_venue_yes_no_arb",
+      "class": "cross_venue_complement",
+      "venues": [
+        "kalshi",
+        "polymarket"
+      ],
+      "title": "Will Party C win the 2028 US Presidential Election?",
+      "market_ref": "will-party-c-win-the-2028-us-presidential-election",
+      "legs": [],
+      "gross_edge_bps": null,
+      "executable_net_edge_bps": null,
+      "net_profit_usd": null,
+      "depth_usd": 0,
+      "capital_usd": 0,
+      "days_to_resolution": 721.8275,
+      "annualized_pct": null,
+      "hurdle_met": null,
+      "capital_lock_class": "long",
+      "resolution_at_by_venue": {
+        "kalshi": null,
+        "polymarket": null
+      },
+      "status": "rejected",
+      "rejection_reason": "compound_kalshi_market",
+      "gate_failed": 1,
+      "rule_match": "mismatch",
+      "rule_screen": "compound_market",
+      "rule_review": "none",
+      "first_seen_at": "2026-11-16T04:08:26.450Z",
+      "last_seen_at": "2026-11-16T04:08:26.450Z",
+      "open_seconds": 0
+    },
+    {
+      "id": "6d1ff55c-a003-4108-afde-04c9ca272e4c",
+      "strategy": "cross_venue_yes_no_arb",
+      "class": "cross_venue_complement",
+      "venues": [
+        "kalshi",
+        "polymarket"
+      ],
+      "title": "Will North Korea invade South Korea before 2027?",
+      "market_ref": "will-north-korea-invade-south-korea-before-2027",
+      "legs": [],
+      "gross_edge_bps": null,
+      "executable_net_edge_bps": null,
+      "net_profit_usd": null,
+      "depth_usd": 0,
+      "capital_usd": 0,
+      "days_to_resolution": 46.0351,
+      "annualized_pct": null,
+      "hurdle_met": null,
+      "capital_lock_class": "long",
+      "resolution_at_by_venue": {
+        "kalshi": null,
+        "polymarket": null
+      },
+      "status": "rejected",
+      "rejection_reason": "compound_kalshi_market",
+      "gate_failed": 1,
+      "rule_match": "mismatch",
+      "rule_screen": "compound_market",
+      "rule_review": "none",
+      "first_seen_at": "2026-11-16T04:08:26.450Z",
+      "last_seen_at": "2026-11-16T04:08:26.450Z",
       "open_seconds": 0
     }
   ],
@@ -1010,20 +2189,20 @@
   "carry_candidates": [],
   "rejected_examples": [
     {
-      "reason": "nested_temporal_basket",
-      "label": "legs are nested by date, not exclusive",
+      "reason": "not_neg_risk_event",
+      "label": "venue does not flag the event as mutually exclusive",
       "gate": 1,
-      "count_24h": 17,
+      "count_24h": 1715,
       "examples": [
         {
-          "id": "1a12f7af-2c38-4fb3-9f13-60c6e7f415dc",
+          "id": "1bf6c755-f15c-4469-9120-91471b61a53c",
           "strategy": "neg_risk_bracket_arb",
           "class": "neg_risk_no_basket",
           "venues": [
             "polymarket"
           ],
-          "title": "kraken-ipo-in-2025",
-          "market_ref": "kraken-ipo-in-2025",
+          "title": "will-trump-be-impeached-by-december-31-2026",
+          "market_ref": "will-trump-be-impeached-by-december-31-2026",
           "legs": [],
           "gross_edge_bps": null,
           "executable_net_edge_bps": null,
@@ -1039,14 +2218,14 @@
             "polymarket": "2028-01-01T04:59:00.000Z"
           },
           "status": "rejected",
-          "rejection_reason": "nested_temporal_basket",
+          "rejection_reason": "not_neg_risk_event",
           "gate_failed": 1,
           "rule_match": "unverified",
           "rule_screen": null,
           "rule_review": null,
-          "first_seen_at": "2026-11-10T08:36:04.028Z",
-          "last_seen_at": "2026-11-10T08:40:04.740Z",
-          "open_seconds": 240
+          "first_seen_at": "2026-11-15T14:35:33.187Z",
+          "last_seen_at": "2026-11-16T04:27:24.636Z",
+          "open_seconds": 49911
         }
       ]
     },
@@ -1054,25 +2233,25 @@
       "reason": "compound_kalshi_market",
       "label": "Kalshi market bundles several outcomes",
       "gate": 1,
-      "count_24h": 10,
+      "count_24h": 1520,
       "examples": [
         {
-          "id": "a1737db2-e2f6-4ded-b6b6-ea7197b1943f",
+          "id": "48e0ed10-6db1-49aa-84bb-f0eac85749ee",
           "strategy": "cross_venue_yes_no_arb",
           "class": "cross_venue_complement",
           "venues": [
             "kalshi",
             "polymarket"
           ],
-          "title": "Will Jalen Brunson win the 2028 US Presidential Election?",
-          "market_ref": "will-jalen-brunson-win-the-2028-us-presidential-election",
+          "title": "Will Azerbaijan join the Abraham Accords before 2027?",
+          "market_ref": "will-azerbaijan-join-the-abraham-accords-before-2027",
           "legs": [],
           "gross_edge_bps": null,
           "executable_net_edge_bps": null,
           "net_profit_usd": null,
           "depth_usd": 0,
           "capital_usd": 0,
-          "days_to_resolution": 728.8484,
+          "days_to_resolution": 46.0213,
           "annualized_pct": null,
           "hurdle_met": null,
           "capital_lock_class": "long",
@@ -1086,27 +2265,27 @@
           "rule_match": "mismatch",
           "rule_screen": "compound_market",
           "rule_review": "none",
-          "first_seen_at": "2026-11-10T08:37:15.815Z",
-          "last_seen_at": "2026-11-10T08:37:15.815Z",
+          "first_seen_at": "2026-11-16T04:28:23.223Z",
+          "last_seen_at": "2026-11-16T04:28:23.223Z",
           "open_seconds": 0
         },
         {
-          "id": "eabb1789-391c-4696-8353-9b2523dfc999",
+          "id": "26aa539a-003d-4dc9-b03e-badb9b26de63",
           "strategy": "cross_venue_yes_no_arb",
           "class": "cross_venue_complement",
           "venues": [
             "kalshi",
             "polymarket"
           ],
-          "title": "Will Jalen Brunson win the 2028 US Presidential Election?",
-          "market_ref": "will-jalen-brunson-win-the-2028-us-presidential-election",
+          "title": "Will Azerbaijan join the Abraham Accords before 2027?",
+          "market_ref": "will-azerbaijan-join-the-abraham-accords-before-2027",
           "legs": [],
           "gross_edge_bps": null,
           "executable_net_edge_bps": null,
           "net_profit_usd": null,
           "depth_usd": 0,
           "capital_usd": 0,
-          "days_to_resolution": 728.8484,
+          "days_to_resolution": 46.0213,
           "annualized_pct": null,
           "hurdle_met": null,
           "capital_lock_class": "long",
@@ -1120,27 +2299,27 @@
           "rule_match": "mismatch",
           "rule_screen": "compound_market",
           "rule_review": "none",
-          "first_seen_at": "2026-11-10T08:37:15.815Z",
-          "last_seen_at": "2026-11-10T08:37:15.815Z",
+          "first_seen_at": "2026-11-16T04:28:23.223Z",
+          "last_seen_at": "2026-11-16T04:28:23.223Z",
           "open_seconds": 0
         },
         {
-          "id": "fa304db8-f591-42b7-b202-626b00699905",
+          "id": "ec5c2d52-5154-4fed-93fe-c620401c354c",
           "strategy": "cross_venue_yes_no_arb",
           "class": "cross_venue_complement",
           "venues": [
             "kalshi",
             "polymarket"
           ],
-          "title": "Will Jalen Brunson win the 2028 US Presidential Election?",
-          "market_ref": "will-jalen-brunson-win-the-2028-us-presidential-election",
+          "title": "Will Azerbaijan join the Abraham Accords before 2027?",
+          "market_ref": "will-azerbaijan-join-the-abraham-accords-before-2027",
           "legs": [],
           "gross_edge_bps": null,
           "executable_net_edge_bps": null,
           "net_profit_usd": null,
           "depth_usd": 0,
           "capital_usd": 0,
-          "days_to_resolution": 728.8484,
+          "days_to_resolution": 46.0213,
           "annualized_pct": null,
           "hurdle_met": null,
           "capital_lock_class": "long",
@@ -1154,27 +2333,27 @@
           "rule_match": "mismatch",
           "rule_screen": "compound_market",
           "rule_review": "none",
-          "first_seen_at": "2026-11-10T08:37:15.815Z",
-          "last_seen_at": "2026-11-10T08:37:15.815Z",
+          "first_seen_at": "2026-11-16T04:28:23.223Z",
+          "last_seen_at": "2026-11-16T04:28:23.223Z",
           "open_seconds": 0
         },
         {
-          "id": "ccd845c3-5517-4b2b-92a0-aaab119dd05f",
+          "id": "0cc9eb51-a992-456e-8b2e-3a7bb6e4f4c1",
           "strategy": "cross_venue_yes_no_arb",
           "class": "cross_venue_complement",
           "venues": [
             "kalshi",
             "polymarket"
           ],
-          "title": "Will Jalen Brunson win the 2028 US Presidential Election?",
-          "market_ref": "will-jalen-brunson-win-the-2028-us-presidential-election",
+          "title": "Will Drake release a new song in 2026?",
+          "market_ref": "will-drake-release-a-new-song-in-2026",
           "legs": [],
           "gross_edge_bps": null,
           "executable_net_edge_bps": null,
           "net_profit_usd": null,
           "depth_usd": 0,
           "capital_usd": 0,
-          "days_to_resolution": 728.8484,
+          "days_to_resolution": 44.8136,
           "annualized_pct": null,
           "hurdle_met": null,
           "capital_lock_class": "long",
@@ -1188,27 +2367,27 @@
           "rule_match": "mismatch",
           "rule_screen": "compound_market",
           "rule_review": "none",
-          "first_seen_at": "2026-11-10T08:37:15.815Z",
-          "last_seen_at": "2026-11-10T08:37:15.815Z",
+          "first_seen_at": "2026-11-16T04:28:23.223Z",
+          "last_seen_at": "2026-11-16T04:28:23.223Z",
           "open_seconds": 0
         },
         {
-          "id": "b2a5e198-7dc4-4cc6-af14-01acde6035ba",
+          "id": "5f0a090e-1e2c-4588-8c86-f2fc3f84aae8",
           "strategy": "cross_venue_yes_no_arb",
           "class": "cross_venue_complement",
           "venues": [
             "kalshi",
             "polymarket"
           ],
-          "title": "Will Jalen Brunson win the 2028 US Presidential Election?",
-          "market_ref": "will-jalen-brunson-win-the-2028-us-presidential-election",
+          "title": "Will North Korea invade South Korea before 2027?",
+          "market_ref": "will-north-korea-invade-south-korea-before-2027",
           "legs": [],
           "gross_edge_bps": null,
           "executable_net_edge_bps": null,
           "net_profit_usd": null,
           "depth_usd": 0,
           "capital_usd": 0,
-          "days_to_resolution": 728.8484,
+          "days_to_resolution": 46.0213,
           "annualized_pct": null,
           "hurdle_met": null,
           "capital_lock_class": "long",
@@ -1222,8 +2401,8 @@
           "rule_match": "mismatch",
           "rule_screen": "compound_market",
           "rule_review": "none",
-          "first_seen_at": "2026-11-10T08:37:15.815Z",
-          "last_seen_at": "2026-11-10T08:37:15.815Z",
+          "first_seen_at": "2026-11-16T04:28:23.223Z",
+          "last_seen_at": "2026-11-16T04:28:23.223Z",
           "open_seconds": 0
         }
       ]
@@ -1232,10 +2411,10 @@
       "reason": "rule_review_not_equivalent",
       "label": "a person found the two rulebooks not equivalent",
       "gate": 1,
-      "count_24h": 2,
+      "count_24h": 306,
       "examples": [
         {
-          "id": "1ea7e456-3b0f-4b14-8794-c49426f55941",
+          "id": "5786193d-f099-46d4-9e34-b4d2515736a2",
           "strategy": "cross_venue_yes_no_arb",
           "class": "cross_venue_complement",
           "venues": [
@@ -1250,7 +2429,7 @@
           "net_profit_usd": null,
           "depth_usd": 0,
           "capital_usd": 0,
-          "days_to_resolution": 803.2658,
+          "days_to_resolution": 797.4386,
           "annualized_pct": null,
           "hurdle_met": null,
           "capital_lock_class": "long",
@@ -1264,12 +2443,12 @@
           "rule_match": "mismatch",
           "rule_screen": "resolution_time_mismatch",
           "rule_review": "not_equivalent",
-          "first_seen_at": "2026-11-10T08:37:15.815Z",
-          "last_seen_at": "2026-11-10T08:37:15.815Z",
-          "open_seconds": 0
+          "first_seen_at": "2026-11-15T14:37:14.425Z",
+          "last_seen_at": "2026-11-16T04:28:23.223Z",
+          "open_seconds": 49868
         },
         {
-          "id": "f3989e35-88b5-4c48-a199-f668fd09b2ab",
+          "id": "59f10d08-a7a4-4f96-a959-e415dac5d227",
           "strategy": "cross_venue_yes_no_arb",
           "class": "cross_venue_complement",
           "venues": [
@@ -1284,7 +2463,7 @@
           "net_profit_usd": null,
           "depth_usd": 0,
           "capital_usd": 0,
-          "days_to_resolution": 803.2658,
+          "days_to_resolution": 797.4386,
           "annualized_pct": null,
           "hurdle_met": null,
           "capital_lock_class": "long",
@@ -1298,9 +2477,9 @@
           "rule_match": "mismatch",
           "rule_screen": "resolution_time_mismatch",
           "rule_review": "not_equivalent",
-          "first_seen_at": "2026-11-10T08:37:15.815Z",
-          "last_seen_at": "2026-11-10T08:37:15.815Z",
-          "open_seconds": 0
+          "first_seen_at": "2026-11-15T14:37:14.425Z",
+          "last_seen_at": "2026-11-16T04:28:23.223Z",
+          "open_seconds": 49868
         }
       ]
     },
@@ -1308,10 +2487,10 @@
       "reason": "resolution_time_mismatch",
       "label": "resolution times differ",
       "gate": 1,
-      "count_24h": 1,
+      "count_24h": 153,
       "examples": [
         {
-          "id": "744ec0a4-71fd-44fb-b022-cdde62619db5",
+          "id": "bacec8e2-2319-4807-b656-91a7284e4e31",
           "strategy": "cross_venue_yes_no_arb",
           "class": "cross_venue_complement",
           "venues": [
@@ -1326,7 +2505,7 @@
           "net_profit_usd": null,
           "depth_usd": 0,
           "capital_usd": 0,
-          "days_to_resolution": 202.2241,
+          "days_to_resolution": 196.397,
           "annualized_pct": null,
           "hurdle_met": null,
           "capital_lock_class": "long",
@@ -1340,9 +2519,9 @@
           "rule_match": "mismatch",
           "rule_screen": "resolution_time_mismatch",
           "rule_review": "pending",
-          "first_seen_at": "2026-11-10T08:37:15.815Z",
-          "last_seen_at": "2026-11-10T08:37:15.815Z",
-          "open_seconds": 0
+          "first_seen_at": "2026-11-15T14:37:14.425Z",
+          "last_seen_at": "2026-11-16T04:28:23.223Z",
+          "open_seconds": 49868
         }
       ]
     },
@@ -1350,10 +2529,10 @@
       "reason": "non_positive_executable_edge",
       "label": "edge gone at executable prices",
       "gate": 3,
-      "count_24h": 1,
+      "count_24h": 153,
       "examples": [
         {
-          "id": "e0e1cbf9-c66b-468c-8a3f-84813d785814",
+          "id": "ab6aa17d-3262-4998-b6e6-bb6069da70cd",
           "strategy": "cross_venue_yes_no_arb",
           "class": "cross_venue_complement",
           "venues": [
@@ -1363,12 +2542,12 @@
           "title": "Will Trump recognize Somaliland before 2027?",
           "market_ref": "will-trump-recognize-somaliland-before-2027",
           "legs": [],
-          "gross_edge_bps": -30,
-          "executable_net_edge_bps": -58,
+          "gross_edge_bps": -10,
+          "executable_net_edge_bps": -38,
           "net_profit_usd": null,
           "depth_usd": 0,
           "capital_usd": 0,
-          "days_to_resolution": 52.2658,
+          "days_to_resolution": 46.4386,
           "annualized_pct": null,
           "hurdle_met": null,
           "capital_lock_class": "long",
@@ -1382,53 +2561,77 @@
           "rule_match": "unverified",
           "rule_screen": "passed",
           "rule_review": "pending",
-          "first_seen_at": "2026-11-10T08:37:15.815Z",
-          "last_seen_at": "2026-11-10T08:37:15.815Z",
-          "open_seconds": 0
+          "first_seen_at": "2026-11-15T14:37:14.425Z",
+          "last_seen_at": "2026-11-16T04:28:23.223Z",
+          "open_seconds": 49868
         }
       ]
     },
     {
-      "reason": "below_min_net_edge",
-      "label": "net edge below the configured floor",
-      "gate": 3,
-      "count_24h": 1,
+      "reason": "below_annualized_hurdle",
+      "label": "annualised net return below the hurdle rate",
+      "gate": 4,
+      "count_24h": 153,
       "examples": [
         {
-          "id": "12717ec5-faa0-4cb9-aa9b-03078f2569a4",
+          "id": "596a7d44-9632-42ee-8af9-09ade035a677",
           "strategy": "cross_venue_yes_no_arb",
           "class": "cross_venue_complement",
           "venues": [
-            "kalshi",
-            "polymarket"
+            "polymarket",
+            "kalshi"
           ],
           "title": "Will J.B. Pritzker win the 2028 Democratic presidential nomination?",
           "market_ref": "will-jb-pritzker-win-the-2028-democratic-presidential-nomination-288",
-          "legs": [],
-          "gross_edge_bps": 70,
-          "executable_net_edge_bps": 48,
-          "net_profit_usd": null,
-          "depth_usd": 0,
-          "capital_usd": 0,
-          "days_to_resolution": 728.2658,
-          "annualized_pct": null,
-          "hurdle_met": null,
+          "legs": [
+            {
+              "venue": "polymarket",
+              "side": "YES",
+              "price": 0.016182,
+              "size_usd": 603.7244,
+              "role": "taker",
+              "fee_usd": 23.7582
+            },
+            {
+              "venue": "kalshi",
+              "side": "NO",
+              "price": 0.97598,
+              "size_usd": 36412.2425,
+              "role": "taker",
+              "fee_usd": 61.23
+            }
+          ],
+          "gross_edge_bps": 79,
+          "executable_net_edge_bps": 56.04,
+          "net_profit_usd": 207.43,
+          "depth_usd": 36897.9977,
+          "capital_usd": 37015.9668,
+          "days_to_resolution": 722.4393,
+          "annualized_pct": 0.28,
+          "hurdle_met": false,
           "capital_lock_class": "long",
           "resolution_at_by_venue": {
             "kalshi": "2028-11-07T15:00:00.000Z",
             "polymarket": "2028-11-07T00:00:00.000Z"
           },
           "status": "rejected",
-          "rejection_reason": "below_min_net_edge",
-          "gate_failed": 3,
+          "rejection_reason": "below_annualized_hurdle",
+          "gate_failed": 4,
           "rule_match": "unverified",
           "rule_screen": "passed",
           "rule_review": "pending",
-          "first_seen_at": "2026-11-10T08:37:15.815Z",
-          "last_seen_at": "2026-11-10T08:37:15.815Z",
-          "open_seconds": 0
+          "first_seen_at": "2026-11-15T14:37:14.425Z",
+          "last_seen_at": "2026-11-16T04:28:23.223Z",
+          "open_seconds": 49868
         }
       ]
+    },
+    {
+      "reason": "non_positive_net_edge_after_fees",
+      "label": "edge gone after venue fees",
+      "gate": 3,
+      "count_24h": 15,
+      "examples": []
     }
   ],
   "pairs": [
@@ -1471,14 +2674,14 @@
       },
       "hedged": false,
       "last": {
-        "gross_cents": 0.7,
-        "net_cents": 0.48,
-        "annualized_pct": 0.33,
-        "executable_size": 103171.05,
-        "status": "no_edge"
+        "gross_cents": 1.1,
+        "net_cents": 0.85,
+        "annualized_pct": 0.28,
+        "executable_size": 37308.39,
+        "status": "rejected"
       },
       "first_seen_at": "2026-09-05T17:23:26.743Z",
-      "last_seen_at": "2026-11-10T08:37:15.815Z"
+      "last_seen_at": "2026-11-16T04:28:23.223Z"
     },
     {
       "pair_id": "KXRECOGSOMALI-29-27|will-trump-recognize-somaliland-before-2027",
@@ -1519,14 +2722,14 @@
       },
       "hedged": false,
       "last": {
-        "gross_cents": -0.3,
-        "net_cents": -0.58,
+        "gross_cents": -0.1,
+        "net_cents": -0.38,
         "annualized_pct": 5.38,
         "executable_size": 298.78,
         "status": "no_edge"
       },
       "first_seen_at": "2026-09-05T15:55:38.252Z",
-      "last_seen_at": "2026-11-10T08:37:15.815Z"
+      "last_seen_at": "2026-11-16T04:28:23.223Z"
     },
     {
       "pair_id": "KXFRENCHPRES-27-MLEP|will-marine-le-pen-win-the-2027-french-presidential-election",
@@ -1574,28 +2777,28 @@
         "status": "rejected"
       },
       "first_seen_at": "2026-09-05T17:23:26.743Z",
-      "last_seen_at": "2026-11-10T08:37:15.815Z"
+      "last_seen_at": "2026-11-16T04:28:23.223Z"
     },
     {
-      "pair_id": "KXMVECROSSCATEGORY-S202667A2MRJ7MFIOTA5B-5TVWQP5NS|will-jalen-brunson-win-the-2028-us-presidential-election",
-      "title": "Will Jalen Brunson win the 2028 US Presidential Election?",
-      "category": "politics",
+      "pair_id": "KXMVECROSSCATEGORY-S202626XVNPHQLEA6WFIN-DPZSWLM6I|will-azerbaijan-join-the-abraham-accords-before-2027",
+      "title": "Will Azerbaijan join the Abraham Accords before 2027?",
+      "category": "other",
       "source": "discovery",
       "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY-S202667A2MRJ7MFIOTA5B-5TVWQP5NS",
-        "title": "yes New York wins by over 1.5 points,yes LeBron James: 4+,yes Jalen Brunson: 4+,no Jayson Tatum: 35+,yes Tyrese Maxey: 20+,yes New York wins by over 5.5 points,yes New York over 109.5 points",
+        "ticker": "KXMVECROSSCATEGORY-S202626XVNPHQLEA6WFIN-DPZSWLM6I",
+        "title": "yes Manchester City,yes Brighton,yes Azerbaijan,yes Ryo Minakata,yes Suk Ann,yes Teerapat Khantiweerawat,yes Wihan Van Der Merwe,yes Min Ho Ko,yes Abraham Asaba,yes Ren Nakamura,yes Baran Soyler,yes Hong-Lin Fu,yes Wenze Li,yes Veerawit Kamput,yes Yash Chaurasia,yes Aryan Jit Singh,yes Suraj R Prabodh,yes Julappagari Anurag Reddy,yes Naiktha Bains,yes Sijia Wei,yes Real Madrid,yes Barcelona,yes Atletico,yes Monaco,yes PSG,yes Paris FC,yes Miami,yes Como,yes Napoli,yes Roma,yes Inter,yes Juventus,yes Switzerland,yes Austria,yes Portugal",
         "resolution_at": null,
         "rules_excerpt": null
       },
       "polymarket": {
-        "slug": "will-jalen-brunson-win-the-2028-us-presidential-election",
-        "question": "Will Jalen Brunson win the 2028 US Presidential Election?",
-        "resolution_at": "2028-11-08T04:59:00.000Z",
+        "slug": "will-azerbaijan-join-the-abraham-accords-before-2027",
+        "question": "Will Azerbaijan join the Abraham Accords before 2027?",
+        "resolution_at": "2027-01-01T04:59:00.000Z",
         "rules_excerpt": null
       },
       "resolution_gap_days": null,
       "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=win,jalen,brunson;anchors=jalen,brunson",
+      "rule_screen_detail": "shared=azerbaijan,abraham;anchors=azerbaijan,abraham",
       "rule_review": "none",
       "review": null,
       "hedged": false,
@@ -1606,29 +2809,29 @@
         "executable_size": null,
         "status": "rejected"
       },
-      "first_seen_at": "2026-11-10T08:37:15.815Z",
-      "last_seen_at": "2026-11-10T08:37:15.815Z"
+      "first_seen_at": "2026-11-16T04:28:23.223Z",
+      "last_seen_at": "2026-11-16T04:28:23.223Z"
     },
     {
-      "pair_id": "KXMVECROSSCATEGORY-S202667A2MRJ7MFIOTA5B-5TVWQP5NS|will-lebron-james-win-the-2028-us-presidential-election",
-      "title": "Will LeBron James win the 2028 US Presidential Election?",
-      "category": "politics",
+      "pair_id": "KXMVECROSSCATEGORY-S2026322SA66C7LS7SHR5-UNBONKLQL|will-north-korea-invade-south-korea-before-2027",
+      "title": "Will North Korea invade South Korea before 2027?",
+      "category": "other",
       "source": "discovery",
       "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY-S202667A2MRJ7MFIOTA5B-5TVWQP5NS",
-        "title": "yes New York wins by over 1.5 points,yes LeBron James: 4+,yes Jalen Brunson: 4+,no Jayson Tatum: 35+,yes Tyrese Maxey: 20+,yes New York wins by over 5.5 points,yes New York over 109.5 points",
+        "ticker": "KXMVECROSSCATEGORY-S2026322SA66C7LS7SHR5-UNBONKLQL",
+        "title": "yes Western Michigan,yes Toledo,yes Oregon,yes Air Force,yes Texas,yes Tulsa,yes Southern Utah,yes Cornell,yes UC Davis,yes Fresno St.,yes Dayton,yes South Carolina St.,yes Abilene Christian,yes Furman,yes Stony Brook,yes South Dakota St.,yes Jackson St.,yes Lehigh,yes USC,yes Butler,yes North Dakota St.,yes UConn,yes Penn St.,yes North Dakota,yes Gardner-Webb,yes Appalachian St.,yes Northern Arizona,yes Weber St.,yes Florida,yes Wake Forest,yes Liberty,yes Houston,yes Kansas City,yes Buffalo,yes Chicago",
         "resolution_at": null,
         "rules_excerpt": null
       },
       "polymarket": {
-        "slug": "will-lebron-james-win-the-2028-us-presidential-election",
-        "question": "Will LeBron James win the 2028 US Presidential Election?",
-        "resolution_at": "2028-11-08T04:59:00.000Z",
+        "slug": "will-north-korea-invade-south-korea-before-2027",
+        "question": "Will North Korea invade South Korea before 2027?",
+        "resolution_at": "2027-01-01T04:59:00.000Z",
         "rules_excerpt": null
       },
       "resolution_gap_days": null,
       "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=win,lebron,james;anchors=lebron,james",
+      "rule_screen_detail": "shared=south,north;anchors=south,north",
       "rule_review": "none",
       "review": null,
       "hedged": false,
@@ -1639,29 +2842,29 @@
         "executable_size": null,
         "status": "rejected"
       },
-      "first_seen_at": "2026-11-10T08:37:15.815Z",
-      "last_seen_at": "2026-11-10T08:37:15.815Z"
+      "first_seen_at": "2026-11-16T04:28:23.223Z",
+      "last_seen_at": "2026-11-16T04:28:23.223Z"
     },
     {
-      "pair_id": "KXMVECROSSCATEGORY-S20267ZJFTUSI3U5HLKCX-ZLCEVJBQJ|will-lebron-james-win-the-2028-us-presidential-election",
-      "title": "Will LeBron James win the 2028 US Presidential Election?",
-      "category": "politics",
+      "pair_id": "KXMVECROSSCATEGORY-S20263JHIAG6M2R3RL7QQ-RXAHKDHTU|will-north-korea-invade-south-korea-before-2027",
+      "title": "Will North Korea invade South Korea before 2027?",
+      "category": "other",
       "source": "discovery",
       "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY-S20267ZJFTUSI3U5HLKCX-ZLCEVJBQJ",
-        "title": "yes Jayson Tatum: 6+,yes LeBron James: 6+,yes Tyrese Maxey: 4+,yes New York,yes Jayson Tatum: 20+,yes Tyrese Maxey: 20+,yes Joel Embiid: 8+,yes VJ Edgecombe: 4+,yes Phoenix wins by over 2.5 points",
+        "ticker": "KXMVECROSSCATEGORY-S20263JHIAG6M2R3RL7QQ-RXAHKDHTU",
+        "title": "yes Alabama A&M,yes Arizona,yes BYU,yes Louisiana,yes Cornell,yes UC Davis,yes Fresno St.,yes South Carolina St.,yes Georgia Southern,yes Nevada,yes Houston,yes Indiana,yes Iowa,yes Lamar,yes USC,yes Memphis,yes Montana St.,yes Middle Tennessee,yes Florida St.,yes North Dakota St.,yes UConn,yes Oklahoma St.,yes Austin Peay,yes Louisville,yes Illinois St.,yes Boise St.,yes Merrimack,yes Notre Dame,yes San Diego,yes Tarleton St.,yes Gardner-Webb,yes Oklahoma,yes UCLA,yes Georgia,yes Appalachian St.,yes St. Thomas,yes Oregon St.,yes Utah,yes Southeast Missouri St.,yes UTSA,yes Florida,yes Miami (FL),yes Texas St.,yes Harvard",
         "resolution_at": null,
         "rules_excerpt": null
       },
       "polymarket": {
-        "slug": "will-lebron-james-win-the-2028-us-presidential-election",
-        "question": "Will LeBron James win the 2028 US Presidential Election?",
-        "resolution_at": "2028-11-08T04:59:00.000Z",
+        "slug": "will-north-korea-invade-south-korea-before-2027",
+        "question": "Will North Korea invade South Korea before 2027?",
+        "resolution_at": "2027-01-01T04:59:00.000Z",
         "rules_excerpt": null
       },
       "resolution_gap_days": null,
       "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=lebron,james,win;anchors=lebron,james",
+      "rule_screen_detail": "shared=south,north;anchors=south,north",
       "rule_review": "none",
       "review": null,
       "hedged": false,
@@ -1672,29 +2875,29 @@
         "executable_size": null,
         "status": "rejected"
       },
-      "first_seen_at": "2026-11-10T08:37:15.815Z",
-      "last_seen_at": "2026-11-10T08:37:15.815Z"
+      "first_seen_at": "2026-11-16T04:28:23.223Z",
+      "last_seen_at": "2026-11-16T04:28:23.223Z"
     },
     {
-      "pair_id": "KXMVECROSSCATEGORY-S2026H7CWVMMFDRZTIHZI-NILOVH5ZS|will-lebron-james-win-the-2028-us-presidential-election",
-      "title": "Will LeBron James win the 2028 US Presidential Election?",
-      "category": "politics",
+      "pair_id": "KXMVECROSSCATEGORY-S2026DTQ5QZATIDL5V7MV-XMFWGXTRY|will-drake-release-a-new-song-in-2026",
+      "title": "Will Drake release a new song in 2026?",
+      "category": "finance",
       "source": "discovery",
       "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY-S2026H7CWVMMFDRZTIHZI-NILOVH5ZS",
-        "title": "no Bam Adebayo: 2+,yes LeBron James: 25+,yes Davion Mitchell: 20+,yes Jaylen Brown: 20+,no Miami wins by over 9.5 points",
+        "ticker": "KXMVECROSSCATEGORY-S2026DTQ5QZATIDL5V7MV-XMFWGXTRY",
+        "title": "yes Cleveland,yes Golden State,yes Miami,yes Boston,yes Philadelphia,yes Denver,yes Portland,yes Missouri St.,yes Maryland,yes Oklahoma St.,yes Clemson,yes Northwestern,yes Kent St.,yes Oregon St.,yes George Washington,yes North Alabama,yes Kentucky,yes Georgia,yes UCLA,yes Morehead St.,yes Kansas St.,yes Saint Mary's,yes Ohio St.,yes Virginia Tech,yes Texas A&M,yes Drake,yes UC San Diego,yes Minnesota,yes Rutgers,yes Louisiana-Monroe,yes Xavier,yes High Point,yes Utah,yes Southern Miss,yes Texas A&M,yes Miami (FL),yes Tulane,yes Michigan,yes VCU,yes Middle Tennessee,yes LSU,yes Northern Colorado,yes UTSA,yes Baltimore,yes San Jose,yes Vegas,yes New York R,yes Utah",
         "resolution_at": null,
         "rules_excerpt": null
       },
       "polymarket": {
-        "slug": "will-lebron-james-win-the-2028-us-presidential-election",
-        "question": "Will LeBron James win the 2028 US Presidential Election?",
-        "resolution_at": "2028-11-08T04:59:00.000Z",
+        "slug": "will-drake-release-a-new-song-in-2026",
+        "question": "Will Drake release a new song in 2026?",
+        "resolution_at": "2026-12-31T00:00:00.000Z",
         "rules_excerpt": null
       },
       "resolution_gap_days": null,
       "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=lebron,james,win;anchors=lebron,james",
+      "rule_screen_detail": "shared=drake,new;anchors=drake,new",
       "rule_review": "none",
       "review": null,
       "hedged": false,
@@ -1705,29 +2908,29 @@
         "executable_size": null,
         "status": "rejected"
       },
-      "first_seen_at": "2026-11-10T08:37:15.815Z",
-      "last_seen_at": "2026-11-10T08:37:15.815Z"
+      "first_seen_at": "2026-11-16T04:28:23.223Z",
+      "last_seen_at": "2026-11-16T04:28:23.223Z"
     },
     {
-      "pair_id": "KXMVECROSSCATEGORY-S2026Q3C4LOXHLPMTQGIB-4HQ2ZKK5D|will-jalen-brunson-win-the-2028-us-presidential-election",
-      "title": "Will Jalen Brunson win the 2028 US Presidential Election?",
-      "category": "politics",
+      "pair_id": "KXMVECROSSCATEGORY-S2026GAW5TL5T5LIN3COY-XRVH7JVPK|will-azerbaijan-join-the-abraham-accords-before-2027",
+      "title": "Will Azerbaijan join the Abraham Accords before 2027?",
+      "category": "other",
       "source": "discovery",
       "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY-S2026Q3C4LOXHLPMTQGIB-4HQ2ZKK5D",
-        "title": "yes Jayson Tatum: 25+,yes Jaylen Brown: 25+,yes Jalen Brunson: 25+,yes Miami wins by over 4.5 points,yes New York wins by over 9.5 points",
+        "ticker": "KXMVECROSSCATEGORY-S2026GAW5TL5T5LIN3COY-XRVH7JVPK",
+        "title": "yes Manchester City,yes Brighton,yes Azerbaijan,yes Ryo Minakata,yes Suk Ann,yes Teerapat Khantiweerawat,yes Wihan Van Der Merwe,yes Min Ho Ko,yes Abraham Asaba,yes Ren Nakamura,yes Baran Soyler,yes Hong-Lin Fu,yes Wenze Li,yes Veerawit Kamput,yes Yash Chaurasia,yes Aryan Jit Singh,yes Suraj R Prabodh,yes Julappagari Anurag Reddy,yes Naiktha Bains,yes Sijia Wei,yes Real Madrid,yes Barcelona,yes Atletico,yes Monaco,yes PSG,yes Paris FC,yes Miami,yes Como,yes Napoli,yes Roma,yes Inter,yes Juventus,yes Switzerland,yes Bosnia and Herzegovina,yes Austria,yes Portugal",
         "resolution_at": null,
         "rules_excerpt": null
       },
       "polymarket": {
-        "slug": "will-jalen-brunson-win-the-2028-us-presidential-election",
-        "question": "Will Jalen Brunson win the 2028 US Presidential Election?",
-        "resolution_at": "2028-11-08T04:59:00.000Z",
+        "slug": "will-azerbaijan-join-the-abraham-accords-before-2027",
+        "question": "Will Azerbaijan join the Abraham Accords before 2027?",
+        "resolution_at": "2027-01-01T04:59:00.000Z",
         "rules_excerpt": null
       },
       "resolution_gap_days": null,
       "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=jalen,brunson,win;anchors=jalen,brunson",
+      "rule_screen_detail": "shared=azerbaijan,abraham;anchors=azerbaijan,abraham",
       "rule_review": "none",
       "review": null,
       "hedged": false,
@@ -1738,29 +2941,29 @@
         "executable_size": null,
         "status": "rejected"
       },
-      "first_seen_at": "2026-11-10T08:37:15.815Z",
-      "last_seen_at": "2026-11-10T08:37:15.815Z"
+      "first_seen_at": "2026-11-16T04:28:23.223Z",
+      "last_seen_at": "2026-11-16T04:28:23.223Z"
     },
     {
-      "pair_id": "KXMVECROSSCATEGORY-S2026Q3C4LOXHLPMTQGIB-BLB2XZV3Q|will-jalen-brunson-win-the-2028-us-presidential-election",
-      "title": "Will Jalen Brunson win the 2028 US Presidential Election?",
-      "category": "politics",
+      "pair_id": "KXMVECROSSCATEGORY-S2026GLCUYCRFU2YMVJHL-GOVJBEPKE|will-pakistan-join-the-abraham-accords-before-2027",
+      "title": "Will Pakistan join the Abraham Accords before 2027?",
+      "category": "other",
       "source": "discovery",
       "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY-S2026Q3C4LOXHLPMTQGIB-BLB2XZV3Q",
-        "title": "yes Jayson Tatum: 25+,yes Jaylen Brown: 25+,yes Jalen Brunson: 25+,yes Miami wins by over 1.5 points,yes New York wins by over 9.5 points",
+        "ticker": "KXMVECROSSCATEGORY-S2026GLCUYCRFU2YMVJHL-GOVJBEPKE",
+        "title": "yes Abraham Asaba,yes Veerawit Kamput,no Filip Chytil: 1+,no Zeev Buium: 1+,no Brayden McNabb: 1+,no Jack Eichel: 2+,no Mitch Marner: 3+,no Rasmus Andersson: 1+,no William Karlsson: 2+,yes San Jose,yes Vancouver,yes Pakistan",
         "resolution_at": null,
         "rules_excerpt": null
       },
       "polymarket": {
-        "slug": "will-jalen-brunson-win-the-2028-us-presidential-election",
-        "question": "Will Jalen Brunson win the 2028 US Presidential Election?",
-        "resolution_at": "2028-11-08T04:59:00.000Z",
+        "slug": "will-pakistan-join-the-abraham-accords-before-2027",
+        "question": "Will Pakistan join the Abraham Accords before 2027?",
+        "resolution_at": "2027-01-01T04:59:00.000Z",
         "rules_excerpt": null
       },
       "resolution_gap_days": null,
       "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=jalen,brunson,win;anchors=jalen,brunson",
+      "rule_screen_detail": "shared=abraham,pakistan;anchors=abraham,pakistan",
       "rule_review": "none",
       "review": null,
       "hedged": false,
@@ -1771,29 +2974,29 @@
         "executable_size": null,
         "status": "rejected"
       },
-      "first_seen_at": "2026-11-10T08:37:15.815Z",
-      "last_seen_at": "2026-11-10T08:37:15.815Z"
+      "first_seen_at": "2026-11-16T04:28:23.223Z",
+      "last_seen_at": "2026-11-16T04:28:23.223Z"
     },
     {
-      "pair_id": "KXMVECROSSCATEGORY-S2026SAOHCHQZ32KFJYI4-KEP2ZRVL5|will-jalen-brunson-win-the-2028-us-presidential-election",
-      "title": "Will Jalen Brunson win the 2028 US Presidential Election?",
-      "category": "politics",
+      "pair_id": "KXMVECROSSCATEGORY-S2026ND3RZ4XXDD4A666J-I7JOP4XE3|will-north-korea-invade-south-korea-before-2027",
+      "title": "Will North Korea invade South Korea before 2027?",
+      "category": "other",
       "source": "discovery",
       "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY-S2026SAOHCHQZ32KFJYI4-KEP2ZRVL5",
-        "title": "yes Jalen Brunson: 2+,yes Josh Hart: 4+,yes Jalen Brunson: 25+,yes New York wins by over 15.5 points",
+        "ticker": "KXMVECROSSCATEGORY-S2026ND3RZ4XXDD4A666J-I7JOP4XE3",
+        "title": "yes Denver,yes Ohio,yes Western Michigan,yes Stephen F. Austin,yes Toledo,yes Duke,yes Oregon,yes Air Force,yes Texas,yes Tulsa,yes Southern Utah,yes Dayton,yes South Carolina St.,yes Furman,yes Stony Brook,yes South Dakota St.,yes Lehigh,yes Butler,yes UConn,yes Penn St.,yes North Dakota,yes Appalachian St.,yes Weber St.,yes Florida,yes Wake Forest,yes Liberty,yes Richmond,yes Kansas City,yes Buffalo,yes Chicago",
         "resolution_at": null,
         "rules_excerpt": null
       },
       "polymarket": {
-        "slug": "will-jalen-brunson-win-the-2028-us-presidential-election",
-        "question": "Will Jalen Brunson win the 2028 US Presidential Election?",
-        "resolution_at": "2028-11-08T04:59:00.000Z",
+        "slug": "will-north-korea-invade-south-korea-before-2027",
+        "question": "Will North Korea invade South Korea before 2027?",
+        "resolution_at": "2027-01-01T04:59:00.000Z",
         "rules_excerpt": null
       },
       "resolution_gap_days": null,
       "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=jalen,brunson,win;anchors=jalen,brunson",
+      "rule_screen_detail": "shared=south,north;anchors=south,north",
       "rule_review": "none",
       "review": null,
       "hedged": false,
@@ -1804,29 +3007,29 @@
         "executable_size": null,
         "status": "rejected"
       },
-      "first_seen_at": "2026-11-10T08:37:15.815Z",
-      "last_seen_at": "2026-11-10T08:37:15.815Z"
+      "first_seen_at": "2026-11-16T04:28:23.223Z",
+      "last_seen_at": "2026-11-16T04:28:23.223Z"
     },
     {
-      "pair_id": "KXMVECROSSCATEGORY-S2026SF7LTJAZ5XVKUDFE-MYN34NPNH|will-jalen-brunson-win-the-2028-us-presidential-election",
-      "title": "Will Jalen Brunson win the 2028 US Presidential Election?",
-      "category": "politics",
+      "pair_id": "KXMVECROSSCATEGORY-S2026T6JUYE52KD4B5Q77-VCXOAO5CD|will-north-korea-invade-south-korea-before-2027",
+      "title": "Will North Korea invade South Korea before 2027?",
+      "category": "other",
       "source": "discovery",
       "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY-S2026SF7LTJAZ5XVKUDFE-MYN34NPNH",
-        "title": "yes Jalen Brunson: 30+,yes Landry Shamet: 10+,yes New York wins by over 10.5 points",
+        "ticker": "KXMVECROSSCATEGORY-S2026T6JUYE52KD4B5Q77-VCXOAO5CD",
+        "title": "yes Ohio,yes Western Michigan,yes Miami (OH),yes UMass,yes Buffalo,yes Toledo,yes Duke,yes Oregon,yes Air Force,yes University at Albany,yes Brown,yes BYU,yes Louisiana,yes Western Carolina,yes Dayton,yes South Carolina St.,yes Mercer,yes Holy Cross,yes Furman,yes Villanova,yes Stony Brook,yes Houston,yes Lehigh,yes Memphis,yes Butler,yes Middle Tennessee,yes Syracuse,yes North Texas,yes Bryant,yes St. Thomas,yes Florida,yes Wake Forest,yes Liberty,yes Richmond",
         "resolution_at": null,
         "rules_excerpt": null
       },
       "polymarket": {
-        "slug": "will-jalen-brunson-win-the-2028-us-presidential-election",
-        "question": "Will Jalen Brunson win the 2028 US Presidential Election?",
-        "resolution_at": "2028-11-08T04:59:00.000Z",
+        "slug": "will-north-korea-invade-south-korea-before-2027",
+        "question": "Will North Korea invade South Korea before 2027?",
+        "resolution_at": "2027-01-01T04:59:00.000Z",
         "rules_excerpt": null
       },
       "resolution_gap_days": null,
       "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=jalen,brunson,win;anchors=jalen,brunson",
+      "rule_screen_detail": "shared=south,north;anchors=south,north",
       "rule_review": "none",
       "review": null,
       "hedged": false,
@@ -1837,29 +3040,29 @@
         "executable_size": null,
         "status": "rejected"
       },
-      "first_seen_at": "2026-11-10T08:37:15.815Z",
-      "last_seen_at": "2026-11-10T08:37:15.815Z"
+      "first_seen_at": "2026-11-16T04:28:23.223Z",
+      "last_seen_at": "2026-11-16T04:28:23.223Z"
     },
     {
-      "pair_id": "KXMVECROSSCATEGORY-S2026THYHOFH4WUOGCFBH-3O5YHHIAN|will-jalen-brunson-win-the-2028-us-presidential-election",
-      "title": "Will Jalen Brunson win the 2028 US Presidential Election?",
-      "category": "politics",
+      "pair_id": "KXMVECROSSCATEGORY-S2026VAEODDPMLYJA5KJF-UOT5RNYKH|will-north-korea-invade-south-korea-before-2027",
+      "title": "Will North Korea invade South Korea before 2027?",
+      "category": "other",
       "source": "discovery",
       "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY-S2026THYHOFH4WUOGCFBH-3O5YHHIAN",
-        "title": "yes New York wins by over 1.5 points,yes Jalen Brunson: 4+,yes Phoenix,no Jayson Tatum: 35+,yes Tyrese Maxey: 20+,yes New York wins by over 5.5 points,yes New York over 109.5 points",
+        "ticker": "KXMVECROSSCATEGORY-S2026VAEODDPMLYJA5KJF-UOT5RNYKH",
+        "title": "yes Alabama A&M,yes Arizona,yes BYU,yes Louisiana,yes Cornell,yes UC Davis,yes Fresno St.,yes South Carolina St.,yes Georgia Southern,yes Nevada,yes Houston,yes Indiana,yes Iowa,yes Lamar,yes USC,yes Memphis,yes Montana St.,yes Middle Tennessee,yes Florida St.,yes North Dakota St.,yes UConn,yes Oklahoma St.,yes Austin Peay,yes Princeton,yes Louisville,yes Illinois St.,yes Boise St.,yes Notre Dame,yes San Diego,yes Tarleton St.,yes Gardner-Webb,yes Oklahoma,yes UCLA,yes Georgia,yes Appalachian St.,yes St. Thomas,yes Oregon St.,yes Utah,yes Southeast Missouri St.,yes UTSA,yes Florida,yes Miami (FL),yes Texas St.,yes Harvard",
         "resolution_at": null,
         "rules_excerpt": null
       },
       "polymarket": {
-        "slug": "will-jalen-brunson-win-the-2028-us-presidential-election",
-        "question": "Will Jalen Brunson win the 2028 US Presidential Election?",
-        "resolution_at": "2028-11-08T04:59:00.000Z",
+        "slug": "will-north-korea-invade-south-korea-before-2027",
+        "question": "Will North Korea invade South Korea before 2027?",
+        "resolution_at": "2027-01-01T04:59:00.000Z",
         "rules_excerpt": null
       },
       "resolution_gap_days": null,
       "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=win,jalen,brunson;anchors=jalen,brunson",
+      "rule_screen_detail": "shared=south,north;anchors=south,north",
       "rule_review": "none",
       "review": null,
       "hedged": false,
@@ -1870,29 +3073,29 @@
         "executable_size": null,
         "status": "rejected"
       },
-      "first_seen_at": "2026-11-10T08:37:15.815Z",
-      "last_seen_at": "2026-11-10T08:37:15.815Z"
+      "first_seen_at": "2026-11-16T04:28:23.223Z",
+      "last_seen_at": "2026-11-16T04:28:23.223Z"
     },
     {
-      "pair_id": "KXMVECROSSCATEGORY-S2026W77O3IDY3B6K2AB3-NDIGW7MJT|will-jalen-brunson-win-the-2028-us-presidential-election",
-      "title": "Will Jalen Brunson win the 2028 US Presidential Election?",
-      "category": "politics",
+      "pair_id": "KXMVECROSSCATEGORY-S2026YYXGTIAEWZDICTX6-XNKMHFAOX|will-azerbaijan-join-the-abraham-accords-before-2027",
+      "title": "Will Azerbaijan join the Abraham Accords before 2027?",
+      "category": "other",
       "source": "discovery",
       "kalshi": {
-        "ticker": "KXMVECROSSCATEGORY-S2026W77O3IDY3B6K2AB3-NDIGW7MJT",
-        "title": "yes Bam Adebayo: 2+,yes Tyrese Maxey: 20+,yes Davion Mitchell: 10+,yes Jalen Brunson: 20+,yes Miami wins by over 9.5 points,yes New York wins by over 10.5 points",
+        "ticker": "KXMVECROSSCATEGORY-S2026YYXGTIAEWZDICTX6-XNKMHFAOX",
+        "title": "yes Manchester City,yes Brighton,yes Azerbaijan,yes Ryo Minakata,yes Suk Ann,yes Teerapat Khantiweerawat,yes Wihan Van Der Merwe,yes Min Ho Ko,yes Abraham Asaba,yes Ren Nakamura,yes Baran Soyler,yes Hong-Lin Fu,yes Wenze Li,yes Veerawit Kamput,yes Yash Chaurasia,yes Aryan Jit Singh,yes Suraj R Prabodh,yes Julappagari Anurag Reddy,yes Naiktha Bains,yes Sijia Wei,yes Real Madrid,yes Barcelona,yes Atletico,yes Monaco,yes PSG,yes Paris FC,yes Miami,yes Como,yes Napoli,yes Roma,yes Inter,yes Juventus,yes Switzerland,yes Bosnia and Herzegovina,yes Portugal",
         "resolution_at": null,
         "rules_excerpt": null
       },
       "polymarket": {
-        "slug": "will-jalen-brunson-win-the-2028-us-presidential-election",
-        "question": "Will Jalen Brunson win the 2028 US Presidential Election?",
-        "resolution_at": "2028-11-08T04:59:00.000Z",
+        "slug": "will-azerbaijan-join-the-abraham-accords-before-2027",
+        "question": "Will Azerbaijan join the Abraham Accords before 2027?",
+        "resolution_at": "2027-01-01T04:59:00.000Z",
         "rules_excerpt": null
       },
       "resolution_gap_days": null,
       "rule_screen": "compound_market",
-      "rule_screen_detail": "shared=jalen,brunson,win;anchors=jalen,brunson",
+      "rule_screen_detail": "shared=azerbaijan,abraham;anchors=azerbaijan,abraham",
       "rule_review": "none",
       "review": null,
       "hedged": false,
@@ -1903,8 +3106,8 @@
         "executable_size": null,
         "status": "rejected"
       },
-      "first_seen_at": "2026-11-10T08:37:15.815Z",
-      "last_seen_at": "2026-11-10T08:37:15.815Z"
+      "first_seen_at": "2026-11-16T04:28:23.223Z",
+      "last_seen_at": "2026-11-16T04:28:23.223Z"
     },
     {
       "pair_id": "KXPRESPERSON-28-DTRU|will-donald-trump-win-the-2028-us-presidential-election",
@@ -1952,7 +3155,7 @@
         "status": "rejected"
       },
       "first_seen_at": "2026-09-05T17:23:26.743Z",
-      "last_seen_at": "2026-11-10T08:37:15.815Z"
+      "last_seen_at": "2026-11-16T04:28:23.223Z"
     },
     {
       "pair_id": "KXPRESPERSON-28-MRUB|will-marco-rubio-win-the-2028-us-presidential-election",
@@ -2000,7 +3203,1492 @@
         "status": "rejected"
       },
       "first_seen_at": "2026-09-05T17:23:26.743Z",
-      "last_seen_at": "2026-11-10T08:37:15.815Z"
+      "last_seen_at": "2026-11-16T04:28:23.223Z"
+    },
+    {
+      "pair_id": "KXMVECROSSCATEGORY-S20266EIADXRGTO4G555K-7CNHELUXY|will-north-korea-invade-south-korea-before-2027",
+      "title": "Will North Korea invade South Korea before 2027?",
+      "category": "other",
+      "source": "discovery",
+      "kalshi": {
+        "ticker": "KXMVECROSSCATEGORY-S20266EIADXRGTO4G555K-7CNHELUXY",
+        "title": "yes Stephen F. Austin,yes Ohio,yes Western Michigan,yes Miami (OH),yes UMass,yes Buffalo,yes Stephen F. Austin,yes Southeastern Louisiana,yes Toledo,yes Duke,yes Oregon,yes New Mexico,yes Air Force,yes University at Albany,yes BYU,yes Dayton,yes South Carolina St.,yes Furman,yes Stony Brook,yes Houston,yes Lehigh,yes Robert Morris,yes Memphis,yes Campbell,yes New Haven,yes Princeton,yes North Dakota,yes New Hampshire,yes North Texas,yes Bryant,yes Florida,yes Wake Forest,yes Wisconsin,yes Liberty,yes Richmond",
+        "resolution_at": null,
+        "rules_excerpt": null
+      },
+      "polymarket": {
+        "slug": "will-north-korea-invade-south-korea-before-2027",
+        "question": "Will North Korea invade South Korea before 2027?",
+        "resolution_at": "2027-01-01T04:59:00.000Z",
+        "rules_excerpt": null
+      },
+      "resolution_gap_days": null,
+      "rule_screen": "compound_market",
+      "rule_screen_detail": "shared=south,north;anchors=south,north",
+      "rule_review": "none",
+      "review": null,
+      "hedged": false,
+      "last": {
+        "gross_cents": null,
+        "net_cents": null,
+        "annualized_pct": null,
+        "executable_size": null,
+        "status": "rejected"
+      },
+      "first_seen_at": "2026-11-16T04:23:27.658Z",
+      "last_seen_at": "2026-11-16T04:23:27.658Z"
+    },
+    {
+      "pair_id": "KXMVECROSSCATEGORY-S20267NQCN7SQC3TNUEQW-LLDP353LC|will-north-korea-invade-south-korea-before-2027",
+      "title": "Will North Korea invade South Korea before 2027?",
+      "category": "other",
+      "source": "discovery",
+      "kalshi": {
+        "ticker": "KXMVECROSSCATEGORY-S20267NQCN7SQC3TNUEQW-LLDP353LC",
+        "title": "yes Ohio,yes Western Michigan,yes Stephen F. Austin,yes Duke,yes Ohio St.,yes North Carolina,yes Wake Forest,yes Clemson,yes Oregon St.,yes Georgia,yes Kansas St.,yes Saint Mary's,yes Virginia Tech,yes St. Thomas,yes Akron,yes Indiana,yes Duke,yes Alabama,yes Kansas,yes Wake Forest,yes Michigan St.,yes Gonzaga,yes Georgia Tech,yes Virginia,yes Saint Joseph's,yes Oklahoma,yes Arizona,yes Creighton,yes Syracuse,yes South Carolina,yes Florida Atlantic,yes Furman,yes Texas St.,yes Marquette,yes Arizona St.,yes St. John's,yes San Diego St.,yes BYU,yes Wichita St.,yes Cincinnati,yes Butler,yes Wisconsin,yes Indiana,yes Minnesota,yes Ohio St.,yes Gonzaga,yes Oklahoma St.,yes Wake Forest,yes Oregon,yes Florida,yes Miami (FL),yes High Point,yes Virginia,yes Iowa,yes Arizona,yes North Carolina,yes Memphis",
+        "resolution_at": null,
+        "rules_excerpt": null
+      },
+      "polymarket": {
+        "slug": "will-north-korea-invade-south-korea-before-2027",
+        "question": "Will North Korea invade South Korea before 2027?",
+        "resolution_at": "2027-01-01T04:59:00.000Z",
+        "rules_excerpt": null
+      },
+      "resolution_gap_days": null,
+      "rule_screen": "compound_market",
+      "rule_screen_detail": "shared=north,south;anchors=north,south",
+      "rule_review": "none",
+      "review": null,
+      "hedged": false,
+      "last": {
+        "gross_cents": null,
+        "net_cents": null,
+        "annualized_pct": null,
+        "executable_size": null,
+        "status": "rejected"
+      },
+      "first_seen_at": "2026-11-16T04:23:27.658Z",
+      "last_seen_at": "2026-11-16T04:23:27.658Z"
+    },
+    {
+      "pair_id": "KXMVECROSSCATEGORY-S20267SM2BLJ6R5HB6X37-VC5AGTMZG|will-north-korea-invade-south-korea-before-2027",
+      "title": "Will North Korea invade South Korea before 2027?",
+      "category": "other",
+      "source": "discovery",
+      "kalshi": {
+        "ticker": "KXMVECROSSCATEGORY-S20267SM2BLJ6R5HB6X37-VC5AGTMZG",
+        "title": "yes Ohio,yes Western Michigan,yes Miami (OH),yes UMass,yes Buffalo,yes Stephen F. Austin,yes Toledo,yes Duke,yes Oregon,yes New Mexico,yes Air Force,yes BYU,yes Tulsa,yes Alabama,yes Kennesaw St.,yes Houston,yes South Dakota St.,yes Iowa,yes Memphis,yes Montana St.,yes North Dakota,yes Appalachian St.,yes North Texas,yes Weber St.,yes Florida,yes Wake Forest,yes Wisconsin,yes Ole Miss",
+        "resolution_at": null,
+        "rules_excerpt": null
+      },
+      "polymarket": {
+        "slug": "will-north-korea-invade-south-korea-before-2027",
+        "question": "Will North Korea invade South Korea before 2027?",
+        "resolution_at": "2027-01-01T04:59:00.000Z",
+        "rules_excerpt": null
+      },
+      "resolution_gap_days": null,
+      "rule_screen": "compound_market",
+      "rule_screen_detail": "shared=south,north;anchors=south,north",
+      "rule_review": "none",
+      "review": null,
+      "hedged": false,
+      "last": {
+        "gross_cents": null,
+        "net_cents": null,
+        "annualized_pct": null,
+        "executable_size": null,
+        "status": "rejected"
+      },
+      "first_seen_at": "2026-11-16T04:23:27.658Z",
+      "last_seen_at": "2026-11-16T04:23:27.658Z"
+    },
+    {
+      "pair_id": "KXMVECROSSCATEGORY-S2026GPHAIXUGSUOZW3OH-G7X7QO6HK|will-pakistan-join-the-abraham-accords-before-2027",
+      "title": "Will Pakistan join the Abraham Accords before 2027?",
+      "category": "crypto",
+      "source": "discovery",
+      "kalshi": {
+        "ticker": "KXMVECROSSCATEGORY-S2026GPHAIXUGSUOZW3OH-G7X7QO6HK",
+        "title": "yes Christopher O'Connell,yes Isaac Becroft,yes Jake Delaney,yes Maximus Jones,yes Taisei Ichikawa,yes Yosuke Watanuki,yes Luca Nardi,yes Ryo Minakata,yes Suk Ann,yes Teerapat Khantiweerawat,yes Wihan Van Der Merwe,yes Min Ho Ko,yes Abraham Asaba,yes Gunawan Trismuwantara,yes Ren Nakamura,yes Baran Soyler,yes Hong-Lin Fu,yes Wenze Li,yes Jerome Estephan,yes Veerawit Kamput,yes Natsuki Yamamoto,yes Yash Chaurasia,yes Adil Kalyanpur,yes Aryan Jit Singh,yes Aashravya Mehra,yes Suraj R Prabodh,yes Naiktha Bains,yes Varvara Panshina,yes Wushuang Zheng,yes Michaela Bayerlova,yes Anna Petkovic,yes Vidarbha,yes Karnataka Women,yes Netherlands,yes Pakistan,yes Ireland,yes Sri Lanka",
+        "resolution_at": null,
+        "rules_excerpt": null
+      },
+      "polymarket": {
+        "slug": "will-pakistan-join-the-abraham-accords-before-2027",
+        "question": "Will Pakistan join the Abraham Accords before 2027?",
+        "resolution_at": "2027-01-01T04:59:00.000Z",
+        "rules_excerpt": null
+      },
+      "resolution_gap_days": null,
+      "rule_screen": "compound_market",
+      "rule_screen_detail": "shared=abraham,pakistan;anchors=abraham,pakistan",
+      "rule_review": "none",
+      "review": null,
+      "hedged": false,
+      "last": {
+        "gross_cents": null,
+        "net_cents": null,
+        "annualized_pct": null,
+        "executable_size": null,
+        "status": "rejected"
+      },
+      "first_seen_at": "2026-11-16T04:23:27.658Z",
+      "last_seen_at": "2026-11-16T04:23:27.658Z"
+    },
+    {
+      "pair_id": "KXMVECROSSCATEGORY-S2026J4FPABFVHT76JXUG-UZAWTJKXC|will-azerbaijan-join-the-abraham-accords-before-2027",
+      "title": "Will Azerbaijan join the Abraham Accords before 2027?",
+      "category": "other",
+      "source": "discovery",
+      "kalshi": {
+        "ticker": "KXMVECROSSCATEGORY-S2026J4FPABFVHT76JXUG-UZAWTJKXC",
+        "title": "yes Sebastian Dominko,yes Bryce Nakashima,yes Azerbaijan,yes Abraham Asaba,yes Vallecano,yes Oklahoma City,yes Ohio,yes Western Michigan,yes Miami (OH),yes Baltimore,yes Houston,yes San Jose,yes Vancouver,yes Como,yes Lazio,yes Faroe Islands,yes Lithuania",
+        "resolution_at": null,
+        "rules_excerpt": null
+      },
+      "polymarket": {
+        "slug": "will-azerbaijan-join-the-abraham-accords-before-2027",
+        "question": "Will Azerbaijan join the Abraham Accords before 2027?",
+        "resolution_at": "2027-01-01T04:59:00.000Z",
+        "rules_excerpt": null
+      },
+      "resolution_gap_days": null,
+      "rule_screen": "compound_market",
+      "rule_screen_detail": "shared=azerbaijan,abraham;anchors=azerbaijan,abraham",
+      "rule_review": "none",
+      "review": null,
+      "hedged": false,
+      "last": {
+        "gross_cents": null,
+        "net_cents": null,
+        "annualized_pct": null,
+        "executable_size": null,
+        "status": "rejected"
+      },
+      "first_seen_at": "2026-11-16T04:23:27.658Z",
+      "last_seen_at": "2026-11-16T04:23:27.658Z"
+    },
+    {
+      "pair_id": "KXMVECROSSCATEGORY-S2026MRDF54IXPNAYH7E4-JN27CKBHB|will-north-korea-invade-south-korea-before-2027",
+      "title": "Will North Korea invade South Korea before 2027?",
+      "category": "other",
+      "source": "discovery",
+      "kalshi": {
+        "ticker": "KXMVECROSSCATEGORY-S2026MRDF54IXPNAYH7E4-JN27CKBHB",
+        "title": "yes Carlos Alcaraz,yes Bayern Munich,yes Dortmund,yes Leverkusen,yes Leipzig,yes Aston Villa,yes Manchester City,yes Arsenal,yes Brighton,yes Real Madrid,yes Barcelona,yes Atletico,yes Monaco,yes PSG,yes Marseille,yes Paris FC,yes Oklahoma St.,yes Clemson,yes Oregon St.,yes North Alabama,yes Georgia,yes Morehead St.,yes Kansas St.,yes Saint Mary's,yes Florida St.,yes Florida,yes Houston,yes Kansas,yes Southern University,yes Purdue,yes Ole Miss,yes Georgia Tech,yes SMU,yes Miami (FL),yes Providence,yes Delaware,yes Arkansas St.,yes Oklahoma,yes UIC,yes Creighton,yes Syracuse,yes UCLA,yes Nevada,yes Penn St.,yes Ohio,yes Georgetown,yes George Mason,yes Arizona St.,yes St. John's,yes BYU,yes Texas Tech,yes Utah St.,yes Louisville,yes Texas,yes Rutgers,yes Tulane,yes West Virginia,yes Mississippi St.,yes Houston,yes Nebraska,yes Tennessee,yes Arizona St.,yes Washington,yes Maryland,yes NJIT,yes Texas A&M,yes IU Indy,yes Clemson,yes South Dakota,yes Oregon St.,yes BYU,yes Cincinnati,yes England Lions,yes Como,yes Lazio,yes Napoli,yes Roma,yes Milan,yes Inter,yes Bologna,yes Juventus,yes Lithuania,yes Pakistan,yes Sri Lanka",
+        "resolution_at": null,
+        "rules_excerpt": null
+      },
+      "polymarket": {
+        "slug": "will-north-korea-invade-south-korea-before-2027",
+        "question": "Will North Korea invade South Korea before 2027?",
+        "resolution_at": "2027-01-01T04:59:00.000Z",
+        "rules_excerpt": null
+      },
+      "resolution_gap_days": null,
+      "rule_screen": "compound_market",
+      "rule_screen_detail": "shared=north,south;anchors=north,south",
+      "rule_review": "none",
+      "review": null,
+      "hedged": false,
+      "last": {
+        "gross_cents": null,
+        "net_cents": null,
+        "annualized_pct": null,
+        "executable_size": null,
+        "status": "rejected"
+      },
+      "first_seen_at": "2026-11-16T04:23:27.658Z",
+      "last_seen_at": "2026-11-16T04:23:27.658Z"
+    },
+    {
+      "pair_id": "KXMVECROSSCATEGORY-S2026QTEYWHWSL42SZH5Q-35AGSTFXJ|will-pakistan-join-the-abraham-accords-before-2027",
+      "title": "Will Pakistan join the Abraham Accords before 2027?",
+      "category": "finance",
+      "source": "discovery",
+      "kalshi": {
+        "ticker": "KXMVECROSSCATEGORY-S2026QTEYWHWSL42SZH5Q-35AGSTFXJ",
+        "title": "yes Carlos Alcaraz,yes Daniil Medvedev,yes Manchester City,yes Abraham Asaba,yes Veerawit Kamput,yes LaMelo Ball: 2+,yes Oklahoma City,yes Golden State,yes Memphis,yes Boston,yes Denver,yes Minnesota,yes Saddiq Bey: 10+,yes LaMelo Ball: 15+,yes Ohio,yes Western Michigan,yes Miami (OH),yes George Washington,yes North Alabama,yes Morehead St.,yes Arizona,yes Miami (FL),yes Cincinnati,yes Baltimore,yes Houston,yes San Jose,yes Vancouver,yes New York R,yes England Lions,yes Faroe Islands,yes Lithuania,yes Pakistan,yes Sri Lanka,yes Democratic party",
+        "resolution_at": null,
+        "rules_excerpt": null
+      },
+      "polymarket": {
+        "slug": "will-pakistan-join-the-abraham-accords-before-2027",
+        "question": "Will Pakistan join the Abraham Accords before 2027?",
+        "resolution_at": "2027-11-03T15:00:00.000Z",
+        "rules_excerpt": null
+      },
+      "resolution_gap_days": null,
+      "rule_screen": "compound_market",
+      "rule_screen_detail": "shared=abraham,pakistan;anchors=abraham,pakistan",
+      "rule_review": "none",
+      "review": null,
+      "hedged": false,
+      "last": {
+        "gross_cents": null,
+        "net_cents": null,
+        "annualized_pct": null,
+        "executable_size": null,
+        "status": "rejected"
+      },
+      "first_seen_at": "2026-11-16T04:23:27.658Z",
+      "last_seen_at": "2026-11-16T04:23:27.658Z"
+    },
+    {
+      "pair_id": "KXMVECROSSCATEGORY-S2026X53JCMIXE5TYV3G6-WF2XZMXCX|will-pakistan-join-the-abraham-accords-before-2027",
+      "title": "Will Pakistan join the Abraham Accords before 2027?",
+      "category": "finance",
+      "source": "discovery",
+      "kalshi": {
+        "ticker": "KXMVECROSSCATEGORY-S2026X53JCMIXE5TYV3G6-WF2XZMXCX",
+        "title": "yes Carlos Alcaraz,yes Daniil Medvedev,yes Manchester City,yes Abraham Asaba,yes Veerawit Kamput,yes LaMelo Ball: 2+,yes Oklahoma City,yes Golden State,yes Memphis,yes Boston,yes Denver,yes Minnesota,yes LaMelo Ball: 15+,yes Ohio,yes Western Michigan,yes Miami (OH),yes George Washington,yes North Alabama,yes Morehead St.,yes Arizona,yes Miami (FL),yes Cincinnati,yes Baltimore,yes Houston,yes San Jose,yes Vancouver,yes New York R,yes England Lions,yes Faroe Islands,yes Lithuania,yes Pakistan,yes Sri Lanka,yes Democratic party",
+        "resolution_at": null,
+        "rules_excerpt": null
+      },
+      "polymarket": {
+        "slug": "will-pakistan-join-the-abraham-accords-before-2027",
+        "question": "Will Pakistan join the Abraham Accords before 2027?",
+        "resolution_at": "2027-11-03T15:00:00.000Z",
+        "rules_excerpt": null
+      },
+      "resolution_gap_days": null,
+      "rule_screen": "compound_market",
+      "rule_screen_detail": "shared=abraham,pakistan;anchors=abraham,pakistan",
+      "rule_review": "none",
+      "review": null,
+      "hedged": false,
+      "last": {
+        "gross_cents": null,
+        "net_cents": null,
+        "annualized_pct": null,
+        "executable_size": null,
+        "status": "rejected"
+      },
+      "first_seen_at": "2026-11-16T04:23:27.658Z",
+      "last_seen_at": "2026-11-16T04:23:27.658Z"
+    },
+    {
+      "pair_id": "KXMVECROSSCATEGORY-S2026Z6HBOH3HQ567J7AH-J432VYSVV|will-north-korea-invade-south-korea-before-2027",
+      "title": "Will North Korea invade South Korea before 2027?",
+      "category": "other",
+      "source": "discovery",
+      "kalshi": {
+        "ticker": "KXMVECROSSCATEGORY-S2026Z6HBOH3HQ567J7AH-J432VYSVV",
+        "title": "yes BYU,yes Tulsa,yes Cincinnati,yes South Carolina St.,yes Houston,yes Memphis,yes Jacksonville St.,yes Middle Tennessee,yes Ohio St.,yes Syracuse,yes North Texas,yes Wake Forest,yes Wisconsin,yes Liberty",
+        "resolution_at": null,
+        "rules_excerpt": null
+      },
+      "polymarket": {
+        "slug": "will-north-korea-invade-south-korea-before-2027",
+        "question": "Will North Korea invade South Korea before 2027?",
+        "resolution_at": "2027-01-01T04:59:00.000Z",
+        "rules_excerpt": null
+      },
+      "resolution_gap_days": null,
+      "rule_screen": "compound_market",
+      "rule_screen_detail": "shared=south,north;anchors=south,north",
+      "rule_review": "none",
+      "review": null,
+      "hedged": false,
+      "last": {
+        "gross_cents": null,
+        "net_cents": null,
+        "annualized_pct": null,
+        "executable_size": null,
+        "status": "rejected"
+      },
+      "first_seen_at": "2026-11-16T04:23:27.658Z",
+      "last_seen_at": "2026-11-16T04:23:27.658Z"
+    },
+    {
+      "pair_id": "KXMVECROSSCATEGORY-S2026ZQ7AM5LKMVTDRLR2-E4KA7AYOZ|will-north-korea-invade-south-korea-before-2027",
+      "title": "Will North Korea invade South Korea before 2027?",
+      "category": "other",
+      "source": "discovery",
+      "kalshi": {
+        "ticker": "KXMVECROSSCATEGORY-S2026ZQ7AM5LKMVTDRLR2-E4KA7AYOZ",
+        "title": "yes Bayern Munich,yes Over 1.5 goals scored,yes Over 0.5 goals scored,yes Over 0.5 goals scored,yes Over 0.5 goals scored,yes Over 0.5 goals scored,yes Over 0.5 goals scored,yes Over 0.5 goals scored,yes Over 0.5 goals scored,yes Over 0.5 goals scored,yes Over 0.5 goals scored,yes Over 0.5 goals scored,yes Reg Time: Over 0.5 goals scored,yes Reg Time: Over 0.5 goals scored,yes Alabama,yes Auburn,yes Ole Miss,yes Over 13.5 points,yes Texas,yes USC,yes Boise St.,yes Notre Dame,yes Miami (FL),yes Texas,yes Utah,yes Miami (FL),yes BYU,yes Georgia,yes LSU,yes Notre Dame,yes Indiana,yes Ohio over 9.5 points,yes Western Michigan over 9.5 points,yes Miami (OH) over 13.5 points,yes Duke over 13.5 points,yes Oregon over 13.5 points,yes New Mexico over 9.5 points,yes Arizona over 13.5 points,yes Arkansas over 2.5 points,yes Texas over 13.5 points,yes BYU over 13.5 points,yes Colorado St. over 6.5 points,yes Fresno St. over 19.5 points,yes Georgia Southern over 9.5 points,yes Houston over 16.5 points,yes West Virginia over 13.5 points,yes Indiana over 13.5 points,yes Iowa over 9.5 points,yes LSU over 9.5 points,yes USC over 16.5 points,yes Middle Tennessee over 13.5 points,yes North Dakota St. over 16.5 points,yes Oklahoma St. over 13.5 points,yes Ohio St. over 9.5 points,yes Louisville over 13.5 points,yes Rutgers over 2.5 points,yes Boise St. over 20.5 points,yes San Diego St. over 9.5 points,yes Notre Dame over 19.5 points,yes Syracuse over 13.5 points,yes Texas Tech over 13.5 points,yes UCLA over 9.5 points,yes South Carolina over 2.5 points,yes Georgia over 13.5 points,yes Kentucky over 6.5 points,yes North Carolina over 6.5 points,yes Oregon St. over 9.5 points,yes TCU over 6.5 points,yes Utah over 13.5 points,yes Vanderbilt over 2.5 points,yes Miami (FL) over 16.5 points,yes Wake Forest over 19.5 points,yes Oklahoma St.,yes Clemson,yes Oregon St.,yes Georgia,yes Kansas St.,yes Saint Mary's,yes Florida St.,yes Florida,yes Georgia Tech,yes Virginia,yes SMU,yes Baltimore over 3.5 points,yes San Jose,yes Vancouver,yes Utah,yes Over 1.5 goals scored,yes Over 1.5 goals scored,yes Over 1.5 goals scored,yes Over 1.5 goals scored,yes Over 1.5 goals scored,yes Over 1.5 goals scored,yes Over 1.5 goals scored,yes Over 1.5 goals scored,yes Over 1.5 goals scored,yes Over 1.5 goals scored,yes Over 1.5 goals scored,yes Over 1.5 goals scored,yes Over 1.5 goals scored,yes Over 1.5 goals scored,yes Over 1.5 goals scored,yes Over 0.5 goals scored,yes Over 0.5 goals scored,yes Over 0.5 goals scored,yes Over 0.5 goals scored,yes Over 0.5 goals scored,yes Over 0.5 goals scored,yes Over 0.5 goals scored,yes Over 0.5 goals scored,yes Over 0.5 goals scored",
+        "resolution_at": null,
+        "rules_excerpt": null
+      },
+      "polymarket": {
+        "slug": "will-north-korea-invade-south-korea-before-2027",
+        "question": "Will North Korea invade South Korea before 2027?",
+        "resolution_at": "2027-01-01T04:59:00.000Z",
+        "rules_excerpt": null
+      },
+      "resolution_gap_days": null,
+      "rule_screen": "compound_market",
+      "rule_screen_detail": "shared=north,south;anchors=north,south",
+      "rule_review": "none",
+      "review": null,
+      "hedged": false,
+      "last": {
+        "gross_cents": null,
+        "net_cents": null,
+        "annualized_pct": null,
+        "executable_size": null,
+        "status": "rejected"
+      },
+      "first_seen_at": "2026-11-16T04:23:27.658Z",
+      "last_seen_at": "2026-11-16T04:23:27.658Z"
+    },
+    {
+      "pair_id": "KXMVECROSSCATEGORY-S20264JXPRZ6WZWXFEONP-YERYJSU6N|will-pakistan-join-the-abraham-accords-before-2027",
+      "title": "Will Pakistan join the Abraham Accords before 2027?",
+      "category": "crypto",
+      "source": "discovery",
+      "kalshi": {
+        "ticker": "KXMVECROSSCATEGORY-S20264JXPRZ6WZWXFEONP-YERYJSU6N",
+        "title": "yes Masamichi Imamura,yes Fajing Sun,yes Luca Nardi,yes Ryo Minakata,yes Suk Ann,yes Teerapat Khantiweerawat,yes Wihan Van Der Merwe,yes Min Ho Ko,yes Abraham Asaba,yes Gunawan Trismuwantara,yes Ren Nakamura,yes Baran Soyler,yes Mikal Statham,yes Wenze Li,yes Jerome Estephan,yes Veerawit Kamput,yes Vidarbha,yes Karnataka Women,yes Netherlands,yes Pakistan,yes Ireland,yes Sri Lanka",
+        "resolution_at": null,
+        "rules_excerpt": null
+      },
+      "polymarket": {
+        "slug": "will-pakistan-join-the-abraham-accords-before-2027",
+        "question": "Will Pakistan join the Abraham Accords before 2027?",
+        "resolution_at": "2027-01-01T04:59:00.000Z",
+        "rules_excerpt": null
+      },
+      "resolution_gap_days": null,
+      "rule_screen": "compound_market",
+      "rule_screen_detail": "shared=abraham,pakistan;anchors=abraham,pakistan",
+      "rule_review": "none",
+      "review": null,
+      "hedged": false,
+      "last": {
+        "gross_cents": null,
+        "net_cents": null,
+        "annualized_pct": null,
+        "executable_size": null,
+        "status": "rejected"
+      },
+      "first_seen_at": "2026-11-16T04:18:19.278Z",
+      "last_seen_at": "2026-11-16T04:18:19.278Z"
+    },
+    {
+      "pair_id": "KXMVECROSSCATEGORY-S2026G4IEM6CL2AYIRZJ5-TZKEQGVH5|will-party-a-win-the-2028-us-presidential-election",
+      "title": "Will Party A win the 2028 US Presidential Election?",
+      "category": "politics",
+      "source": "discovery",
+      "kalshi": {
+        "ticker": "KXMVECROSSCATEGORY-S2026G4IEM6CL2AYIRZJ5-TZKEQGVH5",
+        "title": "yes Bayern Munich,yes Dortmund,yes Aston Villa,yes Chelsea,yes Manchester City,yes Arsenal,no Manchester United wins by more than 1.5 goals,yes Bilbao,yes Real Madrid,yes Barcelona,yes Atletico,yes Over 1.5 goals scored,yes Over 1.5 goals scored,yes PSG,yes Como,yes Napoli,yes Roma,yes Milan,yes Inter,yes Juventus,yes Both Teams To Score,yes Both Teams To Score,yes Greece,yes Iceland,yes Switzerland,no Israel,no Portugal wins by more than 1.5 goals",
+        "resolution_at": null,
+        "rules_excerpt": null
+      },
+      "polymarket": {
+        "slug": "will-party-a-win-the-2028-us-presidential-election",
+        "question": "Will Party A win the 2028 US Presidential Election?",
+        "resolution_at": "2028-11-07T00:00:00.000Z",
+        "rules_excerpt": null
+      },
+      "resolution_gap_days": null,
+      "rule_screen": "compound_market",
+      "rule_screen_detail": "shared=us,win;anchors=us;resolution=weak_shared_resolution_terms",
+      "rule_review": "none",
+      "review": null,
+      "hedged": false,
+      "last": {
+        "gross_cents": null,
+        "net_cents": null,
+        "annualized_pct": null,
+        "executable_size": null,
+        "status": "rejected"
+      },
+      "first_seen_at": "2026-11-16T04:18:19.278Z",
+      "last_seen_at": "2026-11-16T04:18:19.278Z"
+    },
+    {
+      "pair_id": "KXMVECROSSCATEGORY-S2026G4IEM6CL2AYIRZJ5-TZKEQGVH5|will-party-b-win-the-2028-us-presidential-election",
+      "title": "Will Party B win the 2028 US Presidential Election?",
+      "category": "politics",
+      "source": "discovery",
+      "kalshi": {
+        "ticker": "KXMVECROSSCATEGORY-S2026G4IEM6CL2AYIRZJ5-TZKEQGVH5",
+        "title": "yes Bayern Munich,yes Dortmund,yes Aston Villa,yes Chelsea,yes Manchester City,yes Arsenal,no Manchester United wins by more than 1.5 goals,yes Bilbao,yes Real Madrid,yes Barcelona,yes Atletico,yes Over 1.5 goals scored,yes Over 1.5 goals scored,yes PSG,yes Como,yes Napoli,yes Roma,yes Milan,yes Inter,yes Juventus,yes Both Teams To Score,yes Both Teams To Score,yes Greece,yes Iceland,yes Switzerland,no Israel,no Portugal wins by more than 1.5 goals",
+        "resolution_at": null,
+        "rules_excerpt": null
+      },
+      "polymarket": {
+        "slug": "will-party-b-win-the-2028-us-presidential-election",
+        "question": "Will Party B win the 2028 US Presidential Election?",
+        "resolution_at": "2028-11-07T00:00:00.000Z",
+        "rules_excerpt": null
+      },
+      "resolution_gap_days": null,
+      "rule_screen": "compound_market",
+      "rule_screen_detail": "shared=us,win;anchors=us;resolution=weak_shared_resolution_terms",
+      "rule_review": "none",
+      "review": null,
+      "hedged": false,
+      "last": {
+        "gross_cents": null,
+        "net_cents": null,
+        "annualized_pct": null,
+        "executable_size": null,
+        "status": "rejected"
+      },
+      "first_seen_at": "2026-11-16T04:18:19.278Z",
+      "last_seen_at": "2026-11-16T04:18:19.278Z"
+    },
+    {
+      "pair_id": "KXMVECROSSCATEGORY-S2026G4IEM6CL2AYIRZJ5-TZKEQGVH5|will-party-c-win-the-2028-us-presidential-election",
+      "title": "Will Party C win the 2028 US Presidential Election?",
+      "category": "politics",
+      "source": "discovery",
+      "kalshi": {
+        "ticker": "KXMVECROSSCATEGORY-S2026G4IEM6CL2AYIRZJ5-TZKEQGVH5",
+        "title": "yes Bayern Munich,yes Dortmund,yes Aston Villa,yes Chelsea,yes Manchester City,yes Arsenal,no Manchester United wins by more than 1.5 goals,yes Bilbao,yes Real Madrid,yes Barcelona,yes Atletico,yes Over 1.5 goals scored,yes Over 1.5 goals scored,yes PSG,yes Como,yes Napoli,yes Roma,yes Milan,yes Inter,yes Juventus,yes Both Teams To Score,yes Both Teams To Score,yes Greece,yes Iceland,yes Switzerland,no Israel,no Portugal wins by more than 1.5 goals",
+        "resolution_at": null,
+        "rules_excerpt": null
+      },
+      "polymarket": {
+        "slug": "will-party-c-win-the-2028-us-presidential-election",
+        "question": "Will Party C win the 2028 US Presidential Election?",
+        "resolution_at": "2028-11-07T00:00:00.000Z",
+        "rules_excerpt": null
+      },
+      "resolution_gap_days": null,
+      "rule_screen": "compound_market",
+      "rule_screen_detail": "shared=us,win;anchors=us;resolution=weak_shared_resolution_terms",
+      "rule_review": "none",
+      "review": null,
+      "hedged": false,
+      "last": {
+        "gross_cents": null,
+        "net_cents": null,
+        "annualized_pct": null,
+        "executable_size": null,
+        "status": "rejected"
+      },
+      "first_seen_at": "2026-11-16T04:18:19.278Z",
+      "last_seen_at": "2026-11-16T04:18:19.278Z"
+    },
+    {
+      "pair_id": "KXMVECROSSCATEGORY-S2026G4IEM6CL2AYIRZJ5-TZKEQGVH5|will-party-d-win-the-2028-us-presidential-election",
+      "title": "Will Party D win the 2028 US Presidential Election?",
+      "category": "politics",
+      "source": "discovery",
+      "kalshi": {
+        "ticker": "KXMVECROSSCATEGORY-S2026G4IEM6CL2AYIRZJ5-TZKEQGVH5",
+        "title": "yes Bayern Munich,yes Dortmund,yes Aston Villa,yes Chelsea,yes Manchester City,yes Arsenal,no Manchester United wins by more than 1.5 goals,yes Bilbao,yes Real Madrid,yes Barcelona,yes Atletico,yes Over 1.5 goals scored,yes Over 1.5 goals scored,yes PSG,yes Como,yes Napoli,yes Roma,yes Milan,yes Inter,yes Juventus,yes Both Teams To Score,yes Both Teams To Score,yes Greece,yes Iceland,yes Switzerland,no Israel,no Portugal wins by more than 1.5 goals",
+        "resolution_at": null,
+        "rules_excerpt": null
+      },
+      "polymarket": {
+        "slug": "will-party-d-win-the-2028-us-presidential-election",
+        "question": "Will Party D win the 2028 US Presidential Election?",
+        "resolution_at": "2028-11-07T00:00:00.000Z",
+        "rules_excerpt": null
+      },
+      "resolution_gap_days": null,
+      "rule_screen": "compound_market",
+      "rule_screen_detail": "shared=us,win;anchors=us;resolution=weak_shared_resolution_terms",
+      "rule_review": "none",
+      "review": null,
+      "hedged": false,
+      "last": {
+        "gross_cents": null,
+        "net_cents": null,
+        "annualized_pct": null,
+        "executable_size": null,
+        "status": "rejected"
+      },
+      "first_seen_at": "2026-11-16T04:18:19.278Z",
+      "last_seen_at": "2026-11-16T04:18:19.278Z"
+    },
+    {
+      "pair_id": "KXMVECROSSCATEGORY-S2026G4IEM6CL2AYIRZJ5-TZKEQGVH5|will-party-e-win-the-2028-us-presidential-election",
+      "title": "Will Party E win the 2028 US Presidential Election?",
+      "category": "politics",
+      "source": "discovery",
+      "kalshi": {
+        "ticker": "KXMVECROSSCATEGORY-S2026G4IEM6CL2AYIRZJ5-TZKEQGVH5",
+        "title": "yes Bayern Munich,yes Dortmund,yes Aston Villa,yes Chelsea,yes Manchester City,yes Arsenal,no Manchester United wins by more than 1.5 goals,yes Bilbao,yes Real Madrid,yes Barcelona,yes Atletico,yes Over 1.5 goals scored,yes Over 1.5 goals scored,yes PSG,yes Como,yes Napoli,yes Roma,yes Milan,yes Inter,yes Juventus,yes Both Teams To Score,yes Both Teams To Score,yes Greece,yes Iceland,yes Switzerland,no Israel,no Portugal wins by more than 1.5 goals",
+        "resolution_at": null,
+        "rules_excerpt": null
+      },
+      "polymarket": {
+        "slug": "will-party-e-win-the-2028-us-presidential-election",
+        "question": "Will Party E win the 2028 US Presidential Election?",
+        "resolution_at": "2028-11-07T00:00:00.000Z",
+        "rules_excerpt": null
+      },
+      "resolution_gap_days": null,
+      "rule_screen": "compound_market",
+      "rule_screen_detail": "shared=us,win;anchors=us;resolution=weak_shared_resolution_terms",
+      "rule_review": "none",
+      "review": null,
+      "hedged": false,
+      "last": {
+        "gross_cents": null,
+        "net_cents": null,
+        "annualized_pct": null,
+        "executable_size": null,
+        "status": "rejected"
+      },
+      "first_seen_at": "2026-11-16T04:18:19.278Z",
+      "last_seen_at": "2026-11-16T04:18:19.278Z"
+    },
+    {
+      "pair_id": "KXMVECROSSCATEGORY-S2026PVUIE23XZIVJ5ZQU-VKZAXON6O|will-north-korea-invade-south-korea-before-2027",
+      "title": "Will North Korea invade South Korea before 2027?",
+      "category": "other",
+      "source": "discovery",
+      "kalshi": {
+        "ticker": "KXMVECROSSCATEGORY-S2026PVUIE23XZIVJ5ZQU-VKZAXON6O",
+        "title": "yes Ohio,yes Western Michigan,yes Miami (OH),yes UMass,yes Stephen F. Austin,yes Toledo,yes Duke,yes Oregon,yes Air Force,yes Alabama A&M,yes University at Albany,yes BYU,yes Louisiana,yes Tulsa,yes Alabama,yes Dayton,yes Furman,yes Stony Brook,yes Houston,yes South Dakota St.,yes Iowa,yes Lehigh,yes Butler,yes Jacksonville St.,yes Middle Tennessee,yes Texas Tech,yes North Texas,yes Weber St.,yes Wake Forest,yes Wisconsin,yes Liberty,yes Ole Miss",
+        "resolution_at": null,
+        "rules_excerpt": null
+      },
+      "polymarket": {
+        "slug": "will-north-korea-invade-south-korea-before-2027",
+        "question": "Will North Korea invade South Korea before 2027?",
+        "resolution_at": "2027-01-01T04:59:00.000Z",
+        "rules_excerpt": null
+      },
+      "resolution_gap_days": null,
+      "rule_screen": "compound_market",
+      "rule_screen_detail": "shared=south,north;anchors=south,north",
+      "rule_review": "none",
+      "review": null,
+      "hedged": false,
+      "last": {
+        "gross_cents": null,
+        "net_cents": null,
+        "annualized_pct": null,
+        "executable_size": null,
+        "status": "rejected"
+      },
+      "first_seen_at": "2026-11-16T04:18:19.278Z",
+      "last_seen_at": "2026-11-16T04:18:19.278Z"
+    },
+    {
+      "pair_id": "KXMVECROSSCATEGORY-S2026QEONWSAPBESXUZSX-3PG3QVSBX|will-north-korea-invade-south-korea-before-2027",
+      "title": "Will North Korea invade South Korea before 2027?",
+      "category": "other",
+      "source": "discovery",
+      "kalshi": {
+        "ticker": "KXMVECROSSCATEGORY-S2026QEONWSAPBESXUZSX-3PG3QVSBX",
+        "title": "yes Stephen F. Austin,yes Toledo,yes Duke,yes Oregon,yes Air Force,yes Arizona,yes Texas,yes BYU,yes Louisiana,yes Tulsa,yes Fresno St.,yes Dayton,yes Indiana,yes South Dakota St.,yes USC,yes North Dakota St.,yes Penn St.,yes Boise St.,yes Notre Dame,yes Tarleton St.,yes Georgia,yes Utah,yes Wake Forest,yes Liberty,yes Texas St.,yes Texas Tech,yes Ole Miss,yes North Dakota St.,yes Texas,yes Utah,yes Miami (FL),yes Wake Forest,yes Georgia,yes LSU,yes Notre Dame,yes Indiana,yes Denver,yes Buffalo,yes Chicago,yes Detroit,yes Cincinnati",
+        "resolution_at": null,
+        "rules_excerpt": null
+      },
+      "polymarket": {
+        "slug": "will-north-korea-invade-south-korea-before-2027",
+        "question": "Will North Korea invade South Korea before 2027?",
+        "resolution_at": "2027-01-01T04:59:00.000Z",
+        "rules_excerpt": null
+      },
+      "resolution_gap_days": null,
+      "rule_screen": "compound_market",
+      "rule_screen_detail": "shared=south,north;anchors=south,north",
+      "rule_review": "none",
+      "review": null,
+      "hedged": false,
+      "last": {
+        "gross_cents": null,
+        "net_cents": null,
+        "annualized_pct": null,
+        "executable_size": null,
+        "status": "rejected"
+      },
+      "first_seen_at": "2026-11-16T04:18:19.278Z",
+      "last_seen_at": "2026-11-16T04:18:19.278Z"
+    },
+    {
+      "pair_id": "KXMVECROSSCATEGORY-S2026TQTICD4FHFEDQMBT-5M7HYLKYZ|will-north-korea-invade-south-korea-before-2027",
+      "title": "Will North Korea invade South Korea before 2027?",
+      "category": "finance",
+      "source": "discovery",
+      "kalshi": {
+        "ticker": "KXMVECROSSCATEGORY-S2026TQTICD4FHFEDQMBT-5M7HYLKYZ",
+        "title": "yes Carlos Alcaraz,yes Ohio,yes Miami (OH),yes Oregon,yes Air Force,yes BYU,yes South Dakota St.,yes North Dakota St.,yes UCLA,yes Utah,yes Texas St.,yes Georgia,yes Arkansas,yes High Point,yes Texas A&M,yes Baltimore,yes Kansas City,yes Buffalo",
+        "resolution_at": null,
+        "rules_excerpt": null
+      },
+      "polymarket": {
+        "slug": "will-north-korea-invade-south-korea-before-2027",
+        "question": "Will North Korea invade South Korea before 2027?",
+        "resolution_at": "2027-01-01T04:59:00.000Z",
+        "rules_excerpt": null
+      },
+      "resolution_gap_days": null,
+      "rule_screen": "compound_market",
+      "rule_screen_detail": "shared=south,north;anchors=south,north",
+      "rule_review": "none",
+      "review": null,
+      "hedged": false,
+      "last": {
+        "gross_cents": null,
+        "net_cents": null,
+        "annualized_pct": null,
+        "executable_size": null,
+        "status": "rejected"
+      },
+      "first_seen_at": "2026-11-16T04:18:19.278Z",
+      "last_seen_at": "2026-11-16T04:18:19.278Z"
+    },
+    {
+      "pair_id": "KXMVECROSSCATEGORY-S2026XYY3GY32KBIZMICN-2E3N2FTG7|will-pakistan-join-the-abraham-accords-before-2027",
+      "title": "Will Pakistan join the Abraham Accords before 2027?",
+      "category": "other",
+      "source": "discovery",
+      "kalshi": {
+        "ticker": "KXMVECROSSCATEGORY-S2026XYY3GY32KBIZMICN-2E3N2FTG7",
+        "title": "yes Isaac Becroft,yes Carlos Alcaraz,yes Teerapat Khantiweerawat,yes Min Ho Ko,yes Abraham Asaba,yes Gunawan Trismuwantara,yes Mikal Statham,yes Wenze Li,yes Veerawit Kamput,yes San Jose,yes Vancouver,yes England Lions,yes Vidarbha,yes Karnataka Women,yes Pakistan,yes Sydney Thunder Women,yes Ireland,yes Sri Lanka",
+        "resolution_at": null,
+        "rules_excerpt": null
+      },
+      "polymarket": {
+        "slug": "will-pakistan-join-the-abraham-accords-before-2027",
+        "question": "Will Pakistan join the Abraham Accords before 2027?",
+        "resolution_at": "2027-01-01T04:59:00.000Z",
+        "rules_excerpt": null
+      },
+      "resolution_gap_days": null,
+      "rule_screen": "compound_market",
+      "rule_screen_detail": "shared=abraham,pakistan;anchors=abraham,pakistan",
+      "rule_review": "none",
+      "review": null,
+      "hedged": false,
+      "last": {
+        "gross_cents": null,
+        "net_cents": null,
+        "annualized_pct": null,
+        "executable_size": null,
+        "status": "rejected"
+      },
+      "first_seen_at": "2026-11-16T04:18:19.278Z",
+      "last_seen_at": "2026-11-16T04:18:19.278Z"
+    },
+    {
+      "pair_id": "KXMVECROSSCATEGORY-S20266GDAKLGAZLY4C7XN-CUCX7FHQH|will-north-korea-invade-south-korea-before-2027",
+      "title": "Will North Korea invade South Korea before 2027?",
+      "category": "other",
+      "source": "discovery",
+      "kalshi": {
+        "ticker": "KXMVECROSSCATEGORY-S20266GDAKLGAZLY4C7XN-CUCX7FHQH",
+        "title": "yes Ohio,yes Western Michigan,yes Miami (OH),yes UMass,yes Toledo,yes Oregon,yes Alabama A&M,yes BYU,yes Tulsa,yes South Carolina St.,yes Stony Brook,yes South Dakota St.,yes Lehigh,yes Memphis,yes Butler,yes Middle Tennessee,yes Tennessee Tech,yes Texas Tech,yes North Texas,yes Weber St.,yes West Florida,yes Wake Forest,yes Wisconsin,yes Liberty",
+        "resolution_at": null,
+        "rules_excerpt": null
+      },
+      "polymarket": {
+        "slug": "will-north-korea-invade-south-korea-before-2027",
+        "question": "Will North Korea invade South Korea before 2027?",
+        "resolution_at": "2027-01-01T04:59:00.000Z",
+        "rules_excerpt": null
+      },
+      "resolution_gap_days": null,
+      "rule_screen": "compound_market",
+      "rule_screen_detail": "shared=south,north;anchors=south,north",
+      "rule_review": "none",
+      "review": null,
+      "hedged": false,
+      "last": {
+        "gross_cents": null,
+        "net_cents": null,
+        "annualized_pct": null,
+        "executable_size": null,
+        "status": "rejected"
+      },
+      "first_seen_at": "2026-11-16T04:13:15.979Z",
+      "last_seen_at": "2026-11-16T04:13:15.979Z"
+    },
+    {
+      "pair_id": "KXMVECROSSCATEGORY-S2026B2JPDTV65HVKONZF-N6POA3W6A|will-azerbaijan-join-the-abraham-accords-before-2027",
+      "title": "Will Azerbaijan join the Abraham Accords before 2027?",
+      "category": "finance",
+      "source": "discovery",
+      "kalshi": {
+        "ticker": "KXMVECROSSCATEGORY-S2026B2JPDTV65HVKONZF-N6POA3W6A",
+        "title": "yes Azerbaijan,yes Teerapat Khantiweerawat,yes Congsup Congcar,yes Abraham Asaba,yes Ren Nakamura,yes Baran Soyler,yes Hong-Lin Fu,yes Mikal Statham,yes Veerawit Kamput,yes Cleveland,yes Golden State,yes Boston,yes Philadelphia,yes UCLA,yes Texas A&M,yes Minnesota,yes Montreal,yes Utah,yes Malta,yes Greece,yes Iceland,yes Lithuania",
+        "resolution_at": null,
+        "rules_excerpt": null
+      },
+      "polymarket": {
+        "slug": "will-azerbaijan-join-the-abraham-accords-before-2027",
+        "question": "Will Azerbaijan join the Abraham Accords before 2027?",
+        "resolution_at": "2027-01-01T04:59:00.000Z",
+        "rules_excerpt": null
+      },
+      "resolution_gap_days": null,
+      "rule_screen": "compound_market",
+      "rule_screen_detail": "shared=azerbaijan,abraham;anchors=azerbaijan,abraham",
+      "rule_review": "none",
+      "review": null,
+      "hedged": false,
+      "last": {
+        "gross_cents": null,
+        "net_cents": null,
+        "annualized_pct": null,
+        "executable_size": null,
+        "status": "rejected"
+      },
+      "first_seen_at": "2026-11-16T04:13:15.979Z",
+      "last_seen_at": "2026-11-16T04:13:15.979Z"
+    },
+    {
+      "pair_id": "KXMVECROSSCATEGORY-S2026BS7MC54WTPWFTOJS-CBXROPZB4|will-north-korea-invade-south-korea-before-2027",
+      "title": "Will North Korea invade South Korea before 2027?",
+      "category": "other",
+      "source": "discovery",
+      "kalshi": {
+        "ticker": "KXMVECROSSCATEGORY-S2026BS7MC54WTPWFTOJS-CBXROPZB4",
+        "title": "yes Alabama A&M,yes Texas,yes BYU,yes Dayton,yes Abilene Christian,yes South Dakota St.,yes Butler,yes UConn,yes Penn St.,yes Auburn,yes North Dakota,yes Tarleton St.,yes Texas Tech,yes Appalachian St.,yes St. Thomas,yes Weber St.,yes Florida,yes Wake Forest,yes Liberty,yes Harvard,no Coastal Carolina wins by over 11.5 points,no Charlotte wins by over 2.5 points,no LSU wins by over 13.5 points,no Sam Houston wins by over 7.5 points,no Texas A&M wins by over 6.5 points,no Michigan wins by over 7.5 points",
+        "resolution_at": null,
+        "rules_excerpt": null
+      },
+      "polymarket": {
+        "slug": "will-north-korea-invade-south-korea-before-2027",
+        "question": "Will North Korea invade South Korea before 2027?",
+        "resolution_at": "2027-01-01T04:59:00.000Z",
+        "rules_excerpt": null
+      },
+      "resolution_gap_days": null,
+      "rule_screen": "compound_market",
+      "rule_screen_detail": "shared=south,north;anchors=south,north",
+      "rule_review": "none",
+      "review": null,
+      "hedged": false,
+      "last": {
+        "gross_cents": null,
+        "net_cents": null,
+        "annualized_pct": null,
+        "executable_size": null,
+        "status": "rejected"
+      },
+      "first_seen_at": "2026-11-16T04:13:15.979Z",
+      "last_seen_at": "2026-11-16T04:13:15.979Z"
+    },
+    {
+      "pair_id": "KXMVECROSSCATEGORY-S2026DK3YEJC7GZXIA76R-E4HEH4RNH|will-drake-release-a-new-song-in-2026",
+      "title": "Will Drake release a new song in 2026?",
+      "category": "culture",
+      "source": "discovery",
+      "kalshi": {
+        "ticker": "KXMVECROSSCATEGORY-S2026DK3YEJC7GZXIA76R-E4HEH4RNH",
+        "title": "yes Cleveland,yes New Orleans,yes Miami,yes Washington,yes Boston,yes Philadelphia,yes Denver,yes Portland,yes Missouri St.,yes Northwestern,yes Kent St.,yes Iona,yes Georgia,yes Kansas St.,yes Virginia Tech,yes Drake,yes St. Thomas,yes Western Kentucky",
+        "resolution_at": null,
+        "rules_excerpt": null
+      },
+      "polymarket": {
+        "slug": "will-drake-release-a-new-song-in-2026",
+        "question": "Will Drake release a new song in 2026?",
+        "resolution_at": "2026-12-31T00:00:00.000Z",
+        "rules_excerpt": null
+      },
+      "resolution_gap_days": null,
+      "rule_screen": "compound_market",
+      "rule_screen_detail": "shared=new,drake;anchors=new,drake",
+      "rule_review": "none",
+      "review": null,
+      "hedged": false,
+      "last": {
+        "gross_cents": null,
+        "net_cents": null,
+        "annualized_pct": null,
+        "executable_size": null,
+        "status": "rejected"
+      },
+      "first_seen_at": "2026-11-16T04:13:15.979Z",
+      "last_seen_at": "2026-11-16T04:13:15.979Z"
+    },
+    {
+      "pair_id": "KXMVECROSSCATEGORY-S2026ESRBL43LXD3CMWJX-AXKCASGHU|will-north-korea-invade-south-korea-before-2027",
+      "title": "Will North Korea invade South Korea before 2027?",
+      "category": "finance",
+      "source": "discovery",
+      "kalshi": {
+        "ticker": "KXMVECROSSCATEGORY-S2026ESRBL43LXD3CMWJX-AXKCASGHU",
+        "title": "yes Cleveland,yes Golden State,yes Memphis,yes Boston,yes Philadelphia,yes Denver,yes Ohio,yes Western Michigan,yes Stephen F. Austin,yes Toledo,yes Oregon,yes Air Force,yes Alabama A&M,yes Texas,yes Tulsa,yes Southern Utah,yes Dayton,yes South Carolina St.,yes South Dakota St.,yes Lehigh,yes USC,yes Butler,yes North Dakota St.,yes Penn St.,yes Boise St.,yes Notre Dame,yes San Diego,yes Gardner-Webb,yes Georgia,yes Weber St.,yes Miami (FL),yes Wake Forest,yes Liberty,yes Baltimore,yes Utah",
+        "resolution_at": null,
+        "rules_excerpt": null
+      },
+      "polymarket": {
+        "slug": "will-north-korea-invade-south-korea-before-2027",
+        "question": "Will North Korea invade South Korea before 2027?",
+        "resolution_at": "2027-01-01T04:59:00.000Z",
+        "rules_excerpt": null
+      },
+      "resolution_gap_days": null,
+      "rule_screen": "compound_market",
+      "rule_screen_detail": "shared=south,north;anchors=south,north",
+      "rule_review": "none",
+      "review": null,
+      "hedged": false,
+      "last": {
+        "gross_cents": null,
+        "net_cents": null,
+        "annualized_pct": null,
+        "executable_size": null,
+        "status": "rejected"
+      },
+      "first_seen_at": "2026-11-16T04:13:15.979Z",
+      "last_seen_at": "2026-11-16T04:13:15.979Z"
+    },
+    {
+      "pair_id": "KXMVECROSSCATEGORY-S2026G7YPLIPGEBXGXYQB-FGTYQORGX|will-north-korea-invade-south-korea-before-2027",
+      "title": "Will North Korea invade South Korea before 2027?",
+      "category": "other",
+      "source": "discovery",
+      "kalshi": {
+        "ticker": "KXMVECROSSCATEGORY-S2026G7YPLIPGEBXGXYQB-FGTYQORGX",
+        "title": "yes Ohio,yes Western Michigan,yes Stephen F. Austin,yes Duke,yes Wake Forest,yes Clemson,yes Oregon St.,yes Georgia,yes Kansas St.,yes Saint Mary's,yes Virginia Tech,yes St. Thomas,yes Akron,yes Indiana,yes Duke,yes Alabama,yes Kansas,yes Wake Forest,yes Michigan St.,yes Gonzaga,yes Georgia Tech,yes Virginia,yes Saint Joseph's,yes Oklahoma,yes Arizona,yes Creighton,yes Syracuse,yes South Carolina,yes Florida Atlantic,yes Furman,yes Texas St.,yes Marquette,yes Arizona St.,yes St. John's,yes San Diego St.,yes BYU,yes Wichita St.,yes Cincinnati,yes Butler,yes Wisconsin,yes Indiana,yes Minnesota,yes Ohio St.,yes Gonzaga,yes Oklahoma St.,yes Texas,yes Wake Forest,yes Oregon,yes Florida,yes Miami (FL),yes High Point,yes Virginia,yes Iowa,yes Arizona,yes North Carolina,yes Memphis",
+        "resolution_at": null,
+        "rules_excerpt": null
+      },
+      "polymarket": {
+        "slug": "will-north-korea-invade-south-korea-before-2027",
+        "question": "Will North Korea invade South Korea before 2027?",
+        "resolution_at": "2027-01-01T04:59:00.000Z",
+        "rules_excerpt": null
+      },
+      "resolution_gap_days": null,
+      "rule_screen": "compound_market",
+      "rule_screen_detail": "shared=south,north;anchors=south,north",
+      "rule_review": "none",
+      "review": null,
+      "hedged": false,
+      "last": {
+        "gross_cents": null,
+        "net_cents": null,
+        "annualized_pct": null,
+        "executable_size": null,
+        "status": "rejected"
+      },
+      "first_seen_at": "2026-11-16T04:13:15.979Z",
+      "last_seen_at": "2026-11-16T04:13:15.979Z"
+    },
+    {
+      "pair_id": "KXMVECROSSCATEGORY-S2026KF72X6U6XOV64Y6Z-RS5UW5XKO|will-north-korea-invade-south-korea-before-2027",
+      "title": "Will North Korea invade South Korea before 2027?",
+      "category": "other",
+      "source": "discovery",
+      "kalshi": {
+        "ticker": "KXMVECROSSCATEGORY-S2026KF72X6U6XOV64Y6Z-RS5UW5XKO",
+        "title": "yes Toledo,yes Duke,yes Oregon,yes Air Force,yes Arizona,yes Texas,yes Louisiana,yes Tulsa,yes Fresno St.,yes Dayton,yes Indiana,yes South Dakota St.,yes USC,yes North Dakota St.,yes Penn St.,yes Boise St.,yes Notre Dame,yes Tarleton St.,yes Georgia,yes Utah,yes Wake Forest,yes Liberty,yes Texas St.,yes Texas Tech,yes Kansas City,yes Denver,yes Buffalo,yes Chicago,yes Cincinnati",
+        "resolution_at": null,
+        "rules_excerpt": null
+      },
+      "polymarket": {
+        "slug": "will-north-korea-invade-south-korea-before-2027",
+        "question": "Will North Korea invade South Korea before 2027?",
+        "resolution_at": "2027-01-01T04:59:00.000Z",
+        "rules_excerpt": null
+      },
+      "resolution_gap_days": null,
+      "rule_screen": "compound_market",
+      "rule_screen_detail": "shared=south,north;anchors=south,north",
+      "rule_review": "none",
+      "review": null,
+      "hedged": false,
+      "last": {
+        "gross_cents": null,
+        "net_cents": null,
+        "annualized_pct": null,
+        "executable_size": null,
+        "status": "rejected"
+      },
+      "first_seen_at": "2026-11-16T04:13:15.979Z",
+      "last_seen_at": "2026-11-16T04:13:15.979Z"
+    },
+    {
+      "pair_id": "KXMVECROSSCATEGORY-S2026OCSAQ644QJ7TIBJN-SQMZJXIC7|will-pakistan-join-the-abraham-accords-before-2027",
+      "title": "Will Pakistan join the Abraham Accords before 2027?",
+      "category": "other",
+      "source": "discovery",
+      "kalshi": {
+        "ticker": "KXMVECROSSCATEGORY-S2026OCSAQ644QJ7TIBJN-SQMZJXIC7",
+        "title": "yes Abraham Asaba,yes Kazuki Nakajima,yes Mikal Statham,yes Veerawit Kamput,yes Oklahoma City,yes Domantas Sabonis: 10+,yes Over 227.5 points,yes Arizona,yes San Jose,yes Vancouver,yes Vidarbha,yes Karnataka Women,yes Bangladesh,yes Pakistan",
+        "resolution_at": null,
+        "rules_excerpt": null
+      },
+      "polymarket": {
+        "slug": "will-pakistan-join-the-abraham-accords-before-2027",
+        "question": "Will Pakistan join the Abraham Accords before 2027?",
+        "resolution_at": "2027-01-01T04:59:00.000Z",
+        "rules_excerpt": null
+      },
+      "resolution_gap_days": null,
+      "rule_screen": "compound_market",
+      "rule_screen_detail": "shared=abraham,pakistan;anchors=abraham,pakistan",
+      "rule_review": "none",
+      "review": null,
+      "hedged": false,
+      "last": {
+        "gross_cents": null,
+        "net_cents": null,
+        "annualized_pct": null,
+        "executable_size": null,
+        "status": "rejected"
+      },
+      "first_seen_at": "2026-11-16T04:13:15.979Z",
+      "last_seen_at": "2026-11-16T04:13:15.979Z"
+    },
+    {
+      "pair_id": "KXMVECROSSCATEGORY-S2026Q4OYEFFJUXSCTXGK-OFYYQOTKJ|will-north-korea-invade-south-korea-before-2027",
+      "title": "Will North Korea invade South Korea before 2027?",
+      "category": "other",
+      "source": "discovery",
+      "kalshi": {
+        "ticker": "KXMVECROSSCATEGORY-S2026Q4OYEFFJUXSCTXGK-OFYYQOTKJ",
+        "title": "yes Ohio,yes Western Michigan,yes Miami (OH),yes UMass,yes Stephen F. Austin,yes Temple,yes Southeastern Louisiana,yes Toledo,yes Duke,yes Oregon,yes New Mexico,yes Air Force,yes University at Albany,yes BYU,yes Tulsa,yes Dayton,yes Furman,yes Stony Brook,yes Houston,yes Norfolk St.,yes South Dakota St.,yes Iowa,yes Jackson St.,yes Lehigh,yes Memphis,yes Montana St.,yes Butler,yes Princeton,yes Syracuse,yes Appalachian St.,yes North Texas,yes Florida,yes Wake Forest,yes Wisconsin,yes Richmond",
+        "resolution_at": null,
+        "rules_excerpt": null
+      },
+      "polymarket": {
+        "slug": "will-north-korea-invade-south-korea-before-2027",
+        "question": "Will North Korea invade South Korea before 2027?",
+        "resolution_at": "2027-01-01T04:59:00.000Z",
+        "rules_excerpt": null
+      },
+      "resolution_gap_days": null,
+      "rule_screen": "compound_market",
+      "rule_screen_detail": "shared=south,north;anchors=south,north",
+      "rule_review": "none",
+      "review": null,
+      "hedged": false,
+      "last": {
+        "gross_cents": null,
+        "net_cents": null,
+        "annualized_pct": null,
+        "executable_size": null,
+        "status": "rejected"
+      },
+      "first_seen_at": "2026-11-16T04:13:15.979Z",
+      "last_seen_at": "2026-11-16T04:13:15.979Z"
+    },
+    {
+      "pair_id": "KXMVECROSSCATEGORY-S2026QULXUL66ROVICIXX-OJZ4G5MHT|will-north-korea-invade-south-korea-before-2027",
+      "title": "Will North Korea invade South Korea before 2027?",
+      "category": "other",
+      "source": "discovery",
+      "kalshi": {
+        "ticker": "KXMVECROSSCATEGORY-S2026QULXUL66ROVICIXX-OJZ4G5MHT",
+        "title": "yes Stephen F. Austin,yes Toledo,yes Duke,yes Oregon,yes Air Force,yes Texas,yes BYU,yes Louisiana,yes Tulsa,yes Fresno St.,yes Dayton,yes South Dakota St.,yes USC,yes North Dakota St.,yes Penn St.,yes Boise St.,yes Notre Dame,yes Tarleton St.,yes Georgia,yes Utah,yes Wake Forest,yes Liberty,yes Texas St.,yes Texas Tech,yes Ole Miss,yes North Dakota St.,yes Texas,yes Utah,yes Miami (FL),yes Wake Forest,yes Georgia,yes LSU,yes Notre Dame,yes Indiana,yes Kansas City,yes Denver,yes Buffalo,yes Chicago,yes Detroit,yes Cincinnati",
+        "resolution_at": null,
+        "rules_excerpt": null
+      },
+      "polymarket": {
+        "slug": "will-north-korea-invade-south-korea-before-2027",
+        "question": "Will North Korea invade South Korea before 2027?",
+        "resolution_at": "2027-01-01T04:59:00.000Z",
+        "rules_excerpt": null
+      },
+      "resolution_gap_days": null,
+      "rule_screen": "compound_market",
+      "rule_screen_detail": "shared=south,north;anchors=south,north",
+      "rule_review": "none",
+      "review": null,
+      "hedged": false,
+      "last": {
+        "gross_cents": null,
+        "net_cents": null,
+        "annualized_pct": null,
+        "executable_size": null,
+        "status": "rejected"
+      },
+      "first_seen_at": "2026-11-16T04:13:15.979Z",
+      "last_seen_at": "2026-11-16T04:13:15.979Z"
+    },
+    {
+      "pair_id": "KXMVECROSSCATEGORY-S20267HLIQI4GKW2FTELF-AK6THKT25|will-party-a-win-the-2028-us-presidential-election",
+      "title": "Will Party A win the 2028 US Presidential Election?",
+      "category": "politics",
+      "source": "discovery",
+      "kalshi": {
+        "ticker": "KXMVECROSSCATEGORY-S20267HLIQI4GKW2FTELF-AK6THKT25",
+        "title": "yes Manchester City,no Sunderland wins by more than 2.5 goals,no Leeds United wins by more than 2.5 goals,no Newcastle wins by more than 2.5 goals,no Manchester United wins by more than 2.5 goals,yes Oklahoma City,yes Cleveland,yes Denver,yes Oregon,yes Wake Forest,yes Houston,yes Denver,yes Buffalo,no Los Angeles C wins by over 14.5 points,yes Kansas City wins by over 2.5 points,no Baltimore wins by over 16.5 points,no New York G wins by over 7.5 points,no Minnesota wins by over 14.5 points,no New Orleans wins by over 7.5 points,no New York J wins by over 14.5 points,no Philadelphia wins by over 14.5 points,no Tampa Bay wins by over 14.5 points,no Tennessee wins by over 14.5 points,yes San Jose,yes Vancouver,yes Utah,yes Vegas,no Chicago wins by over 2.5 goals",
+        "resolution_at": null,
+        "rules_excerpt": null
+      },
+      "polymarket": {
+        "slug": "will-party-a-win-the-2028-us-presidential-election",
+        "question": "Will Party A win the 2028 US Presidential Election?",
+        "resolution_at": "2028-11-07T00:00:00.000Z",
+        "rules_excerpt": null
+      },
+      "resolution_gap_days": null,
+      "rule_screen": "compound_market",
+      "rule_screen_detail": "shared=win,us;anchors=us;resolution=weak_shared_resolution_terms",
+      "rule_review": "none",
+      "review": null,
+      "hedged": false,
+      "last": {
+        "gross_cents": null,
+        "net_cents": null,
+        "annualized_pct": null,
+        "executable_size": null,
+        "status": "rejected"
+      },
+      "first_seen_at": "2026-11-16T04:08:26.450Z",
+      "last_seen_at": "2026-11-16T04:08:26.450Z"
+    },
+    {
+      "pair_id": "KXMVECROSSCATEGORY-S20267HLIQI4GKW2FTELF-AK6THKT25|will-party-b-win-the-2028-us-presidential-election",
+      "title": "Will Party B win the 2028 US Presidential Election?",
+      "category": "politics",
+      "source": "discovery",
+      "kalshi": {
+        "ticker": "KXMVECROSSCATEGORY-S20267HLIQI4GKW2FTELF-AK6THKT25",
+        "title": "yes Manchester City,no Sunderland wins by more than 2.5 goals,no Leeds United wins by more than 2.5 goals,no Newcastle wins by more than 2.5 goals,no Manchester United wins by more than 2.5 goals,yes Oklahoma City,yes Cleveland,yes Denver,yes Oregon,yes Wake Forest,yes Houston,yes Denver,yes Buffalo,no Los Angeles C wins by over 14.5 points,yes Kansas City wins by over 2.5 points,no Baltimore wins by over 16.5 points,no New York G wins by over 7.5 points,no Minnesota wins by over 14.5 points,no New Orleans wins by over 7.5 points,no New York J wins by over 14.5 points,no Philadelphia wins by over 14.5 points,no Tampa Bay wins by over 14.5 points,no Tennessee wins by over 14.5 points,yes San Jose,yes Vancouver,yes Utah,yes Vegas,no Chicago wins by over 2.5 goals",
+        "resolution_at": null,
+        "rules_excerpt": null
+      },
+      "polymarket": {
+        "slug": "will-party-b-win-the-2028-us-presidential-election",
+        "question": "Will Party B win the 2028 US Presidential Election?",
+        "resolution_at": "2028-11-07T00:00:00.000Z",
+        "rules_excerpt": null
+      },
+      "resolution_gap_days": null,
+      "rule_screen": "compound_market",
+      "rule_screen_detail": "shared=win,us;anchors=us;resolution=weak_shared_resolution_terms",
+      "rule_review": "none",
+      "review": null,
+      "hedged": false,
+      "last": {
+        "gross_cents": null,
+        "net_cents": null,
+        "annualized_pct": null,
+        "executable_size": null,
+        "status": "rejected"
+      },
+      "first_seen_at": "2026-11-16T04:08:26.450Z",
+      "last_seen_at": "2026-11-16T04:08:26.450Z"
+    },
+    {
+      "pair_id": "KXMVECROSSCATEGORY-S20267HLIQI4GKW2FTELF-AK6THKT25|will-party-c-win-the-2028-us-presidential-election",
+      "title": "Will Party C win the 2028 US Presidential Election?",
+      "category": "politics",
+      "source": "discovery",
+      "kalshi": {
+        "ticker": "KXMVECROSSCATEGORY-S20267HLIQI4GKW2FTELF-AK6THKT25",
+        "title": "yes Manchester City,no Sunderland wins by more than 2.5 goals,no Leeds United wins by more than 2.5 goals,no Newcastle wins by more than 2.5 goals,no Manchester United wins by more than 2.5 goals,yes Oklahoma City,yes Cleveland,yes Denver,yes Oregon,yes Wake Forest,yes Houston,yes Denver,yes Buffalo,no Los Angeles C wins by over 14.5 points,yes Kansas City wins by over 2.5 points,no Baltimore wins by over 16.5 points,no New York G wins by over 7.5 points,no Minnesota wins by over 14.5 points,no New Orleans wins by over 7.5 points,no New York J wins by over 14.5 points,no Philadelphia wins by over 14.5 points,no Tampa Bay wins by over 14.5 points,no Tennessee wins by over 14.5 points,yes San Jose,yes Vancouver,yes Utah,yes Vegas,no Chicago wins by over 2.5 goals",
+        "resolution_at": null,
+        "rules_excerpt": null
+      },
+      "polymarket": {
+        "slug": "will-party-c-win-the-2028-us-presidential-election",
+        "question": "Will Party C win the 2028 US Presidential Election?",
+        "resolution_at": "2028-11-07T00:00:00.000Z",
+        "rules_excerpt": null
+      },
+      "resolution_gap_days": null,
+      "rule_screen": "compound_market",
+      "rule_screen_detail": "shared=win,us;anchors=us;resolution=weak_shared_resolution_terms",
+      "rule_review": "none",
+      "review": null,
+      "hedged": false,
+      "last": {
+        "gross_cents": null,
+        "net_cents": null,
+        "annualized_pct": null,
+        "executable_size": null,
+        "status": "rejected"
+      },
+      "first_seen_at": "2026-11-16T04:08:26.450Z",
+      "last_seen_at": "2026-11-16T04:08:26.450Z"
+    },
+    {
+      "pair_id": "KXMVECROSSCATEGORY-S2026F3HN3JJS23YXOR7H-TL2RTXSM3|will-north-korea-invade-south-korea-before-2027",
+      "title": "Will North Korea invade South Korea before 2027?",
+      "category": "other",
+      "source": "discovery",
+      "kalshi": {
+        "ticker": "KXMVECROSSCATEGORY-S2026F3HN3JJS23YXOR7H-TL2RTXSM3",
+        "title": "yes Oklahoma St.,yes Clemson,yes Northwestern,yes Oregon St.,yes Georgia,yes Kansas St.,yes Saint Mary's,yes Virginia Tech,yes Drake,yes UC San Diego,yes Akron,yes UC Davis,yes Florida St.,yes Illinois St.,yes UMass,yes Dayton,yes Utah,yes Florida,yes Fordham,yes Houston,yes Kansas,yes Southern University,yes Northern Iowa,yes Purdue,yes Wake Forest,yes Gonzaga,yes Murray St.,yes Georgia Tech,yes Virginia,yes SMU,yes Wyoming,yes Providence,yes South Florida,yes Saint Joseph's,yes Butler,yes Arkansas St.,yes Oklahoma,yes UIC,yes Creighton,yes La Salle,yes Syracuse,yes Eastern Michigan,yes South Carolina,yes UTSA,yes Nevada,yes Penn St.,yes Texas St.,yes Ohio,yes North Carolina A&T,yes Georgetown,yes George Mason,yes Colorado St.,yes Marquette,yes Arizona St.,yes Bradley,yes Colorado,yes St. John's,yes San Diego St.,yes San Francisco,yes BYU,yes UNC Wilmington,yes Utah St.,yes Cincinnati,yes St. Bonaventure,yes Quinnipiac,yes Butler,yes Toledo,yes Washington,yes Rutgers,yes Arkansas,yes Louisiana-Monroe,yes Colgate,yes High Point,yes Southern Miss,yes Texas A&M,yes VCU,yes Middle Tennessee,yes UTSA,yes Indiana St.,yes Arkansas St.,yes Illinois St.,yes Liberty,yes Boston College,yes Oregon,yes Eastern Kentucky,yes Winthrop,yes Tennessee,yes Drake,yes Washington,yes NJIT,yes Texas A&M,yes IU Indy,yes Illinois,yes Abilene Christian,yes South Dakota,yes Oregon St.,yes Yale,yes Cincinnati",
+        "resolution_at": null,
+        "rules_excerpt": null
+      },
+      "polymarket": {
+        "slug": "will-north-korea-invade-south-korea-before-2027",
+        "question": "Will North Korea invade South Korea before 2027?",
+        "resolution_at": "2027-01-01T04:59:00.000Z",
+        "rules_excerpt": null
+      },
+      "resolution_gap_days": null,
+      "rule_screen": "compound_market",
+      "rule_screen_detail": "shared=south,north;anchors=south,north",
+      "rule_review": "none",
+      "review": null,
+      "hedged": false,
+      "last": {
+        "gross_cents": null,
+        "net_cents": null,
+        "annualized_pct": null,
+        "executable_size": null,
+        "status": "rejected"
+      },
+      "first_seen_at": "2026-11-16T04:08:26.450Z",
+      "last_seen_at": "2026-11-16T04:08:26.450Z"
+    },
+    {
+      "pair_id": "KXMVECROSSCATEGORY-S2026L45ZPEMAFJHWUB2T-NJJ4XTG2H|will-north-korea-invade-south-korea-before-2027",
+      "title": "Will North Korea invade South Korea before 2027?",
+      "category": "other",
+      "source": "discovery",
+      "kalshi": {
+        "ticker": "KXMVECROSSCATEGORY-S2026L45ZPEMAFJHWUB2T-NJJ4XTG2H",
+        "title": "yes Over 1.5 goals scored,yes Over 0.5 goals scored,yes Over 0.5 goals scored,yes Over 0.5 goals scored,yes Over 0.5 goals scored,yes Over 0.5 goals scored,yes Over 0.5 goals scored,yes Over 0.5 goals scored,yes Over 0.5 goals scored,yes Over 0.5 goals scored,yes Reg Time: Over 0.5 goals scored,yes Reg Time: Over 0.5 goals scored,yes Alabama,yes Auburn,yes Ole Miss,yes Ohio over 9.5 points,yes Western Michigan over 9.5 points,yes Miami (OH) over 13.5 points,yes Duke over 13.5 points,yes Oregon over 13.5 points,yes New Mexico over 9.5 points,yes Arizona over 13.5 points,yes Arkansas over 2.5 points,yes Texas over 13.5 points,yes BYU over 13.5 points,yes Colorado St. over 6.5 points,yes Fresno St. over 19.5 points,yes Georgia Southern over 9.5 points,yes Houston over 16.5 points,yes West Virginia over 13.5 points,yes Indiana over 13.5 points,yes Iowa over 9.5 points,yes LSU over 9.5 points,yes USC over 16.5 points,yes Middle Tennessee over 13.5 points,yes North Dakota St. over 16.5 points,yes Oklahoma St. over 13.5 points,yes Ohio St. over 9.5 points,yes Louisville over 13.5 points,yes Rutgers over 2.5 points,yes Boise St. over 20.5 points,yes San Diego St. over 9.5 points,yes Notre Dame over 19.5 points,yes Syracuse over 13.5 points,yes Texas Tech over 13.5 points,yes UCLA over 9.5 points,yes South Carolina over 2.5 points,yes Georgia over 13.5 points,yes Kentucky over 6.5 points,yes North Carolina over 6.5 points,yes Oregon St. over 9.5 points,yes TCU over 6.5 points,yes Utah over 13.5 points,yes Vanderbilt over 2.5 points,yes Miami (FL) over 16.5 points,yes Wake Forest over 19.5 points,yes Baltimore over 3.5 points,yes San Jose,yes Over 1.5 goals scored,yes Over 1.5 goals scored,yes Over 1.5 goals scored,yes Over 1.5 goals scored,yes Over 1.5 goals scored,yes Over 1.5 goals scored,yes Over 0.5 goals scored,yes Over 0.5 goals scored,yes Over 0.5 goals scored,yes Over 0.5 goals scored,yes Over 0.5 goals scored,yes Over 0.5 goals scored,yes Over 0.5 goals scored,yes Over 0.5 goals scored,yes Over 0.5 goals scored",
+        "resolution_at": null,
+        "rules_excerpt": null
+      },
+      "polymarket": {
+        "slug": "will-north-korea-invade-south-korea-before-2027",
+        "question": "Will North Korea invade South Korea before 2027?",
+        "resolution_at": "2027-01-01T04:59:00.000Z",
+        "rules_excerpt": null
+      },
+      "resolution_gap_days": null,
+      "rule_screen": "compound_market",
+      "rule_screen_detail": "shared=north,south;anchors=north,south",
+      "rule_review": "none",
+      "review": null,
+      "hedged": false,
+      "last": {
+        "gross_cents": null,
+        "net_cents": null,
+        "annualized_pct": null,
+        "executable_size": null,
+        "status": "rejected"
+      },
+      "first_seen_at": "2026-11-16T04:08:26.450Z",
+      "last_seen_at": "2026-11-16T04:08:26.450Z"
+    },
+    {
+      "pair_id": "KXMVECROSSCATEGORY-S2026MSCAWXRHTK6J52FR-3G6X3YPGO|will-north-korea-invade-south-korea-before-2027",
+      "title": "Will North Korea invade South Korea before 2027?",
+      "category": "other",
+      "source": "discovery",
+      "kalshi": {
+        "ticker": "KXMVECROSSCATEGORY-S2026MSCAWXRHTK6J52FR-3G6X3YPGO",
+        "title": "yes Ohio,yes Western Michigan,yes Miami (OH),yes UMass,yes Stephen F. Austin,yes Toledo,yes Duke,yes Oregon,yes Air Force,yes BYU,yes Tulsa,yes Southern Utah,yes Dayton,yes South Carolina St.,yes Abilene Christian,yes Furman,yes Stony Brook,yes Houston,yes Lehigh,yes Memphis,yes Montana St.,yes Butler,yes Jacksonville St.,yes Middle Tennessee,yes North Dakota,yes Florida,yes Wake Forest,yes Liberty,yes Ole Miss",
+        "resolution_at": null,
+        "rules_excerpt": null
+      },
+      "polymarket": {
+        "slug": "will-north-korea-invade-south-korea-before-2027",
+        "question": "Will North Korea invade South Korea before 2027?",
+        "resolution_at": "2027-01-01T04:59:00.000Z",
+        "rules_excerpt": null
+      },
+      "resolution_gap_days": null,
+      "rule_screen": "compound_market",
+      "rule_screen_detail": "shared=south,north;anchors=south,north",
+      "rule_review": "none",
+      "review": null,
+      "hedged": false,
+      "last": {
+        "gross_cents": null,
+        "net_cents": null,
+        "annualized_pct": null,
+        "executable_size": null,
+        "status": "rejected"
+      },
+      "first_seen_at": "2026-11-16T04:08:26.450Z",
+      "last_seen_at": "2026-11-16T04:08:26.450Z"
+    },
+    {
+      "pair_id": "KXMVECROSSCATEGORY-S2026MVY7WVE3COZHZI3M-SKG56B5PY|will-drake-release-a-new-song-in-2026",
+      "title": "Will Drake release a new song in 2026?",
+      "category": "culture",
+      "source": "discovery",
+      "kalshi": {
+        "ticker": "KXMVECROSSCATEGORY-S2026MVY7WVE3COZHZI3M-SKG56B5PY",
+        "title": "yes Cleveland,yes New Orleans,yes Miami,yes Boston,yes Philadelphia,yes Denver,yes Minnesota,yes Over 219.5 points,yes Over 218.5 points,yes Over 209.5 points,yes Over 210.5 points,yes Over 218.5 points,yes Missouri St.,yes Northwestern,yes Kent St.,yes Oregon St.,yes Virginia Tech,yes Drake,yes St. Thomas,yes Jacoby Brissett: 150+,yes Justin Herbert: 175+,yes Utah",
+        "resolution_at": null,
+        "rules_excerpt": null
+      },
+      "polymarket": {
+        "slug": "will-drake-release-a-new-song-in-2026",
+        "question": "Will Drake release a new song in 2026?",
+        "resolution_at": "2026-12-31T00:00:00.000Z",
+        "rules_excerpt": null
+      },
+      "resolution_gap_days": null,
+      "rule_screen": "compound_market",
+      "rule_screen_detail": "shared=new,drake;anchors=new,drake",
+      "rule_review": "none",
+      "review": null,
+      "hedged": false,
+      "last": {
+        "gross_cents": null,
+        "net_cents": null,
+        "annualized_pct": null,
+        "executable_size": null,
+        "status": "rejected"
+      },
+      "first_seen_at": "2026-11-16T04:08:26.450Z",
+      "last_seen_at": "2026-11-16T04:08:26.450Z"
+    },
+    {
+      "pair_id": "KXMVECROSSCATEGORY-S2026TKEDPOL27RYPYONX-XA4TL3SVC|will-north-korea-invade-south-korea-before-2027",
+      "title": "Will North Korea invade South Korea before 2027?",
+      "category": "other",
+      "source": "discovery",
+      "kalshi": {
+        "ticker": "KXMVECROSSCATEGORY-S2026TKEDPOL27RYPYONX-XA4TL3SVC",
+        "title": "yes Oklahoma St.,yes Clemson,yes Northwestern,yes Oregon St.,yes Georgia,yes Kansas St.,yes Saint Mary's,yes Virginia Tech,yes Drake,yes UC San Diego,yes Akron,yes UC Davis,yes Florida St.,yes Illinois St.,yes UMass,yes Dayton,yes Utah,yes Florida,yes Fordham,yes Houston,yes Kansas,yes Southern University,yes Northern Iowa,yes Purdue,yes Wake Forest,yes Gonzaga,yes Murray St.,yes Georgia Tech,yes Virginia,yes SMU,yes Wyoming,yes Providence,yes South Florida,yes Saint Joseph's,yes Butler,yes Arkansas St.,yes Oklahoma,yes UIC,yes Creighton,yes La Salle,yes Syracuse,yes Eastern Michigan,yes South Carolina,yes UTSA,yes Nevada,yes Penn St.,yes Texas St.,yes Ohio,yes North Carolina A&T,yes Georgetown,yes George Mason,yes Colorado St.,yes Marquette,yes Arizona St.,yes Bradley,yes Colorado,yes St. John's,yes San Diego St.,yes San Francisco,yes BYU,yes UNC Wilmington,yes Utah St.,yes Cincinnati,yes St. Bonaventure,yes Quinnipiac,yes Butler,yes Toledo,yes Washington,yes Rutgers,yes Arkansas,yes Louisiana-Monroe,yes Colgate,yes High Point,yes Southern Miss,yes Texas A&M,yes VCU,yes Middle Tennessee,yes UTSA,yes Indiana St.,yes Arkansas St.,yes Illinois St.,yes Liberty,yes Boston College,yes Oregon,yes Eastern Kentucky,yes Winthrop,yes Tennessee,yes Drake,yes Washington,yes NJIT,yes Texas A&M,yes IU Indy,yes Illinois,yes South Dakota,yes Oregon St.,yes Yale,yes Cincinnati",
+        "resolution_at": null,
+        "rules_excerpt": null
+      },
+      "polymarket": {
+        "slug": "will-north-korea-invade-south-korea-before-2027",
+        "question": "Will North Korea invade South Korea before 2027?",
+        "resolution_at": "2027-01-01T04:59:00.000Z",
+        "rules_excerpt": null
+      },
+      "resolution_gap_days": null,
+      "rule_screen": "compound_market",
+      "rule_screen_detail": "shared=south,north;anchors=south,north",
+      "rule_review": "none",
+      "review": null,
+      "hedged": false,
+      "last": {
+        "gross_cents": null,
+        "net_cents": null,
+        "annualized_pct": null,
+        "executable_size": null,
+        "status": "rejected"
+      },
+      "first_seen_at": "2026-11-16T04:08:26.450Z",
+      "last_seen_at": "2026-11-16T04:08:26.450Z"
+    },
+    {
+      "pair_id": "KXMVECROSSCATEGORY-S2026UHZBRLXQ5D4JJ2T7-TTVOMFCMS|will-north-korea-invade-south-korea-before-2027",
+      "title": "Will North Korea invade South Korea before 2027?",
+      "category": "other",
+      "source": "discovery",
+      "kalshi": {
+        "ticker": "KXMVECROSSCATEGORY-S2026UHZBRLXQ5D4JJ2T7-TTVOMFCMS",
+        "title": "yes Ohio,yes Western Michigan,yes Miami (OH),yes UMass,yes Southeastern Louisiana,yes Toledo,yes Oregon,yes New Mexico,yes Air Force,yes Texas,yes BYU,yes Louisiana,yes Dayton,yes Furman,yes Indiana,yes South Dakota St.,yes Memphis,yes Butler,yes Florida St.,yes UConn,yes Texas Tech,yes North Texas,yes Weber St.,yes Florida,yes Wisconsin,yes Liberty",
+        "resolution_at": null,
+        "rules_excerpt": null
+      },
+      "polymarket": {
+        "slug": "will-north-korea-invade-south-korea-before-2027",
+        "question": "Will North Korea invade South Korea before 2027?",
+        "resolution_at": "2027-01-01T04:59:00.000Z",
+        "rules_excerpt": null
+      },
+      "resolution_gap_days": null,
+      "rule_screen": "compound_market",
+      "rule_screen_detail": "shared=south,north;anchors=south,north",
+      "rule_review": "none",
+      "review": null,
+      "hedged": false,
+      "last": {
+        "gross_cents": null,
+        "net_cents": null,
+        "annualized_pct": null,
+        "executable_size": null,
+        "status": "rejected"
+      },
+      "first_seen_at": "2026-11-16T04:08:26.450Z",
+      "last_seen_at": "2026-11-16T04:08:26.450Z"
+    },
+    {
+      "pair_id": "KXMVECROSSCATEGORY-S2026WIX22JC5XROMNZEX-L2VX3WBTR|will-north-korea-invade-south-korea-before-2027",
+      "title": "Will North Korea invade South Korea before 2027?",
+      "category": "other",
+      "source": "discovery",
+      "kalshi": {
+        "ticker": "KXMVECROSSCATEGORY-S2026WIX22JC5XROMNZEX-L2VX3WBTR",
+        "title": "yes Over 1.5 goals scored,yes Over 0.5 goals scored,yes Over 0.5 goals scored,yes Over 0.5 goals scored,yes Over 0.5 goals scored,yes Over 0.5 goals scored,yes Over 0.5 goals scored,yes Over 0.5 goals scored,yes Over 0.5 goals scored,yes Over 0.5 goals scored,yes Reg Time: Over 0.5 goals scored,yes Reg Time: Over 0.5 goals scored,yes Alabama,yes Auburn,yes Ole Miss,yes Ohio over 9.5 points,yes Western Michigan over 9.5 points,yes Miami (OH) over 13.5 points,yes Duke over 13.5 points,yes Oregon over 13.5 points,yes New Mexico over 9.5 points,yes Arizona over 13.5 points,yes Arkansas over 2.5 points,yes Texas over 13.5 points,yes BYU over 13.5 points,yes Colorado St. over 6.5 points,yes Fresno St. over 19.5 points,yes Georgia Southern over 9.5 points,yes Houston over 16.5 points,yes West Virginia over 13.5 points,yes Indiana over 13.5 points,yes Iowa over 9.5 points,yes LSU over 9.5 points,yes USC over 16.5 points,yes Middle Tennessee over 13.5 points,yes North Dakota St. over 16.5 points,yes Oklahoma St. over 13.5 points,yes Ohio St. over 9.5 points,yes Louisville over 13.5 points,yes Rutgers over 2.5 points,yes Boise St. over 20.5 points,yes San Diego St. over 9.5 points,yes Notre Dame over 19.5 points,yes Syracuse over 13.5 points,yes Texas Tech over 13.5 points,yes UCLA over 9.5 points,yes South Carolina over 2.5 points,yes Georgia over 13.5 points,yes Kentucky over 6.5 points,yes North Carolina over 6.5 points,yes Oregon St. over 9.5 points,yes TCU over 6.5 points,yes Utah over 13.5 points,yes Vanderbilt over 2.5 points,yes Miami (FL) over 16.5 points,yes Wake Forest over 19.5 points,yes Baltimore over 3.5 points,yes San Jose,yes Over 1.5 goals scored,yes Over 1.5 goals scored,yes Over 1.5 goals scored,yes Over 1.5 goals scored,yes Over 1.5 goals scored,yes Over 1.5 goals scored,yes Over 1.5 goals scored,yes Over 0.5 goals scored,yes Over 0.5 goals scored,yes Over 0.5 goals scored,yes Over 0.5 goals scored,yes Over 0.5 goals scored,yes Over 0.5 goals scored,yes Over 0.5 goals scored,yes Over 0.5 goals scored,yes Over 0.5 goals scored",
+        "resolution_at": null,
+        "rules_excerpt": null
+      },
+      "polymarket": {
+        "slug": "will-north-korea-invade-south-korea-before-2027",
+        "question": "Will North Korea invade South Korea before 2027?",
+        "resolution_at": "2027-01-01T04:59:00.000Z",
+        "rules_excerpt": null
+      },
+      "resolution_gap_days": null,
+      "rule_screen": "compound_market",
+      "rule_screen_detail": "shared=north,south;anchors=north,south",
+      "rule_review": "none",
+      "review": null,
+      "hedged": false,
+      "last": {
+        "gross_cents": null,
+        "net_cents": null,
+        "annualized_pct": null,
+        "executable_size": null,
+        "status": "rejected"
+      },
+      "first_seen_at": "2026-11-16T04:08:26.450Z",
+      "last_seen_at": "2026-11-16T04:08:26.450Z"
+    },
+    {
+      "pair_id": "KXMVECROSSCATEGORY-S2026CK6U3DP5ICN2NAH6-HVUCZ4VXZ|will-north-korea-invade-south-korea-before-2027",
+      "title": "Will North Korea invade South Korea before 2027?",
+      "category": "other",
+      "source": "discovery",
+      "kalshi": {
+        "ticker": "KXMVECROSSCATEGORY-S2026CK6U3DP5ICN2NAH6-HVUCZ4VXZ",
+        "title": "yes Stephen F. Austin,yes Toledo,yes Duke,yes Oregon,yes Air Force,yes Arizona,yes Texas,yes Louisiana,yes Tulsa,yes Fresno St.,yes Dayton,yes South Dakota St.,yes USC,yes North Dakota St.,yes Penn St.,yes Boise St.,yes Notre Dame,yes Tarleton St.,yes Georgia,yes Utah,yes Wake Forest,yes Liberty,yes Texas St.,yes Texas Tech,yes Ole Miss,yes North Dakota St.,yes Texas,yes Utah,yes Miami (FL),yes Wake Forest,yes Georgia,yes LSU,yes Notre Dame,yes Indiana,yes Kansas City,yes Denver,yes Buffalo,yes Chicago,yes Detroit,yes Cincinnati",
+        "resolution_at": null,
+        "rules_excerpt": null
+      },
+      "polymarket": {
+        "slug": "will-north-korea-invade-south-korea-before-2027",
+        "question": "Will North Korea invade South Korea before 2027?",
+        "resolution_at": "2027-01-01T04:59:00.000Z",
+        "rules_excerpt": null
+      },
+      "resolution_gap_days": null,
+      "rule_screen": "compound_market",
+      "rule_screen_detail": "shared=south,north;anchors=south,north",
+      "rule_review": "none",
+      "review": null,
+      "hedged": false,
+      "last": {
+        "gross_cents": null,
+        "net_cents": null,
+        "annualized_pct": null,
+        "executable_size": null,
+        "status": "rejected"
+      },
+      "first_seen_at": "2026-11-16T04:03:19.764Z",
+      "last_seen_at": "2026-11-16T04:03:19.764Z"
+    },
+    {
+      "pair_id": "KXMVECROSSCATEGORY-S2026DIYTI5DDLIWVQQJL-4MM2GQWTB|will-north-korea-invade-south-korea-before-2027",
+      "title": "Will North Korea invade South Korea before 2027?",
+      "category": "other",
+      "source": "discovery",
+      "kalshi": {
+        "ticker": "KXMVECROSSCATEGORY-S2026DIYTI5DDLIWVQQJL-4MM2GQWTB",
+        "title": "yes Stephen F. Austin,yes Oregon,yes Air Force,yes BYU,yes Tulsa,yes Dayton,yes South Carolina St.,yes Abilene Christian,yes Stony Brook,yes Iowa,yes Lehigh,yes Montana St.,yes Butler,yes Ohio St.,yes North Dakota,yes West Florida,yes Florida,yes Wake Forest,yes Richmond",
+        "resolution_at": null,
+        "rules_excerpt": null
+      },
+      "polymarket": {
+        "slug": "will-north-korea-invade-south-korea-before-2027",
+        "question": "Will North Korea invade South Korea before 2027?",
+        "resolution_at": "2027-01-01T04:59:00.000Z",
+        "rules_excerpt": null
+      },
+      "resolution_gap_days": null,
+      "rule_screen": "compound_market",
+      "rule_screen_detail": "shared=south,north;anchors=south,north",
+      "rule_review": "none",
+      "review": null,
+      "hedged": false,
+      "last": {
+        "gross_cents": null,
+        "net_cents": null,
+        "annualized_pct": null,
+        "executable_size": null,
+        "status": "rejected"
+      },
+      "first_seen_at": "2026-11-16T04:03:19.764Z",
+      "last_seen_at": "2026-11-16T04:03:19.764Z"
+    },
+    {
+      "pair_id": "KXMVECROSSCATEGORY-S2026OMTY67BPYMKLRJP2-YAIPHO74B|will-party-a-win-the-2028-us-presidential-election",
+      "title": "Will Party A win the 2028 US Presidential Election?",
+      "category": "politics",
+      "source": "discovery",
+      "kalshi": {
+        "ticker": "KXMVECROSSCATEGORY-S2026OMTY67BPYMKLRJP2-YAIPHO74B",
+        "title": "yes Bayern Munich,no M´gladbach wins by more than 1.5 goals,no Paderborn wins by more than 1.5 goals,no Union Berlin wins by more than 2.5 goals,yes Bournemouth,yes Manchester City,yes Arsenal,no Sunderland wins by more than 1.5 goals,no Chelsea wins by more than 2.5 goals,no Manchester United wins by more than 1.5 goals,no Andorra wins by more than 1.5 goals,yes Real Madrid,yes Barcelona,no Espanyol wins by more than 1.5 goals,no Sevilla wins by more than 1.5 goals,no Getafe wins by more than 1.5 goals,no Malaga wins by more than 1.5 goals,no Santander wins by more than 1.5 goals,yes Como,yes Juventus,no Torino wins by more than 1.5 goals,no Frosinone wins by more than 1.5 goals,no Atalanta wins by more than 1.5 goals",
+        "resolution_at": null,
+        "rules_excerpt": null
+      },
+      "polymarket": {
+        "slug": "will-party-a-win-the-2028-us-presidential-election",
+        "question": "Will Party A win the 2028 US Presidential Election?",
+        "resolution_at": "2028-11-07T00:00:00.000Z",
+        "rules_excerpt": null
+      },
+      "resolution_gap_days": null,
+      "rule_screen": "compound_market",
+      "rule_screen_detail": "shared=win,us;anchors=us;resolution=weak_shared_resolution_terms",
+      "rule_review": "none",
+      "review": null,
+      "hedged": false,
+      "last": {
+        "gross_cents": null,
+        "net_cents": null,
+        "annualized_pct": null,
+        "executable_size": null,
+        "status": "rejected"
+      },
+      "first_seen_at": "2026-11-16T04:03:19.764Z",
+      "last_seen_at": "2026-11-16T04:03:19.764Z"
+    },
+    {
+      "pair_id": "KXMVECROSSCATEGORY-S2026OMTY67BPYMKLRJP2-YAIPHO74B|will-party-b-win-the-2028-us-presidential-election",
+      "title": "Will Party B win the 2028 US Presidential Election?",
+      "category": "politics",
+      "source": "discovery",
+      "kalshi": {
+        "ticker": "KXMVECROSSCATEGORY-S2026OMTY67BPYMKLRJP2-YAIPHO74B",
+        "title": "yes Bayern Munich,no M´gladbach wins by more than 1.5 goals,no Paderborn wins by more than 1.5 goals,no Union Berlin wins by more than 2.5 goals,yes Bournemouth,yes Manchester City,yes Arsenal,no Sunderland wins by more than 1.5 goals,no Chelsea wins by more than 2.5 goals,no Manchester United wins by more than 1.5 goals,no Andorra wins by more than 1.5 goals,yes Real Madrid,yes Barcelona,no Espanyol wins by more than 1.5 goals,no Sevilla wins by more than 1.5 goals,no Getafe wins by more than 1.5 goals,no Malaga wins by more than 1.5 goals,no Santander wins by more than 1.5 goals,yes Como,yes Juventus,no Torino wins by more than 1.5 goals,no Frosinone wins by more than 1.5 goals,no Atalanta wins by more than 1.5 goals",
+        "resolution_at": null,
+        "rules_excerpt": null
+      },
+      "polymarket": {
+        "slug": "will-party-b-win-the-2028-us-presidential-election",
+        "question": "Will Party B win the 2028 US Presidential Election?",
+        "resolution_at": "2028-11-07T00:00:00.000Z",
+        "rules_excerpt": null
+      },
+      "resolution_gap_days": null,
+      "rule_screen": "compound_market",
+      "rule_screen_detail": "shared=win,us;anchors=us;resolution=weak_shared_resolution_terms",
+      "rule_review": "none",
+      "review": null,
+      "hedged": false,
+      "last": {
+        "gross_cents": null,
+        "net_cents": null,
+        "annualized_pct": null,
+        "executable_size": null,
+        "status": "rejected"
+      },
+      "first_seen_at": "2026-11-16T04:03:19.764Z",
+      "last_seen_at": "2026-11-16T04:03:19.764Z"
+    },
+    {
+      "pair_id": "KXMVECROSSCATEGORY-S2026OMTY67BPYMKLRJP2-YAIPHO74B|will-party-c-win-the-2028-us-presidential-election",
+      "title": "Will Party C win the 2028 US Presidential Election?",
+      "category": "politics",
+      "source": "discovery",
+      "kalshi": {
+        "ticker": "KXMVECROSSCATEGORY-S2026OMTY67BPYMKLRJP2-YAIPHO74B",
+        "title": "yes Bayern Munich,no M´gladbach wins by more than 1.5 goals,no Paderborn wins by more than 1.5 goals,no Union Berlin wins by more than 2.5 goals,yes Bournemouth,yes Manchester City,yes Arsenal,no Sunderland wins by more than 1.5 goals,no Chelsea wins by more than 2.5 goals,no Manchester United wins by more than 1.5 goals,no Andorra wins by more than 1.5 goals,yes Real Madrid,yes Barcelona,no Espanyol wins by more than 1.5 goals,no Sevilla wins by more than 1.5 goals,no Getafe wins by more than 1.5 goals,no Malaga wins by more than 1.5 goals,no Santander wins by more than 1.5 goals,yes Como,yes Juventus,no Torino wins by more than 1.5 goals,no Frosinone wins by more than 1.5 goals,no Atalanta wins by more than 1.5 goals",
+        "resolution_at": null,
+        "rules_excerpt": null
+      },
+      "polymarket": {
+        "slug": "will-party-c-win-the-2028-us-presidential-election",
+        "question": "Will Party C win the 2028 US Presidential Election?",
+        "resolution_at": "2028-11-07T00:00:00.000Z",
+        "rules_excerpt": null
+      },
+      "resolution_gap_days": null,
+      "rule_screen": "compound_market",
+      "rule_screen_detail": "shared=win,us;anchors=us;resolution=weak_shared_resolution_terms",
+      "rule_review": "none",
+      "review": null,
+      "hedged": false,
+      "last": {
+        "gross_cents": null,
+        "net_cents": null,
+        "annualized_pct": null,
+        "executable_size": null,
+        "status": "rejected"
+      },
+      "first_seen_at": "2026-11-16T04:03:19.764Z",
+      "last_seen_at": "2026-11-16T04:03:19.764Z"
     }
   ],
   "paper_positions": [
